@@ -39,6 +39,10 @@ public:
     QTabWidget* tabs() const { return m_tabs; }
     CommandPalette* commandPalette() const { return m_palette; }
 
+signals:
+    // The stale temporary-file sweep started by openVault() has finished (IMP-002).
+    void tempSweepFinished(int removed);
+
 protected:
     void closeEvent(QCloseEvent* event) override;
 
@@ -50,6 +54,7 @@ private:
     void saveLayout() const;
 
     void chooseVault();
+    void sweepTempFiles(const QString& root);
     void closeCurrentTab();
     void showCommandPalette();
     void updateStatus();

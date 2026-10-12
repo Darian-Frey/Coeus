@@ -19,7 +19,7 @@ Authoritative technical reference for Coeus. FEATURES.md says what; this says ho
 └── .gitignore              # `.coeus/` offered on first open (below)
 ```
 
-On first open of a vault that is a Git repository whose `.gitignore` does not exclude `.coeus/`, Coeus offers to add it. Accepting is an explicit user command and goes through `AtomicWriter`; declining is remembered in `config.toml` and not asked again. Coeus never edits `.gitignore` unasked.
+On first open of a vault that is a Git repository whose `.gitignore` does not exclude `.coeus/`, Coeus offers to add it, together with `.*.coeus-tmp-*` so a temporary file left by a crash never shows as untracked. Accepting is an explicit user command and goes through `AtomicWriter`; declining is remembered in `config.toml` and not asked again. Coeus never edits `.gitignore` unasked.
 
 A **project** is any folder containing a `README.md` whose first four lines are the scaffold status header (§Status header). Register files are recognised only inside a project folder.
 
@@ -363,6 +363,8 @@ write(tmp); fsync(tmp); rename(tmp, path); fsync(dir(path))
 ```
 
 The temporary file is created with `O_EXCL`. If the original existed, its mode is copied exactly and its owner and group are copied where the process is permitted; an ownership failure is logged as a warning and the save proceeds. If `path` is a symlink, the write replaces the link's target and the link is kept. Any failure before the rename removes the temporary file and leaves the original untouched. A failed directory fsync after the rename is logged, not reported as a failed save, because the new content is already in place.
+
+A crash between creating the temporary file and the rename leaves it behind; the original is intact. On vault open, `TempSweeper` walks the vault on a worker thread and deletes files that match all of: a regular file (not a symlink), named `^\..+\.coeus-tmp-[0-9a-f]+$`, last modified more than 60 s ago, and not inside `.git/`. The age limit spares a save in progress in another Coeus process. This is the only deletion Coeus makes without a user command (IMP-002).
 
 ## Autosave journal
 

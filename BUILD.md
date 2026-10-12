@@ -15,7 +15,7 @@ The Phase 1 shell needs only the first line; the libraries on the second are Pha
 |-------------|---------|-----|
 | GCC or Clang | GCC 13 / Clang 17 | C++23 with `std::expected` (D-013) |
 | CMake | 3.25 | |
-| Qt | 6.4 | Core, Gui, Widgets; Test for the test suite. Linked dynamically (D-009) |
+| Qt | 6.4 | Core, Concurrent, Gui, Widgets; Test for the test suite. Linked dynamically (D-009) |
 | SQLite | 3.40 | FTS5 and extension loading enabled; C API, not Qt SQL (D-018) |
 | md4c, md4c-html | 0.4.8 | Markdown parsing and reading mode (D-014) |
 | yaml-cpp | 0.8 | Frontmatter (D-015) |

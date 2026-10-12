@@ -1,8 +1,9 @@
 #include "vault/AtomicWriter.hpp"
 
+#include "vault/VaultLogging.hpp"
+
 #include <QFile>
 #include <QFileInfo>
-#include <QLoggingCategory>
 #include <QRandomGenerator>
 
 #include <cerrno>
@@ -11,8 +12,6 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-Q_LOGGING_CATEGORY(lcVault, "coeus.vault")
 
 namespace coeus {
 

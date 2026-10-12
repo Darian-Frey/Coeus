@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(COEUS_BUILD_TESTS "Build the Coeus test suite" OFF)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Concurrent Gui Widgets)
 qt_standard_project_setup()
 
 # Project-wide warning policy. Applied to Coeus targets only, never to Qt.
@@ -22,7 +22,9 @@ target_compile_options(coeus_warnings INTERFACE -Wall -Wextra -Werror)
 # Everything except main() lives in a static library so tests can link it.
 add_library(coeus_core STATIC
     src/vault/AtomicWriter.cpp
+    src/vault/TempSweeper.cpp
     src/vault/Vault.cpp
+    src/vault/VaultLogging.cpp
     src/ui/CommandPalette.cpp
     src/ui/ExplorerPanel.cpp
     src/ui/FuzzyMatch.cpp
@@ -31,7 +33,7 @@ add_library(coeus_core STATIC
 )
 target_include_directories(coeus_core PUBLIC src)
 target_link_libraries(coeus_core
-    PUBLIC Qt6::Core Qt6::Gui Qt6::Widgets
+    PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Widgets
     PRIVATE coeus_warnings)
 
 qt_add_executable(coeus src/app/main.cpp)

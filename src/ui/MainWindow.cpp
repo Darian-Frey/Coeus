@@ -3,6 +3,7 @@
 #include "ui/CommandPalette.hpp"
 #include "ui/ExplorerPanel.hpp"
 #include "ui/SidebarPanel.hpp"
+#include "vault/TempSweeper.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -11,6 +12,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QFutureWatcher>
 #include <QLabel>
 #include <QMenuBar>
 #include <QPlainTextEdit>
@@ -18,6 +20,7 @@
 #include <QStatusBar>
 #include <QTabWidget>
 #include <QToolBar>
+#include <QtConcurrent/QtConcurrentRun>
 
 namespace coeus {
 
@@ -174,6 +177,22 @@ void MainWindow::openVault(const Vault& vault)
     m_explorer->setRootPath(vault.rootPath());
     setWindowTitle(QStringLiteral("%1 — Coeus").arg(vault.name()));
     updateStatus();
+    sweepTempFiles(vault.rootPath());
+}
+
+void MainWindow::sweepTempFiles(const QString& root)
+{
+    auto* watcher = new QFutureWatcher<TempSweeper::Result>(this);
+    connect(watcher, &QFutureWatcher<TempSweeper::Result>::finished, this, [this, watcher] {
+        const TempSweeper::Result result = watcher->result();
+        watcher->deleteLater();
+        if (result.removed > 0)
+            statusBar()->showMessage(tr("Removed %n leftover temporary file(s) from interrupted saves.",
+                                        nullptr, result.removed),
+                                     kStatusTimeoutMs);
+        emit tempSweepFinished(result.removed);
+    });
+    watcher->setFuture(QtConcurrent::run([root] { return TempSweeper::sweep(root); }));
 }
 
 void MainWindow::openNote(const QString& absolutePath)

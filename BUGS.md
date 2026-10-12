@@ -38,7 +38,7 @@ _None._
 **Fixed:** 2026-10-12
 **Location:** SPEC.md §Vault layout, DECISIONS.md D-005, CLAUDE.md §Invariants
 **Description.** SPEC said `.coeus/` is added to `.gitignore` on first open, a vault write outside the editor save path and outside any explicit user command.
-**Fix.** Coeus now offers the change on first open; accepting is an explicit command through `AtomicWriter`, declining is remembered. The vault layout diagram also gains `ideas/`, `.coeus/journal/` and `.coeus-shared/`.
+**Fix.** Coeus now offers the change on first open; accepting is an explicit command through `AtomicWriter`, declining is remembered. The vault layout diagram also gains `ideas/`, `.coeus/journal/` and `.coeus-shared/`. IMP-002 later added `.*.coeus-tmp-*` to the same offer.
 
 ### BUG-004: `next_id` reservations had no cross-process home
 **Status:** fixed

@@ -50,7 +50,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **ui/** — All Qt widgets. `MainWindow` is a `QMainWindow` whose central widget is a `QTabWidget` of `Editor` instances; the explorer and sidebar are `QDockWidget`s. Panels subscribe to index signals and issue queries; they never touch the filesystem or SQLite directly.
 
-**vault/** — Filesystem boundary. `Vault` resolves paths and enumerates files; `VaultWatcher` wraps `QFileSystemWatcher` on directories and normalises rename-based saves into modify events; `AtomicWriter` performs temp-write, fsync, rename.
+**vault/** — Filesystem boundary. `Vault` resolves paths and enumerates files; `TempSweeper` removes temporary files left by interrupted saves, on a worker thread; `VaultWatcher` wraps `QFileSystemWatcher` on directories and normalises rename-based saves into modify events; `AtomicWriter` performs temp-write, fsync, rename.
 
 **parser/** — Pure functions from text to structures. CommonMark plus wikilinks, tags, frontmatter, callouts, block IDs. `RegisterParser` recognises the scaffold document types by filename and yields typed entries. No Qt dependencies beyond `QString`; unit-testable in isolation.
 
@@ -75,7 +75,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 ## Key invariants
 
 1. **Vault is truth, index is cache.** Deleting `.coeus/index.db` and restarting must reproduce an identical index with no user-visible change beyond a rebuild delay. (AV-001)
-2. **Writes are explicit and atomic.** Only `AtomicWriter` touches vault files, and only on behalf of a user action. (AV-002)
+2. **Writes are explicit and atomic.** Only `AtomicWriter` touches vault files, and only on behalf of a user action. (AV-002) The one exception is `TempSweeper`, which deletes `AtomicWriter`'s own stale temporary files on vault open (IMP-002).
 3. **UI thread never blocks.** Indexing, embedding, Git and sync run on worker threads; the UI observes signals. (AV-005)
 4. **Register IDs are append-only.** `NextId` reads the highest existing ID and adds one; nothing renumbers. (AV-003)
 5. **One vector space per index.** The embedding model name and dimension are stored in the index; a mismatch triggers a full re-embed, never a mixed table. (AV-007)

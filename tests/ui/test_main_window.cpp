@@ -71,6 +71,24 @@ private slots:
         QCOMPARE(window.tabs()->count(), 0);
     }
 
+    void openingVaultSweepsStaleTempFiles()
+    {
+        QTemporaryDir dir;
+        const QString stale = writeNote(dir, QStringLiteral(".alpha.md.coeus-tmp-abc123"), "partial");
+        QFile staleFile(stale);
+        QVERIFY(staleFile.open(QIODevice::ReadWrite)); // setFileTime needs an open file
+        QVERIFY(staleFile.setFileTime(QDateTime::currentDateTimeUtc().addSecs(-600),
+                                      QFileDevice::FileModificationTime));
+        staleFile.close();
+
+        MainWindow window;
+        QSignalSpy finished(&window, &MainWindow::tempSweepFinished);
+        window.openVault(*Vault::open(dir.path()));
+        QVERIFY(finished.wait(5000));
+        QCOMPARE(finished.front().front().toInt(), 1);
+        QVERIFY(!QFile::exists(stale));
+    }
+
     void dockLayoutPersists()
     {
         {

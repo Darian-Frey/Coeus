@@ -16,6 +16,7 @@ coeus_add_test(test_atomic_writer vault/test_atomic_writer.cpp)
 target_compile_definitions(test_atomic_writer PRIVATE
     ATOMIC_WRITE_HELPER="$<TARGET_FILE:atomic_write_helper>")
 add_dependencies(test_atomic_writer atomic_write_helper)
+coeus_add_test(test_temp_sweeper vault/test_temp_sweeper.cpp)
 coeus_add_test(test_fuzzy_match ui/test_fuzzy_match.cpp)
 coeus_add_test(test_main_window ui/test_main_window.cpp)
 coeus_add_test(test_open_large_vault perf/test_open_large_vault.cpp)
