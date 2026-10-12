@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- SQLite index (D-017, D-018): `Database`/`Statement`/`Transaction` wrapper, schema v1, `IndexStore`, `LinkResolver` (SPEC §Wikilink resolution, ambiguity flagged), `Indexer` scan/update/verify, BLAKE2b-128 `ContentHash`. Tests `test_database`, `test_indexer`, `test_rebuild_equivalence` (AV-001). A full scan of 645 notes takes 0.8 s; resolving 1,418 links takes 5 ms.
 - Markdown parser (`NoteParser`, `Frontmatter`; D-014, D-015): wikilinks, embeds, local Markdown links, tags, headings, block IDs, typed properties and plain text with file line numbers. `test_note_parser` (25 cases); 305 real notes parse at 0.5 ms each in a debug build.
 - `TempSweeper` removes stale `.coeus-tmp-*` files on vault open, off the UI thread (IMP-002 applied); the write invariant names it as the sole exception.
 - `tools/check_xrefs.py` cross-reference checker with tests, ctest entries and a pre-commit hook (IMP-001 applied).
@@ -22,6 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- SPEC §Index schema: `links.ambiguous`; no migrations, a mismatched or unreadable index is rebuilt; indexed-file rules; resolution recomputed per update; file links (attachments, Markdown links to non-`.md` files) are neither resolved nor counted as broken.
 - SPEC §Markdown dialect: local Markdown links are links, resolved relative to the note's folder; all-digit tags excluded and tag letters may be any script, as in Obsidian; embeds found by `parser/`; frontmatter property type inference. `links` gains `style`, `props` gains `line`.
 - ROADMAP Phase 2 deliverables now cover every Phase 2 feature's acceptance: `AtomicWriter`, rebuild-equivalence check, `.gitignore` offer, autosave journal, conflict prompt, reading mode, unlinked mentions.
 - Phase 1 (GUI shell) Complete; F-001 and F-002 Complete (2026-10-12).

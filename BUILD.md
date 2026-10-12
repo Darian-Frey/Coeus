@@ -9,7 +9,7 @@ sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-too
     libsqlite3-dev libmd4c-dev libmd4c-html0-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev
 ```
 
-The Phase 1 shell needs only the first line; the libraries on the second are Phase 2 dependencies (D-014 to D-018) and become required as each module lands.
+All of these are required to build. toml++ is listed ahead of its first use with linked roots.
 
 | Requirement | Minimum | Why |
 |-------------|---------|-----|

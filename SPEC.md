@@ -157,7 +157,7 @@ Reservations are transient, not vault data, so losing them in an index rebuild l
 
 ## Index schema
 
-SQLite, WAL mode, `PRAGMA foreign_keys=ON`. Schema version in `meta`.
+SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 1 holds the Phase 2 tables plus `projects`; `ideas`, `reservations`, the register tables, `lint`, `chunks` and `vec` arrive with Phase 3 and a version bump.
 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -203,7 +203,8 @@ CREATE TABLE links (
   style TEXT NOT NULL DEFAULT 'wiki', -- 'wiki' | 'markdown' (§Wikilink resolution)
   heading TEXT, block TEXT, alias TEXT,
   line INTEGER NOT NULL,
-  embed INTEGER NOT NULL DEFAULT 0
+  embed INTEGER NOT NULL DEFAULT 0,
+  ambiguous INTEGER NOT NULL DEFAULT 0 -- 1 when resolution found equal candidates (AV-006)
 );
 CREATE INDEX links_target ON links(target_note);
 
@@ -287,7 +288,11 @@ CREATE VIRTUAL TABLE vec USING vec0(
 );
 ```
 
-Incremental update: on a file event the indexer compares `hash`; unchanged files are skipped. A changed file has its rows deleted by cascade and re-inserted in one transaction; its `fts` row (not covered by foreign keys) is deleted and re-inserted by `rowid` in the same transaction.
+Indexed files: `*.md` under each root, excluding any path with a segment beginning `.` (so `.coeus/`, `.git/` and temporary files) and folder symlinks. `title` is the filename without its last extension.
+
+Incremental update: on a file event the indexer compares `hash`; a file with unchanged content only has `mtime` and `size` refreshed. A changed file has its rows deleted by cascade and re-inserted in one transaction, keeping its `notes.id`; its `fts` row (not covered by foreign keys) is deleted and re-inserted by `rowid` in the same transaction. Every scan or update ends by recomputing link resolution for the whole index in memory and writing only changed `links` rows, because adding or removing one note can resolve, unresolve or make ambiguous links in any other.
+
+File links are not resolved to notes and not counted as unresolved: wikilinks and Markdown links to attachments (images, PDFs, audio, video, `.canvas`), and Markdown links to any file whose extension is not `.md`.
 
 ## Full-text query syntax
 

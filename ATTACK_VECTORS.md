@@ -9,7 +9,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-001 Index drift from vault
 **Severity:** Critical
 **Description.** The SQLite index disagrees with the files on disk — a note exists but is not indexed, a deleted note still appears, or backlinks point at stale content. Causes: missed watcher events, inotify watch exhaustion, crashes mid-transaction, rename-based saves seen as delete only.
-**Detection.** not implemented (would require `tests/index/test_rebuild_equivalence.cpp`: index a fixture vault incrementally through a scripted sequence of edits, then rebuild from scratch and assert the two databases are row-identical; plus a "Verify index" command in the app comparing `notes.hash` to disk).
+**Detection.** Partly implemented. `tests/index/test_rebuild_equivalence.cpp` indexes a fixture vault with a linked root, applies 8 scripted edits (create, delete, rename, touch, duplicate title, alias, linked-root edit, invalid frontmatter) and 150 seeded random ones through `Indexer::update`, and asserts at 15 checkpoints that the index is row-identical to a fresh rebuild. Disabling link re-resolution in `update` makes it fail at the first checkpoint. `Indexer::verify` compares `notes.hash` to disk; not implemented: the "Verify index" command that exposes it in the app.
 **Related decisions.** D-005 (vault is truth, index is cache).
 **History.** Identified during scaffolding 2026-09-25.
 
@@ -48,7 +48,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-006 Wikilink resolution ambiguity
 **Severity:** Major
 **Description.** Two notes share a title in different folders (every project has a `README.md`, `DECISIONS.md`, and so on); a `[[README]]` link resolves to the wrong project's file, or resolution changes when a new note is added elsewhere in the vault.
-**Detection.** not implemented (would require `tests/parser/test_link_resolution.cpp` covering each rule in SPEC.md §Wikilink resolution and asserting ambiguous cases are flagged rather than guessed).
+**Detection.** Implemented in `tests/index/test_indexer.cpp` (`wikilinkResolutionOrder`, `markdownLinkResolution`): each rule in SPEC.md §Wikilink resolution, including same-named READMEs in sibling projects, and an equal-distance case that is flagged `ambiguous` rather than guessed.
 **Related decisions.** D-005, D-010.
 **History.** Identified during scaffolding 2026-09-25. Especially likely in this vault because the scaffold standard mandates identical filenames across projects. Linked roots (D-010) add a root dimension to resolution, 2026-10-12.
 

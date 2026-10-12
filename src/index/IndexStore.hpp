@@ -1,0 +1,59 @@
+#pragma once
+
+#include "index/Database.hpp"
+#include "parser/ParsedNote.hpp"
+
+#include <QByteArray>
+#include <QHash>
+#include <QString>
+
+#include <cstdint>
+#include <expected>
+
+namespace coeus {
+
+struct RootInfo {
+    int id = 0; // 0 is the vault folder (SPEC.md §Linked roots)
+    QString name;
+    QString path; // absolute, this machine
+};
+
+struct NoteRecord {
+    int rootId = 0;
+    QString path; // root-relative, forward slashes
+    std::int64_t mtime = 0;
+    std::int64_t size = 0;
+    QByteArray hash;
+};
+
+// Row-level access to the index database. Writers call putNote/removeNote
+// inside a Transaction so a note's rows change together (SPEC.md §Index schema).
+class IndexStore {
+public:
+    // Opens `path`, creating the schema. An index with another schema version
+    // is deleted and recreated, since the index is a cache (D-005).
+    static std::expected<IndexStore, QString> open(const QString& path);
+
+    std::expected<void, QString> putRoot(const RootInfo& root);
+
+    // Root-relative path -> hash for every note in `rootId`.
+    std::expected<QHash<QString, QByteArray>, QString> noteHashes(int rootId);
+
+    // Replaces every row derived from one note.
+    std::expected<void, QString> putNote(const NoteRecord& record, const ParsedNote& note);
+    // Records a new mtime and size for a note whose content is unchanged.
+    std::expected<void, QString> touchNote(const NoteRecord& record);
+    std::expected<void, QString> removeNote(int rootId, const QString& path);
+
+    Database& database() { return m_db; }
+
+    static QString titleOf(const QString& path);
+
+private:
+    explicit IndexStore(Database db);
+    std::expected<std::int64_t, QString> noteId(int rootId, const QString& path);
+
+    Database m_db;
+};
+
+} // namespace coeus

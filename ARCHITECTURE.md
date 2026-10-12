@@ -54,7 +54,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **parser/** — Pure functions from text to structures. `NoteParser` runs md4c (D-014) and `Frontmatter` runs yaml-cpp (D-015) to yield a `ParsedNote`: links (wiki and Markdown), embeds, tags, headings, block IDs, properties and plain text, each with a file line number. Callouts follow with reading mode. `RegisterParser` recognises the scaffold document types by filename and yields typed entries. No Qt dependencies beyond `QString`; unit-testable in isolation.
 
-**index/** — SQLite schema (SPEC.md §Index), migrations, and `Indexer`, which consumes watcher events on a worker thread and updates rows incrementally. Exposes read-only query objects to the UI and emits `noteChanged`, `linksChanged`, `registersChanged` signals.
+**index/** — `Database` (RAII over the SQLite C API, D-018), `Schema` (rebuilt rather than migrated), `IndexStore` (row writes per note), `LinkResolver` (SPEC.md §Wikilink resolution) and `Indexer`, which scans a root, applies single-file updates and verifies against disk, one transaction per call. `ContentHash` is BLAKE2b-128 (D-017). The worker thread that feeds `Indexer` from watcher events arrives with the watcher. Exposes read-only query objects to the UI and emits `noteChanged`, `linksChanged`, `registersChanged` signals.
 
 **registers/** — Domain model over index rows: `RegisterEntry`, `RegisterKind`, status vocabularies, `NextId` allocator, `Lint` rules (unresolved references, superseded targets, invalid status, unidirectional cross-references).
 
