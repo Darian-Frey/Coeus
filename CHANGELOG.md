@@ -4,6 +4,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Phase 1 shell (F-001, F-002): CMake project (C++23, `-Wall -Wextra -Werror`), `MainWindow` with explorer and sidebar docks, tool strip, tabs and status bar; vault opened from the command line or File menu; Markdown-and-attachments explorer; read-only note tabs; `Ctrl+P` command palette with fuzzy filter; dock layout persisted through `QSettings`.
+- Tests: `test_vault`, `test_fuzzy_match`, `test_main_window`, `test_open_large_vault` (1,000-file tree in 63 ms against a 500 ms budget).
+- BUILD.md.
 - Initial scaffolding: README, CLAUDE.md, FEATURES (F-001–F-031), ROADMAP (Phases 1–6), ARCHITECTURE, DECISIONS (D-001–D-009), SPEC, ATTACK_VECTORS (AV-001–AV-009), BUGS, IMPROVEMENTS (IMP-001), CHANGELOG.
 - D-010 linked project roots, D-011 vault-not-index sync with embeddings sidecar, D-012 MCP server.
 - Project directory layout: `src/` module folders (including `src/mcp/`), `tests/`, `tools/`, `docs/design/` with the main-window mockup.
@@ -14,6 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-013 C++23 language standard.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- Minimum Qt lowered from 6.5 to 6.4 to build against the distribution's packaged Qt (Mint 22, Ubuntu 24.04).
 - C++20 → C++23 so `std::expected` is available (BUG-001, D-013).
 - `fts` stores its own text so snippets work (BUG-002).
 - `.coeus/` in `.gitignore` is offered on first open, not written unasked (BUG-003).

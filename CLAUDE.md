@@ -4,10 +4,10 @@
 Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt6. The vault is a plain folder of `.md` files plus linked project repositories (F-034); Coeus keeps only a rebuildable SQLite index beside it. Three features define the product: scaffold-aware registers and the project board (F-015, F-016, F-032), Mnemosyne semantic search with a related-notes sidebar (F-018, F-019), and native Git (F-020–F-022). An MCP server (F-033) lets Claude chat and Claude Code read and write the same index.
 
 ## Current state
-- Nothing built yet. Repository contains documentation only.
-- `src/` (with module subfolders per README §Project structure), `tests/`, `tools/`: empty placeholders, no code yet.
+- Phase 1 shell builds and passes its tests (see BUILD.md): `src/app/main.cpp`, `src/vault/Vault`, `src/ui/{MainWindow,ExplorerPanel,SidebarPanel,CommandPalette,FuzzyMatch}`; tests under `tests/{vault,ui,perf}`.
+- Remaining `src/` module folders and `tools/` are empty placeholders.
 - UI mockup of the target main window: `docs/design/main-window.png`.
-- `BUILD.md`: not written — create it the moment the first `cmake --build` succeeds.
+- `BUILD.md`: written 2026-10-12 from the first successful build.
 - `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.
 
 ## Active task
@@ -33,11 +33,11 @@ Every later feature is a panel or command dropped into this shell. Do not build 
 
 ## Build & test
 ```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCOEUS_BUILD_TESTS=ON
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCOEUS_BUILD_TESTS=ON
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
-Not yet verified. Update when BUILD.md exists.
+Verified 2026-10-12; details and dependencies in BUILD.md. New sources are listed explicitly in `coeus_core` in the top-level `CMakeLists.txt`; new tests use `coeus_add_test` in `tests/CMakeLists.txt`.
 
 ## Conventions
 - British English in all prose, comments, and UI strings.

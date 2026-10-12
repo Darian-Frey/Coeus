@@ -4,16 +4,16 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 1 — GUI shell
 **Goal:** A running Qt6 window with the full panel skeleton so every later feature can be tested the moment it is wired in.
-**Status:** Not started
+**Status:** In progress
 **Features delivered:** F-001, F-002
 **Deliverables:**
-- [ ] CMake project with `src/app`, `src/ui` and a test target (`CMakeLists.txt`)
-- [ ] `MainWindow` with central editor placeholder, explorer dock, sidebar dock, toolbar, status bar, tab widget (`src/ui/MainWindow.cpp`)
-- [ ] Vault open from command line; `QFileSystemModel` tree filtered to Markdown and attachment types (`src/vault/Vault.cpp`, `src/ui/ExplorerPanel.cpp`)
-- [ ] Read-only load of a selected file into `QPlainTextEdit`
-- [ ] Command palette dialog with fuzzy action filter (`src/ui/CommandPalette.cpp`)
-- [ ] Layout persistence through `QSettings`
-- [ ] `BUILD.md` written from the first successful build
+- [x] CMake project with `src/app`, `src/ui` and a test target (`CMakeLists.txt`)
+- [x] `MainWindow` with central editor placeholder, explorer dock, sidebar dock, toolbar, status bar, tab widget (`src/ui/MainWindow.cpp`)
+- [x] Vault open from command line; `QFileSystemModel` tree filtered to Markdown and attachment types (`src/vault/Vault.cpp`, `src/ui/ExplorerPanel.cpp`)
+- [x] Read-only load of a selected file into `QPlainTextEdit`
+- [x] Command palette dialog with fuzzy action filter (`src/ui/CommandPalette.cpp`)
+- [x] Layout persistence through `QSettings`
+- [x] `BUILD.md` written from the first successful build
 **Acceptance:** Builds with `-Wall -Wextra -Werror`; opens a 1,000-file vault and shows the tree in under 500 ms; docks can be dragged, floated, hidden and restored.
 
 ## Phase 2 — Core vault

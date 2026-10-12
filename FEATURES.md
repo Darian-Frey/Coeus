@@ -20,7 +20,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - `QMainWindow` with central editor, left explorer dock, right sidebar dock, toolbar, status bar, tabbed notes
 - Dock layout and window geometry persist across restarts
 - Command palette opens on `Ctrl+P` and lists all registered actions with fuzzy filtering
-**Status:** Not started (Phase 1)
+**Status:** In progress (Phase 1)
 **Notes:** Every later feature is a panel or command inside this shell. See ARCHITECTURE.md §UI.
 
 ### F-002 Open a vault
@@ -29,7 +29,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Any folder can be opened as a vault from the command line or File menu
 - File explorer shows the folder tree filtered to `.md` and attachment types
 - A 1,000-file vault renders its tree in under 500 ms on target hardware
-**Status:** Not started (Phase 1)
+**Status:** In progress (Phase 1)
 
 ### F-003 Markdown editor with three modes
 **Priority:** Must

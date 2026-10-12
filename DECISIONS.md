@@ -283,7 +283,7 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 
 **Options.**
 - **A. Stay on C++20 and vendor `tl::expected`.** Header-only, CC0. Adds a dependency and an alias to be removed later.
-- **B. Move to C++23.** Chosen. The stated minimum compilers (GCC 13+, Clang 17+) already ship `std::expected` in C++23 mode; Qt 6.5+ builds cleanly under it.
+- **B. Move to C++23.** Chosen. The stated minimum compilers (GCC 13+, Clang 17+) already ship `std::expected` in C++23 mode; Qt 6.4+, the distribution-packaged minimum, builds under it.
 
 **Decision.** Option B. CMake sets `CMAKE_CXX_STANDARD 23` with `CMAKE_CXX_STANDARD_REQUIRED ON` and extensions off.
 

@@ -14,19 +14,19 @@ Named for the Titan of intellect and the celestial axis — the pole everything 
 ```bash
 git clone https://github.com/Darian-Frey/coeus.git
 cd coeus
-cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ./build/coeus ~/notes
 ```
 
-Commands above are the target for Phase 1; they are not yet verified. See `BUILD.md` once the first build lands.
+Verified 2026-10-12. See [BUILD.md](BUILD.md) for dependencies, tests and troubleshooting.
 
 ## Build requirements
 
 - Linux (x86_64). Developed on Linux Mint; Kubuntu also targeted.
 - C++23 compiler (GCC 13+ or Clang 17+); `std::expected` is required (D-013)
 - CMake 3.25+
-- Qt 6.5+ (Widgets, Gui, Core, Concurrent)
+- Qt 6.4+ (Widgets, Gui, Core, Concurrent, Test) — the version packaged by Linux Mint 22 and Ubuntu/Kubuntu 24.04
 - SQLite 3.40+ with FTS5, plus the `sqlite-vec` extension
 - libgit2 1.7+
 - An embedding model runtime for Mnemosyne (see `SPEC.md` §Embeddings — decision pending, D-008)
@@ -52,10 +52,11 @@ coeus/
     └── design/       # UI mockups (main-window.png)
 ```
 
-Directories exist as empty placeholders (`.gitkeep`); no source code yet. Scaffold documents live at the repository root.
+`app/`, `ui/` and `vault/` hold the Phase 1 shell; the other module folders are empty placeholders (`.gitkeep`). Scaffold documents live at the repository root.
 
 ## Documentation
 
+- [Build](BUILD.md)
 - [Features](FEATURES.md)
 - [Roadmap](ROADMAP.md)
 - [Architecture](ARCHITECTURE.md)
