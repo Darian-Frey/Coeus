@@ -292,3 +292,114 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - Other C++23 features (`std::print`, deducing `this`, `std::ranges::to`) are available, but only where both minimum compilers support them; anything newer needs this entry revisiting.
 
 **Reversal conditions.** Revisit if a target distribution's packaged compiler cannot build C++23 with `std::expected`, in which case Option A is the fallback.
+
+### D-014 Markdown parsing with md4c
+**Decided:** 2026-10-12
+**Recorded:** 2026-10-12
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-12)
+**Related:** F-003, F-004, F-007, F-013, F-023, F-024, F-025, D-002, SPEC.md §Markdown dialect
+
+**Context.** Phase 2 needs a CommonMark parser for the index (links, tags, headings, block IDs, each with a line number) and a renderer for reading mode. SPEC.md §Markdown dialect adds wikilinks, embeds, tags, block IDs, callouts, maths and highlights on top of CommonMark 0.31. ARCHITECTURE requires the parser to be pure and testable without an event loop.
+
+**Options.**
+- **A. md4c (0.4.8, packaged as `libmd4c-dev` and `libmd4c-html0-dev`, MIT).** A fast SAX-style C parser, CommonMark 0.31 compliant. It has flags for wikilinks (`[[target|label]]`), LaTeX maths spans, tables, strikethrough and task lists, and comes with an HTML renderer. Qt's own `QTextDocument::setMarkdown` is built on it, so reading-mode output matches what Qt widgets expect. It does not report node source positions; text runs arrive as pointers into the input buffer, so line numbers are computed from offsets.
+- **B. cmark-gfm (0.29, packaged, BSD-2).** An AST with `sourcepos` (line and column) on every block node, plus GFM extensions. It has no wikilink or maths support, and inline source positions are unreliable in this version.
+- **C. Write our own parser.** Full control over positions and extensions. Matching the CommonMark spec's edge cases is months of work and a standing source of bugs.
+
+**Decision.** Option A. The source buffer is UTF-8 and held for the whole parse, so offset-to-line mapping is a binary search over line starts. Frontmatter is stripped before md4c sees the text. Embeds (`![[…]]`), tags, block IDs, callouts and `==highlight==`, which md4c does not know, are recognised by `parser/` in md4c's text and block callbacks.
+
+**Consequences.**
+- One parser feeds both the index and reading mode.
+- `parser/` owns an extension layer above md4c, covered by `tests/parser/` fixtures for every construct in SPEC.md §Markdown dialect.
+- The source-mode highlighter (`QSyntaxHighlighter`) works per line and does not use md4c; parser and highlighter must agree on the extension grammars, which SPEC.md defines.
+
+**Reversal conditions.** Revisit if offset-based line mapping proves unreliable for constructs md4c rewrites (entities, tabs), in which case Option B for positions with our own extension pass is the fallback.
+
+### D-015 YAML frontmatter with yaml-cpp
+**Decided:** 2026-10-12
+**Recorded:** 2026-10-12
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-12)
+**Related:** F-008, F-032, SPEC.md §Markdown dialect, §Ideas
+
+**Context.** Frontmatter is YAML at byte 0 (SPEC.md §Markdown dialect). Coeus only reads it in Phase 2; the properties panel writes it back from Phase 2 on, so round-tripping must not reorder or reformat keys the author did not touch.
+
+**Options.**
+- **A. yaml-cpp (0.8, packaged as `libyaml-cpp-dev`, MIT).** Full YAML 1.2, mature. It reports errors by throwing, and its emitter does not preserve comments or formatting.
+- **B. rapidyaml.** Faster and preserves more formatting. It is not packaged for Ubuntu 24.04, so it would be vendored.
+- **C. Our own subset parser** for the SPEC subset (scalars, lists, flat maps). Small, but every Obsidian vault in the wild will contain YAML outside the subset.
+
+**Decision.** Option A for reading. yaml-cpp exceptions are caught inside `parser/` and returned as `std::expected` errors, so they never cross a module boundary (ARCHITECTURE.md §Error handling). Writing a changed property edits only that key's lines in the original text rather than re-emitting the whole block, so comments and ordering survive.
+
+**Consequences.**
+- Invalid frontmatter becomes a lint entry on the note; it never blocks indexing the body.
+- The line-level property writer needs its own tests.
+
+**Reversal conditions.** Revisit if yaml-cpp's parse cost dominates a full index rebuild, in which case Option B is the fallback.
+
+### D-016 config.toml with toml++
+**Decided:** 2026-10-12
+**Recorded:** 2026-10-12
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-12)
+**Related:** F-034, D-010, SPEC.md §Linked roots, §Constants
+
+**Context.** Per-vault settings, linked roots and every constant in SPEC.md §Constants live in `.coeus/config.toml`.
+
+**Options.**
+- **A. toml++ (3.4, packaged as `libtomlplusplus-dev`, MIT).** Header-only, TOML 1.0, can run without exceptions (`TOML_EXCEPTIONS=0` returns a parse result), and preserves source positions for error messages.
+- **B. toml11.** Comparable, not packaged.
+- **C. Switch config to `QSettings` INI.** No dependency; loses `[[roots]]` arrays of tables and conflicts with SPEC.md.
+
+**Decision.** Option A, built with exceptions off.
+
+**Consequences.**
+- Malformed config is reported with line and column and falls back to defaults; it never prevents the vault opening.
+- Coeus rewrites `config.toml` only on an explicit settings change.
+
+**Reversal conditions.** Revisit if toml++ is dropped from the distribution, in which case it is vendored as a single header.
+
+### D-017 Hashing and cryptography with libsodium
+**Decided:** 2026-10-12
+**Recorded:** 2026-10-12
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-12)
+**Related:** F-018, F-029, F-035, AV-001, AV-009, SPEC.md §Index schema, §Embeddings sidecar, §Sync
+
+**Context.** SPEC.md specifies BLAKE2b-128 content hashes for notes and chunks (Phase 2), and Argon2id key derivation with XChaCha20-Poly1305 encryption for sync (Phase 5).
+
+**Options.**
+- **A. libsodium (1.0.18, packaged as `libsodium-dev`, ISC).** `crypto_generichash` is BLAKE2b with a 16-byte output; the same library provides Argon2id and XChaCha20-Poly1305, and is widely audited.
+- **B. libb2 now, another crypto library in Phase 5.** Two dependencies where one suffices.
+- **C. `QCryptographicHash`.** Qt 6.4 offers BLAKE2b at 160, 256, 384 and 512 bits but not 128, and no encryption.
+
+**Decision.** Option A.
+
+**Consequences.**
+- One dependency covers hashing now and encryption later; `sodium_init()` is called once in `main()`.
+- Changing the hash would invalidate every `hash` column and the embeddings sidecar, so the algorithm is fixed by SPEC.md, not configurable.
+
+**Reversal conditions.** Revisit only if libsodium becomes unmaintained.
+
+### D-018 SQLite through the C API, not Qt SQL
+**Decided:** 2026-10-12
+**Recorded:** 2026-10-12
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-12)
+**Related:** F-006, F-018, D-005, AV-001, AV-005, AV-007, SPEC.md §Index schema
+
+**Context.** The index uses SQLite with WAL, FTS5, foreign keys, a per-thread connection model (ARCHITECTURE.md §Threading), and from Phase 3 the `sqlite-vec` extension loaded in the connection factory (CLAUDE.md §Pitfalls). The system SQLite on the development machine is 3.45.1, built with `ENABLE_FTS5`, `ENABLE_LOAD_EXTENSION` and `THREADSAFE=1`.
+
+**Options.**
+- **A. Qt SQL (`QSQLITE` driver).** Familiar Qt types. Extension loading needs the raw handle anyway; connections are tied to the thread that created them through a global registry; prepared statements and transactions are less direct.
+- **B. SQLite C API behind a thin RAII wrapper in `index/`.** `Database`, `Statement` and `Transaction` classes returning `std::expected`. Full control over pragmas, extension registration (`sqlite3_auto_extension` for `sqlite-vec`) and `BEGIN IMMEDIATE` for `NextId` (SPEC.md §ID allocation).
+- **C. A third-party C++ wrapper (SQLiteCpp, sqlite_modern_cpp).** Saves the wrapper; adds a dependency that throws exceptions.
+
+**Decision.** Option B, linking the system `libsqlite3`. `sqlite-vec` is vendored as its amalgamation in Phase 3, because it is not packaged.
+
+**Consequences.**
+- About 300 lines of wrapper code with its own tests.
+- No Qt SQL dependency; `index/` stays usable from `coeus --mcp` without a GUI.
+
+**Reversal conditions.** Revisit if the wrapper grows into a general ORM; at that point Option C is cheaper.

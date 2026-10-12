@@ -15,8 +15,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - AV-010 root path drift, AV-011 sidecar stale vectors, AV-012 register corruption via MCP writes.
 - SPEC: §Linked roots, §Ideas, §Embeddings sidecar, §MCP surface; `roots` and `ideas` tables; `root_id` on `notes` and `projects`; root-aware wikilink resolution.
 - D-013 C++23 language standard.
+- D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- ROADMAP Phase 2 deliverables now cover every Phase 2 feature's acceptance: `AtomicWriter`, rebuild-equivalence check, `.gitignore` offer, autosave journal, conflict prompt, reading mode, unlinked mentions.
 - Phase 1 (GUI shell) Complete; F-001 and F-002 Complete (2026-10-12).
 - Minimum Qt lowered from 6.5 to 6.4 to build against the distribution's packaged Qt (Mint 22, Ubuntu 24.04).
 - C++20 → C++23 so `std::expected` is available (BUG-001, D-013).

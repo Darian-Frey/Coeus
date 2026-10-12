@@ -27,7 +27,8 @@ Verified 2026-10-12. See [BUILD.md](BUILD.md) for dependencies, tests and troubl
 - C++23 compiler (GCC 13+ or Clang 17+); `std::expected` is required (D-013)
 - CMake 3.25+
 - Qt 6.4+ (Widgets, Gui, Core, Concurrent, Test) — the version packaged by Linux Mint 22 and Ubuntu/Kubuntu 24.04
-- SQLite 3.40+ with FTS5, plus the `sqlite-vec` extension
+- SQLite 3.40+ with FTS5 and extension loading (D-018), plus the `sqlite-vec` extension (vendored, Phase 3)
+- md4c 0.4.8+ with md4c-html (D-014), yaml-cpp 0.8+ (D-015), toml++ 3.4+ (D-016), libsodium 1.0.18+ (D-017)
 - libgit2 1.7+
 - An embedding model runtime for Mnemosyne (see `SPEC.md` §Embeddings — decision pending, D-008)
 

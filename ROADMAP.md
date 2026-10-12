@@ -21,12 +21,18 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 **Status:** Not started
 **Features delivered:** F-003 (source and reading modes), F-004, F-005, F-006, F-007, F-008, F-009, F-010, F-011, F-013, F-034
 **Deliverables:**
-- [ ] Markdown parser with wikilink, tag, frontmatter extensions (`src/parser/`)
-- [ ] SQLite index: roots, notes, links, tags, properties, FTS5 (`src/index/`)
+- [ ] `AtomicWriter`: temp write, fsync, rename, directory fsync, mode and ownership preserved, with a kill-during-write test (`src/vault/AtomicWriter.cpp`, `tests/vault/test_atomic_writer.cpp`; SPEC.md §Atomic write, AV-002)
+- [ ] Markdown parser with wikilink, tag, frontmatter, heading and block-ID extensions (`src/parser/`)
+- [ ] SQLite index: roots, notes, links, tags, properties, headings, blocks, FTS5 (`src/index/`)
+- [ ] Rebuild-equivalence test and a "Verify index" command comparing `notes.hash` to disk (`tests/index/test_rebuild_equivalence.cpp`; AV-001)
 - [ ] Linked project roots from `config.toml`, one watcher per root (`src/vault/Roots.cpp`)
 - [ ] Incremental indexer driven by the file watchers (`src/vault/VaultWatcher.cpp`, `src/index/Indexer.cpp`)
-- [ ] Editor with syntax highlighting and atomic save (`src/ui/Editor.cpp`)
-- [ ] Wikilink completer, backlinks panel, outline panel, tag pane, search panel
+- [ ] First-open offer to add `.coeus/` to the vault's `.gitignore` (SPEC.md §Vault layout)
+- [ ] Editor source mode with syntax highlighting and save through `AtomicWriter` (`src/ui/Editor.cpp`)
+- [ ] Autosave journal with recovery on startup (SPEC.md §Autosave journal)
+- [ ] Conflict prompt when a note with unsaved changes is modified on disk (`tests/ui/test_conflict_prompt.cpp`; F-011, AV-002)
+- [ ] Reading mode: rendered Markdown, switchable per tab (F-003)
+- [ ] Wikilink completer, backlinks panel with unlinked mentions, outline panel, tag pane, search panel
 - [ ] Properties panel with typed validation
 - [ ] Daily notes and templates
 **Acceptance:** A real vault (the author's project repos) can be browsed, searched, edited and saved for a week without data loss or index drift (AV-001, AV-002).

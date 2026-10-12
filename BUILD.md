@@ -4,19 +4,25 @@ Verified 2026-10-12 on Linux Mint 22.3 (Ubuntu 24.04 base) with GCC 13.3, CMake 
 
 ## Dependencies
 
-Phase 1 needs only a compiler, CMake and Qt:
-
 ```bash
-sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-tools
+sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-tools \
+    libsqlite3-dev libmd4c-dev libmd4c-html0-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev
 ```
+
+The Phase 1 shell needs only the first line; the libraries on the second are Phase 2 dependencies (D-014 to D-018) and become required as each module lands.
 
 | Requirement | Minimum | Why |
 |-------------|---------|-----|
 | GCC or Clang | GCC 13 / Clang 17 | C++23 with `std::expected` (D-013) |
 | CMake | 3.25 | |
 | Qt | 6.4 | Core, Gui, Widgets; Test for the test suite. Linked dynamically (D-009) |
+| SQLite | 3.40 | FTS5 and extension loading enabled; C API, not Qt SQL (D-018) |
+| md4c, md4c-html | 0.4.8 | Markdown parsing and reading mode (D-014) |
+| yaml-cpp | 0.8 | Frontmatter (D-015) |
+| toml++ | 3.4 | `.coeus/config.toml` (D-016) |
+| libsodium | 1.0.18 | BLAKE2b-128 hashes; Phase 5 encryption (D-017) |
 
-Later phases add SQLite with FTS5 and `sqlite-vec` (Phase 2–3) and libgit2 (Phase 3). This file will list them when they are first used.
+Phase 3 adds libgit2 and a vendored `sqlite-vec` amalgamation.
 
 ## Build
 
