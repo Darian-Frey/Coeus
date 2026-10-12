@@ -19,7 +19,15 @@ Authoritative technical reference for Coeus. FEATURES.md says what; this says ho
 └── .gitignore              # `.coeus/` offered on first open (below)
 ```
 
-On first open of a vault that is a Git repository whose `.gitignore` does not exclude `.coeus/`, Coeus offers to add it, together with `.*.coeus-tmp-*` so a temporary file left by a crash never shows as untracked. Accepting is an explicit user command and goes through `AtomicWriter`; declining is remembered in `config.toml` and not asked again. Coeus never edits `.gitignore` unasked.
+On opening a vault inside a Git repository whose rules do not already ignore `.coeus/` and `.*.coeus-tmp-*` (checked with the repository's own rules, off the UI thread), Coeus shows a non-modal prompt listing the missing patterns, so a temporary file left by a crash never shows as untracked:
+
+- **Add to .gitignore** appends the missing patterns under a `# Coeus: …` comment to `<vault>/.gitignore`, creating it if needed, through `AtomicWriter`. A vault that is a subfolder of a repository gets its own `.gitignore`, which Git applies to that folder.
+- **Not Now** asks again next time.
+- **Don't Ask Again** records `gitignore_offer = "declined"` under `[vault]` in `config.toml`.
+
+The command File › Add Coeus Files to .gitignore does the same on request, whatever was declined. Coeus never edits `.gitignore` unasked.
+
+Coeus edits `config.toml` line by line: it replaces the key's line or adds it under the table's header (appending the table if absent), keeps every other line, comment and blank as written, refuses to touch a file that does not parse, and checks that the result parses with the intended value before writing it through `AtomicWriter`.
 
 A **project** is any folder containing a `README.md` whose first four lines are the scaffold status header (§Status header). Register files are recognised only inside a project folder.
 
@@ -415,3 +423,4 @@ Unsaved editor buffers are journalled every 5 s to `.coeus/journal/<hash-of-path
 | `allow_writes` | false | config.toml `[mcp]` |
 | `write_undo_s` | 10 | config.toml `[mcp]` |
 | `sidecar_compact_days` | 7 | config.toml `[semantic]` |
+| `gitignore_offer` | unset; `"declined"` after Don't Ask Again | config.toml `[vault]` |

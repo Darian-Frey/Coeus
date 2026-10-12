@@ -1,6 +1,7 @@
 #include "ui/CommandPalette.hpp"
 #include "ui/ExplorerPanel.hpp"
 #include "ui/MainWindow.hpp"
+#include "vault/GitIgnoreOffer.hpp"
 #include "vault/Roots.hpp"
 #include "vault/Vault.hpp"
 
@@ -8,6 +9,8 @@
 #include <QDockWidget>
 #include <QFile>
 #include <QFileSystemModel>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QPlainTextEdit>
 #include <QToolButton>
 #include <QTreeView>
@@ -18,6 +21,8 @@
 #include <QTest>
 
 #include <algorithm>
+
+#include <git2.h>
 
 using coeus::MainWindow;
 using coeus::Vault;
@@ -138,6 +143,55 @@ private slots:
         QCOMPARE(window.tabs()->count(), 1);
     }
 
+    void gitignoreOfferAddsLinesOnce()
+    {
+        QTemporaryDir vault;
+        QVERIFY(initRepository(vault.path()));
+        {
+            MainWindow window;
+            QSignalSpy offered(&window, &MainWindow::gitignoreOffered);
+            QSignalSpy updated(&window, &MainWindow::gitignoreUpdated);
+            window.openVault(*Vault::open(vault.path()));
+            QVERIFY(offered.wait(5000));
+            auto* box = window.findChild<QMessageBox*>(QStringLiteral("gitignoreOffer"));
+            QVERIFY(box);
+            QVERIFY(box->isVisible());
+            QFile gitignore(vault.filePath(QStringLiteral(".gitignore")));
+            QVERIFY(!gitignore.exists()); // nothing written before the author answers
+
+            box->findChild<QPushButton*>(QStringLiteral("add"))->click();
+            QVERIFY(updated.wait(5000));
+            QVERIFY(gitignore.open(QIODevice::ReadOnly));
+            QVERIFY(gitignore.readAll().contains(".coeus/\n"));
+        }
+        // Covered now: no second offer.
+        MainWindow again;
+        QSignalSpy offered(&again, &MainWindow::gitignoreOffered);
+        again.openVault(*Vault::open(vault.path()));
+        QVERIFY(!offered.wait(1000));
+    }
+
+    void gitignoreOfferDeclinedIsNotRepeated()
+    {
+        QTemporaryDir vault;
+        QVERIFY(initRepository(vault.path()));
+        {
+            MainWindow window;
+            QSignalSpy offered(&window, &MainWindow::gitignoreOffered);
+            window.openVault(*Vault::open(vault.path()));
+            QVERIFY(offered.wait(5000));
+            window.findChild<QMessageBox*>(QStringLiteral("gitignoreOffer"))
+                ->findChild<QPushButton*>(QStringLiteral("never"))
+                ->click();
+            QVERIFY(coeus::GitIgnoreOffer::declined(vault.path()));
+            QVERIFY(!QFile::exists(vault.filePath(QStringLiteral(".gitignore"))));
+        }
+        MainWindow again;
+        QSignalSpy offered(&again, &MainWindow::gitignoreOffered);
+        again.openVault(*Vault::open(vault.path()));
+        QVERIFY(!offered.wait(1000));
+    }
+
     void dockLayoutPersists()
     {
         {
@@ -179,6 +233,16 @@ private slots:
     }
 
 private:
+    static bool initRepository(const QString& path)
+    {
+        git_libgit2_init();
+        git_repository* repo = nullptr;
+        const int rc = git_repository_init(&repo, QFile::encodeName(path).constData(), 0);
+        git_repository_free(repo);
+        git_libgit2_shutdown();
+        return rc == 0;
+    }
+
     static QString writeNote(const QTemporaryDir& dir, const QString& name, const QByteArray& content)
     {
         const QString path = dir.filePath(name);

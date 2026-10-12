@@ -5,11 +5,7 @@
 #include <QRegularExpression>
 #include <QSet>
 
-// Header-only with exceptions off (D-016). This is the only file that
-// includes toml++, so the packaged library is not linked.
-#define TOML_HEADER_ONLY 1
-#define TOML_EXCEPTIONS 0
-#include <toml++/toml.hpp>
+#include "vault/Toml.hpp"
 
 #include <string_view>
 

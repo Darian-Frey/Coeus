@@ -50,6 +50,10 @@ signals:
     void indexOpened(int noteCount);
     // The index worker reported a change in the number of indexed notes.
     void indexUpdated(int noteCount);
+    // The first-open .gitignore offer is showing (SPEC.md §Vault layout).
+    void gitignoreOffered(const QStringList& patterns);
+    // Patterns were written to the vault's .gitignore.
+    void gitignoreUpdated(const QStringList& patterns);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -64,6 +68,9 @@ private:
     void chooseVault();
     void sweepTempFiles(const QString& root);
     void startIndex(const QString& vaultPath);
+    void checkGitignore(const QString& vaultPath, bool onOpen);
+    void offerGitignore(const QString& vaultPath, const QStringList& patterns);
+    void addToGitignore(const QString& vaultPath, const QStringList& patterns);
     void stopIndex();
     void setIndexStatus(const QString& text, const QString& toolTip = QString());
     void closeCurrentTab();
@@ -96,6 +103,7 @@ private:
     IndexService* m_index = nullptr;
     QAction* m_verifyIndex = nullptr;
     QAction* m_rebuildIndex = nullptr;
+    QAction* m_gitignoreAction = nullptr;
 };
 
 } // namespace coeus

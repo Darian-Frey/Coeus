@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- First-open `.gitignore` offer (Add / Not Now / Don't Ask Again) and File › Add Coeus Files to .gitignore; `VaultConfig` edits `config.toml` line by line. Tests `test_gitignore_offer` and two window cases.
 - Explorer sections for the vault and each linked root, collapsible, missing roots greyed; notes in linked roots open in tabs labelled `<root>/<path>` (F-034 complete).
 - Linked roots, ignore rules and live indexing: `Roots` (config.toml via toml++, D-016), `GitIgnore` (libgit2; the repository containing a root and repositories nested in it), `VaultWatcher` (inotify, one watch per folder, D-019), `IndexService` worker thread. Root ids are stable by name; missing roots keep their rows (AV-010). Verify Index and Rebuild Index commands; index status in the status bar. Tests `test_roots`, `test_git_ignore`, `test_vault_watcher`, `test_index_service`. On ~/Projects, 11 nested repositories' rules cut the index from 645 to 272 notes.
 - D-019 inotify watcher.

@@ -28,7 +28,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Linked project roots from `config.toml`, one watcher per root, `.gitignore` honoured (`src/vault/Roots.cpp`, `src/vault/GitIgnore.cpp`)
 - [x] Incremental indexer driven by the file watchers on a worker thread (`src/vault/VaultWatcher.cpp`, `src/index/IndexService.cpp`; D-019)
 - [x] Explorer shows each linked root as a top-level node, greyed when missing (`src/ui/ExplorerPanel.cpp`; F-034)
-- [ ] First-open offer to add `.coeus/` to the vault's `.gitignore` (SPEC.md §Vault layout)
+- [x] First-open offer to add `.coeus/` to the vault's `.gitignore` (`src/vault/GitIgnoreOffer.cpp`, `src/vault/VaultConfig.cpp`; SPEC.md §Vault layout)
 - [ ] Editor source mode with syntax highlighting and save through `AtomicWriter` (`src/ui/Editor.cpp`)
 - [ ] Autosave journal with recovery on startup (SPEC.md §Autosave journal)
 - [ ] Conflict prompt when a note with unsaved changes is modified on disk (`tests/ui/test_conflict_prompt.cpp`; F-011, AV-002)

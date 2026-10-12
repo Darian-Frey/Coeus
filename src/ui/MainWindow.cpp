@@ -4,6 +4,7 @@
 #include "ui/ExplorerPanel.hpp"
 #include "index/IndexService.hpp"
 #include "ui/SidebarPanel.hpp"
+#include "vault/GitIgnoreOffer.hpp"
 #include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
 
@@ -18,6 +19,7 @@
 #include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QPlainTextEdit>
 #include <QSettings>
 #include <QStatusBar>
@@ -139,12 +141,20 @@ void MainWindow::createActions()
             QMetaObject::invokeMethod(m_index, &IndexService::rebuild, Qt::QueuedConnection);
     });
 
+    m_gitignoreAction = new QAction(tr("Add Coeus Files to .&gitignore"), this);
+    m_gitignoreAction->setEnabled(false);
+    connect(m_gitignoreAction, &QAction::triggered, this, [this] {
+        if (m_vault)
+            checkGitignore(m_vault->rootPath(), false);
+    });
+
     QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(openVault);
     fileMenu->addAction(closeTab);
     fileMenu->addSeparator();
     fileMenu->addAction(m_verifyIndex);
     fileMenu->addAction(m_rebuildIndex);
+    fileMenu->addAction(m_gitignoreAction);
     fileMenu->addSeparator();
     fileMenu->addAction(quit);
 
@@ -164,7 +174,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex}) {
+    for (QAction* action : {openVault, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -212,6 +222,85 @@ void MainWindow::openVault(const Vault& vault)
     updateStatus();
     sweepTempFiles(vault.rootPath());
     startIndex(vault.rootPath());
+    m_gitignoreAction->setEnabled(true);
+    checkGitignore(vault.rootPath(), true);
+}
+
+void MainWindow::checkGitignore(const QString& vaultPath, bool onOpen)
+{
+    struct Check {
+        QStringList missing;
+        bool declined = false;
+    };
+    // Opening the repository is Git work: off the UI thread (AV-005).
+    auto* watcher = new QFutureWatcher<Check>(this);
+    connect(watcher, &QFutureWatcher<Check>::finished, this, [this, watcher, vaultPath, onOpen] {
+        const Check check = watcher->result();
+        watcher->deleteLater();
+        if (!m_vault || m_vault->rootPath() != vaultPath)
+            return; // another vault was opened meanwhile
+        if (onOpen) {
+            if (!check.missing.isEmpty() && !check.declined)
+                offerGitignore(vaultPath, check.missing);
+        } else if (check.missing.isEmpty()) {
+            statusBar()->showMessage(tr("Nothing to add: the vault is not a Git repository, or already ignores Coeus's files."),
+                                     kStatusTimeoutMs);
+        } else {
+            addToGitignore(vaultPath, check.missing); // the command itself is the author's request
+        }
+    });
+    watcher->setFuture(QtConcurrent::run([vaultPath] {
+        return Check{GitIgnoreOffer::missingPatterns(vaultPath), GitIgnoreOffer::declined(vaultPath)};
+    }));
+}
+
+void MainWindow::offerGitignore(const QString& vaultPath, const QStringList& patterns)
+{
+    auto* box = new QMessageBox(QMessageBox::Question, tr("Keep Coeus files out of Git?"),
+                                tr("This vault is a Git repository. Coeus keeps a rebuildable index in .coeus/ "
+                                   "and can leave temporary files behind if it is interrupted mid-save.\n\n"
+                                   "Add these lines to the vault's .gitignore?"),
+                                QMessageBox::NoButton, this);
+    box->setObjectName(QStringLiteral("gitignoreOffer"));
+    box->setInformativeText(patterns.join(QLatin1Char('\n')));
+    QPushButton* add = box->addButton(tr("Add to .gitignore"), QMessageBox::AcceptRole);
+    add->setObjectName(QStringLiteral("add"));
+    QPushButton* later = box->addButton(tr("Not Now"), QMessageBox::RejectRole);
+    later->setObjectName(QStringLiteral("later"));
+    QPushButton* never = box->addButton(tr("Don't Ask Again"), QMessageBox::DestructiveRole);
+    never->setObjectName(QStringLiteral("never"));
+    box->setDefaultButton(add);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+
+    connect(box, &QMessageBox::buttonClicked, this, [this, vaultPath, patterns, add, never](QAbstractButton* button) {
+        if (button == add) {
+            addToGitignore(vaultPath, patterns);
+        } else if (button == never) {
+            if (const auto declined = GitIgnoreOffer::decline(vaultPath); !declined)
+                statusBar()->showMessage(declined.error(), kStatusTimeoutMs * 2);
+            else
+                statusBar()->showMessage(tr("Coeus will not ask again. File › Add Coeus Files to .gitignore does it later."),
+                                         kStatusTimeoutMs);
+        }
+    });
+    box->open();
+    emit gitignoreOffered(patterns);
+}
+
+void MainWindow::addToGitignore(const QString& vaultPath, const QStringList& patterns)
+{
+    auto* watcher = new QFutureWatcher<std::expected<void, QString>>(this);
+    connect(watcher, &QFutureWatcher<std::expected<void, QString>>::finished, this, [this, watcher, patterns] {
+        const auto result = watcher->result();
+        watcher->deleteLater();
+        if (!result) {
+            statusBar()->showMessage(result.error(), kStatusTimeoutMs * 2);
+            return;
+        }
+        statusBar()->showMessage(tr("Added to .gitignore: %1").arg(patterns.join(QStringLiteral(", "))), kStatusTimeoutMs);
+        emit gitignoreUpdated(patterns);
+    });
+    watcher->setFuture(QtConcurrent::run([vaultPath, patterns] { return GitIgnoreOffer::accept(vaultPath, patterns); }));
 }
 
 MainWindow::~MainWindow()
@@ -278,6 +367,7 @@ void MainWindow::stopIndex()
     m_verifyIndex->setEnabled(false);
     m_rebuildIndex->setEnabled(false);
 }
+
 
 void MainWindow::setIndexStatus(const QString& text, const QString& toolTip)
 {
