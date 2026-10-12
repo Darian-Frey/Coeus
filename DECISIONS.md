@@ -177,11 +177,11 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 **Reversal conditions.** N/A until Accepted.
 
 ### D-009 License
-**Decided:** —
+**Decided:** 2026-10-12
 **Recorded:** 2026-09-25
-**Status:** Proposed
-**Authors:** Shane Hartley
-**Related:** README.md §License
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-12)
+**Related:** D-002, D-008, README.md §Licence
 
 **Context.** Tier 1 requires a license before the first public commit. Qt6 is available under LGPL v3 (dynamic linking) or GPL v3; libgit2 is GPL v2 with linking exception; sqlite-vec is Apache 2.0 / MIT.
 
@@ -189,11 +189,15 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - **A. GPL v3.** Compatible with all dependencies including static Qt.
 - **B. MIT or Apache 2.0.** Requires dynamic linking to Qt under LGPL; otherwise fine.
 
-**Decision.** Pending. Author to choose before the first push.
+**Decision.** Option B, MIT. `LICENSE` holds the MIT text, copyright 2026 Shane Hartley. Chosen over GPL v3 for simplicity and consistency with the author's other projects; Apache 2.0's patent grant adds little for a solo project.
 
-**Consequences.** Until chosen, the repository stays private.
+**Consequences.**
+- Qt6 must be linked dynamically under the LGPL v3. Distribution Qt packages on Linux already are; a static Qt build is not permitted without revisiting this decision.
+- libgit2's linking exception, sqlite-vec (MIT/Apache 2.0) and SQLite (public domain) impose nothing further.
+- The first commit (2026-10-12) was pushed to a public GitHub repository before this decision was recorded, contrary to the original intent that the repository stay private until a licence was chosen. The gap lasted one commit; this entry closes it.
+- D-008 must account for Mnemosyne's licence: linking it as a library (option A) is only open if that licence is MIT-compatible; a socket service (option B) is unaffected.
 
-**Reversal conditions.** N/A until Accepted.
+**Reversal conditions.** Revisit if a dependency that requires GPL linkage becomes unavoidable (for example a GPL Mnemosyne linked in-process under D-008), or if the author wants forks to remain open, in which case relicensing to GPL v3 is possible while the author is the sole copyright holder.
 
 ### D-010 Linked project roots outside the vault folder
 **Decided:** 2026-10-12

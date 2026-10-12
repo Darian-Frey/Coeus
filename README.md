@@ -67,6 +67,6 @@ Directories exist as empty placeholders (`.gitkeep`); no source code yet. Scaffo
 - [Changelog](CHANGELOG.md)
 - [CLAUDE.md](CLAUDE.md) — AI session handoff
 
-## License
+## Licence
 
-Not yet chosen — see D-009 in [DECISIONS.md](DECISIONS.md). Must be settled before the first public commit.
+MIT — see [LICENSE](LICENSE) and D-009 in [DECISIONS.md](DECISIONS.md). Qt6 is used under the LGPL v3 and must be linked dynamically.

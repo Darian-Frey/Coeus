@@ -8,7 +8,7 @@ Coeus is a local-first Markdown knowledge base for Linux desktop in C++20 and Qt
 - `src/` (with module subfolders per README §Project structure), `tests/`, `tools/`: empty placeholders, no code yet.
 - UI mockup of the target main window: `docs/design/main-window.png`.
 - `BUILD.md`: not written — create it the moment the first `cmake --build` succeeds.
-- `LICENSE`: not chosen (D-009).
+- `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.
 
 ## Active task
 **Phase 1 — GUI shell** (see ROADMAP.md). Deliver F-001 and F-002 first:
