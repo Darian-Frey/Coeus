@@ -85,13 +85,54 @@ QString IndexStore::titleOf(const QString& path)
     return QFileInfo(path).completeBaseName();
 }
 
-std::expected<void, QString> IndexStore::putRoot(const RootInfo& root)
+std::expected<void, QString> IndexStore::putRoot(const RootInfo& root, bool present)
 {
-    auto statement = m_db.prepare("INSERT INTO roots(id, name, path, present) VALUES (?, ?, ?, 1) "
-                                  "ON CONFLICT(id) DO UPDATE SET name=excluded.name, path=excluded.path, present=1");
+    auto statement = m_db.prepare("INSERT INTO roots(id, name, path, present) VALUES (?, ?, ?, ?) "
+                                  "ON CONFLICT(id) DO UPDATE SET name=excluded.name, path=excluded.path, "
+                                  "present=excluded.present");
     if (!statement)
         return std::unexpected(statement.error());
-    return statement->bind(1, root.id).bind(2, root.name).bind(3, root.path).run();
+    return statement->bind(1, root.id).bind(2, root.name).bind(3, root.path).bind(4, int(present)).run();
+}
+
+std::expected<void, QString> IndexStore::removeRoot(int rootId)
+{
+    for (const char* sql : {"DELETE FROM fts WHERE rowid IN (SELECT id FROM notes WHERE root_id = ?)",
+                            "DELETE FROM notes WHERE root_id = ?", "DELETE FROM projects WHERE root_id = ?",
+                            "DELETE FROM roots WHERE id = ?"}) {
+        auto statement = m_db.prepare(sql);
+        if (!statement)
+            return std::unexpected(statement.error());
+        COEUS_TRY(statement->bind(1, rootId).run());
+    }
+    return {};
+}
+
+std::expected<QList<RootInfo>, QString> IndexStore::roots()
+{
+    auto statement = m_db.prepare("SELECT id, name, path FROM roots ORDER BY id");
+    if (!statement)
+        return std::unexpected(statement.error());
+    QList<RootInfo> roots;
+    for (;;) {
+        const auto row = statement->step();
+        if (!row)
+            return std::unexpected(row.error());
+        if (!*row)
+            return roots;
+        roots.append({int(statement->int64(0)), statement->text(1), statement->text(2)});
+    }
+}
+
+std::expected<int, QString> IndexStore::noteCount()
+{
+    auto statement = m_db.prepare("SELECT count(*) FROM notes");
+    if (!statement)
+        return std::unexpected(statement.error());
+    const auto row = statement->step();
+    if (!row)
+        return std::unexpected(row.error());
+    return int(statement->int64(0));
 }
 
 std::expected<QHash<QString, QByteArray>, QString> IndexStore::noteHashes(int rootId)

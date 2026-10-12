@@ -50,7 +50,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **ui/** — All Qt widgets. `MainWindow` is a `QMainWindow` whose central widget is a `QTabWidget` of `Editor` instances; the explorer and sidebar are `QDockWidget`s. Panels subscribe to index signals and issue queries; they never touch the filesystem or SQLite directly.
 
-**vault/** — Filesystem boundary. `Vault` resolves paths and enumerates files; `TempSweeper` removes temporary files left by interrupted saves, on a worker thread; `VaultWatcher` wraps `QFileSystemWatcher` on directories and normalises rename-based saves into modify events; `AtomicWriter` performs temp-write, fsync, rename.
+**vault/** — Filesystem boundary. `Vault` resolves paths and enumerates files; `TempSweeper` removes temporary files left by interrupted saves, on a worker thread; `VaultWatcher` puts one inotify watch on each folder of a root (D-019) and reports changed notes by path, rename-based saves included; `Roots` reads linked roots from `config.toml` (D-016); `GitIgnore` applies a root's Git ignore rules through libgit2; `AtomicWriter` performs temp-write, fsync, rename.
 
 **parser/** — Pure functions from text to structures. `NoteParser` runs md4c (D-014) and `Frontmatter` runs yaml-cpp (D-015) to yield a `ParsedNote`: links (wiki and Markdown), embeds, tags, headings, block IDs, properties and plain text, each with a file line number. Callouts follow with reading mode. `RegisterParser` recognises the scaffold document types by filename and yields typed entries. No Qt dependencies beyond `QString`; unit-testable in isolation.
 
@@ -85,7 +85,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 ## Cross-cutting concerns
 
-**Threading.** One indexer worker, one embedding worker, one Git worker, one sync worker, each a `QThread` with a queue. Communication is signal/slot with queued connections. SQLite is opened per thread with WAL mode; the UI thread holds read-only connections.
+**Threading.** One indexer worker, one embedding worker, one Git worker, one sync worker, each a `QThread` with a queue. The indexer worker is `index/IndexService`: it owns the index database, the `Indexer`, and each root's `GitIgnore` and `VaultWatcher`, and `MainWindow` starts it when a vault opens. Communication is signal/slot with queued connections. SQLite is opened per thread with WAL mode; the UI thread holds read-only connections.
 
 **Error handling.** Exceptions do not cross module boundaries. Modules return `std::expected<T, Error>` (C++23, D-013); the UI maps errors to status-bar messages or dialogs. A failed index update for one file never aborts the batch.
 

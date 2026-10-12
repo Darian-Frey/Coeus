@@ -5,6 +5,7 @@
 
 #include <QByteArray>
 #include <QHash>
+#include <QList>
 #include <QString>
 
 #include <cstdint>
@@ -34,7 +35,14 @@ public:
     // is deleted and recreated, since the index is a cache (D-005).
     static std::expected<IndexStore, QString> open(const QString& path);
 
-    std::expected<void, QString> putRoot(const RootInfo& root);
+    // Records a root. `present` is false when its folder is missing on this
+    // machine: the root's rows are kept and shown greyed (AV-010).
+    std::expected<void, QString> putRoot(const RootInfo& root, bool present = true);
+    // Drops a root removed from config, with every row derived from it.
+    std::expected<void, QString> removeRoot(int rootId);
+    // Every recorded root, ordered by id.
+    std::expected<QList<RootInfo>, QString> roots();
+    std::expected<int, QString> noteCount();
 
     // Root-relative path -> hash for every note in `rootId`.
     std::expected<QHash<QString, QByteArray>, QString> noteHashes(int rootId);

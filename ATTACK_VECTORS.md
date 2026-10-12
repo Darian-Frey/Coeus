@@ -69,7 +69,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-010 Linked root path drift between machines
 **Severity:** Major
 **Description.** A root exists on the desktop at one path and on the laptop at another, or not at all. Notes vanish from search, cross-root links break, or the indexer deletes rows for a root that is merely absent today.
-**Detection.** not implemented (would require `tests/vault/test_missing_root.cpp` asserting that an absent root sets `roots.present = 0` and removes nothing, and that re-appearing restores without re-index when hashes match).
+**Detection.** Implemented in `tests/index/test_index_service.cpp` (`missingRootKeepsItsNotes`): a root indexed on one path, reopened with a missing path, keeps every row with `roots.present = 0`, and is only emptied when removed from config. Re-appearing roots are rescanned, and unchanged hashes skip re-parsing.
 **Related decisions.** D-010.
 **History.** Identified 2026-10-12 while adding linked roots.
 

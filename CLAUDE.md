@@ -4,14 +4,14 @@
 Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt6. The vault is a plain folder of `.md` files plus linked project repositories (F-034); Coeus keeps only a rebuildable SQLite index beside it. Three features define the product: scaffold-aware registers and the project board (F-015, F-016, F-032), Mnemosyne semantic search with a related-notes sidebar (F-018, F-019), and native Git (F-020–F-022). An MCP server (F-033) lets Claude chat and Claude Code read and write the same index.
 
 ## Current state
-- Phase 1 shell builds and passes its tests (see BUILD.md): `src/app/main.cpp`, `src/vault/{Vault,AtomicWriter,TempSweeper}`, `src/parser/{NoteParser,Frontmatter}`, `src/index/{Database,Schema,IndexStore,LinkResolver,Indexer,ContentHash}`, `src/ui/{MainWindow,ExplorerPanel,SidebarPanel,CommandPalette,FuzzyMatch}`; tests under `tests/{vault,parser,index,ui,perf}`.
+- Phase 1 shell builds and passes its tests (see BUILD.md): `src/app/main.cpp`, `src/vault/{Vault,AtomicWriter,TempSweeper}`, `src/parser/{NoteParser,Frontmatter}`, `src/index/{Database,Schema,IndexStore,LinkResolver,Indexer,IndexService,ContentHash}`, `src/vault/{Roots,GitIgnore,VaultWatcher}`, `src/ui/{MainWindow,ExplorerPanel,SidebarPanel,CommandPalette,FuzzyMatch}`; tests under `tests/{vault,parser,index,ui,perf}`.
 - Remaining `src/` module folders and `tools/` are empty placeholders.
 - UI mockup of the target main window: `docs/design/main-window.png`.
 - `BUILD.md`: written 2026-10-12 from the first successful build.
 - `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.
 
 ## Active task
-**Phase 2 — Core vault** (see ROADMAP.md). Scope and build order agreed 2026-10-12: deliverables are built in the order ROADMAP lists them. `AtomicWriter`, the parser and the index are done. Next: linked roots from `config.toml` (D-016), `.gitignore` handling per root, `VaultWatcher`, and the indexer worker thread, which also opens `.coeus/index.db` in the app and adds the "Verify index" command.
+**Phase 2 — Core vault** (see ROADMAP.md). Scope and build order agreed 2026-10-12: deliverables are built in the order ROADMAP lists them. `AtomicWriter`, the parser, the index, linked roots, `.gitignore` rules, the inotify watcher and the indexer thread are done; the app keeps `.coeus/index.db` current and offers Verify Index and Rebuild Index. Next: the explorer showing linked roots (F-034), then the first-open `.gitignore` offer and the editor.
 
 Phase 1 (GUI shell, F-001, F-002) completed 2026-10-12. Every later feature is a panel added to `SidebarPanel`, a dock, or a command passed to `MainWindow::registerAction()`; do not restructure the shell to add one.
 
@@ -46,7 +46,7 @@ Verified 2026-10-12; details and dependencies in BUILD.md. New sources are liste
 
 ## Pitfalls
 - See ATTACK_VECTORS.md for the canonical list.
-- `QFileSystemWatcher` runs out of inotify watches on large vaults; watch directories, not files, and raise `fs.inotify.max_user_watches` guidance in BUILD.md.
+- `VaultWatcher` uses inotify directly, one watch per folder (D-019): `QFileSystemWatcher` directory watches miss in-place writes, and per-file watches exhaust `fs.inotify.max_user_watches`. BUILD.md has the limit guidance.
 - Editors that save via rename (Vim, Claude Code) produce delete+create events, not modify. The watcher must handle both.
 - `sqlite-vec` must be loaded as an extension before any `vec0` table is touched; load it in the connection factory, not per-query.
 - Run `python3 tools/check_xrefs.py` after editing any register entry. Broken IDs are errors; one-way references are reported but not yet all resolved, so cross-references may still be stale (Maintenance Rule 6).

@@ -15,7 +15,7 @@ namespace coeus {
 
 namespace {
 
-void collect(const QString& rootPath, const QString& relativeDir, QStringList& out)
+void collect(const QString& rootPath, const QString& relativeDir, const Indexer::IgnoreFn& ignore, QStringList& out)
 {
     const QDir dir(relativeDir.isEmpty() ? rootPath : rootPath + QLatin1Char('/') + relativeDir);
     // No QDir::Hidden: dot-files and dot-folders are never notes.
@@ -24,22 +24,33 @@ void collect(const QString& rootPath, const QString& relativeDir, QStringList& o
         const QString relative =
             relativeDir.isEmpty() ? entry.fileName() : relativeDir + QLatin1Char('/') + entry.fileName();
         if (entry.isDir()) {
-            if (!entry.isSymLink())
-                collect(rootPath, relative, out);
-        } else if (entry.isFile() && Vault::isNote(entry.fileName())) {
+            if (!entry.isSymLink() && !(ignore && ignore(relative, true)))
+                collect(rootPath, relative, ignore, out);
+        } else if (entry.isFile() && Vault::isNote(entry.fileName()) && !(ignore && ignore(relative, false))) {
             out.append(relative);
         }
     }
 }
 
-// A note path noteFiles() would list: Markdown, with no hidden segment.
-bool isIndexable(const QString& relativePath)
+// A note path noteFiles() would list: Markdown, no hidden segment, and
+// neither the file nor any folder above it ignored.
+bool isIndexable(const QString& relativePath, const Indexer::IgnoreFn& ignore)
 {
     if (!Vault::isNote(relativePath))
         return false;
     const QStringList segments = relativePath.split(QLatin1Char('/'));
-    return std::none_of(segments.begin(), segments.end(),
-                        [](const QString& s) { return s.isEmpty() || s.startsWith(QLatin1Char('.')); });
+    if (std::any_of(segments.begin(), segments.end(),
+                    [](const QString& s) { return s.isEmpty() || s.startsWith(QLatin1Char('.')); }))
+        return false;
+    if (!ignore)
+        return true;
+    QString prefix;
+    for (qsizetype i = 0; i + 1 < segments.size(); ++i) {
+        prefix = prefix.isEmpty() ? segments[i] : prefix + QLatin1Char('/') + segments[i];
+        if (ignore(prefix, true))
+            return false;
+    }
+    return !ignore(relativePath, false);
 }
 
 } // namespace
@@ -49,11 +60,11 @@ Indexer::Indexer(IndexStore& store)
 {
 }
 
-QStringList Indexer::noteFiles(const QString& rootPath)
+QStringList Indexer::noteFiles(const QString& rootPath, const IgnoreFn& ignore)
 {
     QStringList files;
     if (QFileInfo(rootPath).isDir())
-        collect(rootPath, QString(), files);
+        collect(rootPath, QString(), ignore, files);
     files.sort();
     return files;
 }
@@ -89,7 +100,7 @@ std::expected<Indexer::Outcome, QString> Indexer::indexFile(const RootInfo& root
     return knownHash ? Outcome::Updated : Outcome::Added;
 }
 
-std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root)
+std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root, const IgnoreFn& ignore)
 {
     auto transaction = Transaction::begin(m_store.database(), Transaction::Kind::Immediate);
     if (!transaction)
@@ -102,7 +113,7 @@ std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root)
         return std::unexpected(known.error());
 
     ScanReport report;
-    for (const QString& path : noteFiles(root.path)) {
+    for (const QString& path : noteFiles(root.path, ignore)) {
         const auto it = known->constFind(path);
         const auto outcome = indexFile(root, path, it == known->constEnd() ? nullptr : &*it);
         if (!outcome)
@@ -129,7 +140,8 @@ std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root)
     return report;
 }
 
-std::expected<void, QString> Indexer::update(const RootInfo& root, const QString& relativePath)
+std::expected<void, QString> Indexer::update(const RootInfo& root, const QStringList& relativePaths,
+                                             const IgnoreFn& ignore)
 {
     auto transaction = Transaction::begin(m_store.database(), Transaction::Kind::Immediate);
     if (!transaction)
@@ -138,28 +150,40 @@ std::expected<void, QString> Indexer::update(const RootInfo& root, const QString
     auto known = m_store.noteHashes(root.id);
     if (!known)
         return std::unexpected(known.error());
-    const auto it = known->constFind(relativePath);
 
-    if (isIndexable(relativePath) || it != known->constEnd()) {
-        const auto outcome = indexFile(root, relativePath, it == known->constEnd() ? nullptr : &*it);
+    bool changed = false;
+    for (const QString& path : relativePaths) {
+        const auto it = known->constFind(path);
+        const bool indexed = it != known->constEnd();
+        if (!isIndexable(path, ignore)) {
+            // Not a note (any more): an ignored or hidden path drops its rows.
+            if (indexed) {
+                if (auto removed = m_store.removeNote(root.id, path); !removed)
+                    return std::unexpected(removed.error());
+                changed = true;
+            }
+            continue;
+        }
+        const auto outcome = indexFile(root, path, indexed ? &*it : nullptr);
         if (!outcome)
             return std::unexpected(outcome.error());
-        if (*outcome == Outcome::Unchanged || *outcome == Outcome::Failed)
-            return transaction->commit();
+        changed |= *outcome == Outcome::Added || *outcome == Outcome::Updated || *outcome == Outcome::Removed;
     }
-    if (auto resolved = LinkResolver::resolveAll(m_store.database()); !resolved)
-        return std::unexpected(resolved.error());
+    if (changed) {
+        if (auto resolved = LinkResolver::resolveAll(m_store.database()); !resolved)
+            return std::unexpected(resolved.error());
+    }
     return transaction->commit();
 }
 
-std::expected<Indexer::VerifyReport, QString> Indexer::verify(const RootInfo& root)
+std::expected<Indexer::VerifyReport, QString> Indexer::verify(const RootInfo& root, const IgnoreFn& ignore)
 {
     auto known = m_store.noteHashes(root.id);
     if (!known)
         return std::unexpected(known.error());
 
     VerifyReport report;
-    for (const QString& path : noteFiles(root.path)) {
+    for (const QString& path : noteFiles(root.path, ignore)) {
         const auto it = known->constFind(path);
         if (it == known->constEnd()) {
             report.notIndexed.append(path);

@@ -11,11 +11,13 @@ class QAction;
 class QDockWidget;
 class QLabel;
 class QTabWidget;
+class QThread;
 
 namespace coeus {
 
 class CommandPalette;
 class ExplorerPanel;
+class IndexService;
 class SidebarPanel;
 
 // The application shell (F-001). Every later feature is a panel or a
@@ -25,6 +27,7 @@ class MainWindow : public QMainWindow {
 
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+    ~MainWindow() override;
 
     void openVault(const Vault& vault);
     // Opens a note read-only in a tab, or focuses the tab if it is already open.
@@ -42,6 +45,10 @@ public:
 signals:
     // The stale temporary-file sweep started by openVault() has finished (IMP-002).
     void tempSweepFinished(int removed);
+    // The index worker opened the vault's index and finished its first scan.
+    void indexOpened(int noteCount);
+    // The index worker reported a change in the number of indexed notes.
+    void indexUpdated(int noteCount);
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -55,6 +62,9 @@ private:
 
     void chooseVault();
     void sweepTempFiles(const QString& root);
+    void startIndex(const QString& vaultPath);
+    void stopIndex();
+    void setIndexStatus(const QString& text, const QString& toolTip = QString());
     void closeCurrentTab();
     void showCommandPalette();
     void updateStatus();
@@ -71,6 +81,11 @@ private:
     CommandPalette* m_palette = nullptr;
     QLabel* m_noteLabel = nullptr;
     QLabel* m_vaultLabel = nullptr;
+    QLabel* m_indexLabel = nullptr;
+    QThread* m_indexThread = nullptr;
+    IndexService* m_index = nullptr;
+    QAction* m_verifyIndex = nullptr;
+    QAction* m_rebuildIndex = nullptr;
 };
 
 } // namespace coeus

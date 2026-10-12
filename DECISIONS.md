@@ -403,3 +403,26 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - No Qt SQL dependency; `index/` stays usable from `coeus --mcp` without a GUI.
 
 **Reversal conditions.** Revisit if the wrapper grows into a general ORM; at that point Option C is cheaper.
+
+### D-019 Watch the vault with inotify directly, not QFileSystemWatcher
+**Decided:** 2026-10-12
+**Recorded:** 2026-10-12
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-12)
+**Related:** F-011, F-034, D-003, D-005, AV-001, AV-005, SPEC.md §File watching
+
+**Context.** F-011 requires every external edit to reach the index, and AV-001 names missed watcher events as the main cause of index drift. ARCHITECTURE.md specified a `VaultWatcher` wrapping `QFileSystemWatcher` on directories, to stay inside the inotify watch limit on large vaults. A directory watch in `QFileSystemWatcher` reports that a folder changed, without saying which file, and does not report a file written in place: only creations, deletions and renames. Editors that write in place, and tools such as `echo >>`, would leave the index stale.
+
+**Options.**
+- **A. `QFileSystemWatcher` on directories, re-listing a folder on each change.** Portable; misses in-place writes entirely.
+- **B. `QFileSystemWatcher` on directories and every note file.** Sees everything, but one watch per file exhausts `fs.inotify.max_user_watches` on large vaults, which CLAUDE.md §Pitfalls already warns about.
+- **C. Linux inotify directly, one watch per folder.** Chosen. A folder watch reports each contained file's close-after-write, creation, deletion, move and attribute change by name, so one watch per folder sees in-place writes too. Linux-only, which D-003 already accepts.
+
+**Decision.** Option C. `VaultWatcher` calls `inotify_init1`/`inotify_add_watch` on every visible, non-ignored folder of a root, reads events through a `QSocketNotifier` on the indexer thread, and debounces them (SPEC.md §File watching).
+
+**Consequences.**
+- In-place writes, rename-based saves and deletions are all reported per file; folder-level changes, `.gitignore` edits and queue overflow fall back to a full scan of the root.
+- Watch usage is one per folder, not per file; hitting the limit is reported in the status bar with a pointer to BUILD.md.
+- A port to another platform would need a new watcher back end; nothing else depends on inotify.
+
+**Reversal conditions.** Revisit if Coeus ever targets a non-Linux platform (D-003), in which case `QFileSystemWatcher` with per-file watches, or the platform's own API, becomes the back end for that platform.

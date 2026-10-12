@@ -2,6 +2,7 @@
 
 #include "ui/CommandPalette.hpp"
 #include "ui/ExplorerPanel.hpp"
+#include "index/IndexService.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "vault/TempSweeper.hpp"
 
@@ -15,10 +16,12 @@
 #include <QFutureWatcher>
 #include <QLabel>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTabWidget>
+#include <QThread>
 #include <QToolBar>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -121,9 +124,26 @@ void MainWindow::createActions()
                                             QIcon::fromTheme(QStringLiteral("view-list-details"))));
     toggleSidebar->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B));
 
+    m_verifyIndex = new QAction(tr("&Verify Index"), this);
+    m_verifyIndex->setEnabled(false);
+    connect(m_verifyIndex, &QAction::triggered, this, [this] {
+        if (m_index)
+            QMetaObject::invokeMethod(m_index, &IndexService::verify, Qt::QueuedConnection);
+    });
+
+    m_rebuildIndex = new QAction(tr("&Rebuild Index"), this);
+    m_rebuildIndex->setEnabled(false);
+    connect(m_rebuildIndex, &QAction::triggered, this, [this] {
+        if (m_index)
+            QMetaObject::invokeMethod(m_index, &IndexService::rebuild, Qt::QueuedConnection);
+    });
+
     QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(openVault);
     fileMenu->addAction(closeTab);
+    fileMenu->addSeparator();
+    fileMenu->addAction(m_verifyIndex);
+    fileMenu->addAction(m_rebuildIndex);
     fileMenu->addSeparator();
     fileMenu->addAction(quit);
 
@@ -143,7 +163,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, closeTab, quit, palette, toggleExplorer, toggleSidebar}) {
+    for (QAction* action : {openVault, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -153,7 +173,9 @@ void MainWindow::createStatusBar()
 {
     m_noteLabel = new QLabel;
     m_vaultLabel = new QLabel;
+    m_indexLabel = new QLabel;
     statusBar()->addWidget(m_noteLabel, 1);
+    statusBar()->addPermanentWidget(m_indexLabel);
     statusBar()->addPermanentWidget(m_vaultLabel);
     updateStatus();
 }
@@ -178,6 +200,78 @@ void MainWindow::openVault(const Vault& vault)
     setWindowTitle(QStringLiteral("%1 — Coeus").arg(vault.name()));
     updateStatus();
     sweepTempFiles(vault.rootPath());
+    startIndex(vault.rootPath());
+}
+
+MainWindow::~MainWindow()
+{
+    stopIndex();
+}
+
+void MainWindow::startIndex(const QString& vaultPath)
+{
+    stopIndex();
+    m_indexThread = new QThread(this);
+    m_indexThread->setObjectName(QStringLiteral("coeus-index"));
+    m_index = new IndexService; // no parent: it moves to the worker thread
+    m_index->moveToThread(m_indexThread);
+    connect(m_indexThread, &QThread::finished, m_index, &QObject::deleteLater);
+
+    connect(m_index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
+    connect(m_index, &IndexService::opened, this, [this](int notes, const QStringList& problems) {
+        setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), problems.join(QLatin1Char('\n')));
+        if (!problems.isEmpty())
+            statusBar()->showMessage(problems.front(), kStatusTimeoutMs * 2);
+        m_verifyIndex->setEnabled(true);
+        m_rebuildIndex->setEnabled(true);
+        emit indexOpened(notes);
+    });
+    connect(m_index, &IndexService::indexChanged, this, [this](int notes) {
+        setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), m_indexLabel->toolTip());
+        emit indexUpdated(notes);
+    });
+    connect(m_index, &IndexService::failed, this, [this](const QString& message) {
+        setIndexStatus(tr("index error"), message);
+        statusBar()->showMessage(message, kStatusTimeoutMs * 2);
+    });
+    connect(m_index, &IndexService::warning, this,
+            [this](const QString& message) { statusBar()->showMessage(message, kStatusTimeoutMs * 2); });
+    connect(m_index, &IndexService::verified, this, [this](const QString& summary, bool clean) {
+        auto* box = new QMessageBox(clean ? QMessageBox::Information : QMessageBox::Warning, tr("Verify Index"),
+                                    clean ? summary : tr("The index differs from the vault. Rebuild Index will repair it."),
+                                    QMessageBox::Ok, this);
+        if (!clean)
+            box->setDetailedText(summary);
+        box->setAttribute(Qt::WA_DeleteOnClose);
+        box->open();
+        setIndexStatus(m_indexLabel->text().startsWith(QLatin1String("index")) ? m_indexLabel->text()
+                                                                               : tr("index ok"),
+                       m_indexLabel->toolTip());
+    });
+
+    m_indexThread->start();
+    setIndexStatus(tr("Indexing…"));
+    QMetaObject::invokeMethod(m_index, [service = m_index, vaultPath] { service->open(vaultPath); },
+                              Qt::QueuedConnection);
+}
+
+void MainWindow::stopIndex()
+{
+    if (!m_indexThread)
+        return;
+    m_indexThread->quit();
+    m_indexThread->wait();
+    delete m_indexThread;
+    m_indexThread = nullptr;
+    m_index = nullptr; // deleted on its own thread as it finished
+    m_verifyIndex->setEnabled(false);
+    m_rebuildIndex->setEnabled(false);
+}
+
+void MainWindow::setIndexStatus(const QString& text, const QString& toolTip)
+{
+    m_indexLabel->setText(text);
+    m_indexLabel->setToolTip(toolTip);
 }
 
 void MainWindow::sweepTempFiles(const QString& root)

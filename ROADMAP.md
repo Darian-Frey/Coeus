@@ -24,9 +24,10 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] `AtomicWriter`: temp write, fsync, rename, directory fsync, mode and ownership preserved, with a kill-during-write test (`src/vault/AtomicWriter.cpp`, `tests/vault/test_atomic_writer.cpp`; SPEC.md §Atomic write, AV-002)
 - [x] Markdown parser with wikilink, tag, frontmatter, heading and block-ID extensions (`src/parser/`)
 - [x] SQLite index: roots, notes, links, tags, properties, headings, blocks, FTS5 (`src/index/`)
-- [ ] Rebuild-equivalence test and a "Verify index" command comparing `notes.hash` to disk (`tests/index/test_rebuild_equivalence.cpp`; AV-001). Test and `Indexer::verify` done; the command lands when the app opens an index
-- [ ] Linked project roots from `config.toml`, one watcher per root (`src/vault/Roots.cpp`)
-- [ ] Incremental indexer driven by the file watchers (`src/vault/VaultWatcher.cpp`, `src/index/Indexer.cpp`)
+- [x] Rebuild-equivalence test and a "Verify index" command comparing `notes.hash` to disk (`tests/index/test_rebuild_equivalence.cpp`; AV-001)
+- [x] Linked project roots from `config.toml`, one watcher per root, `.gitignore` honoured (`src/vault/Roots.cpp`, `src/vault/GitIgnore.cpp`)
+- [x] Incremental indexer driven by the file watchers on a worker thread (`src/vault/VaultWatcher.cpp`, `src/index/IndexService.cpp`; D-019)
+- [ ] Explorer shows each linked root as a top-level node, greyed when missing (F-034)
 - [ ] First-open offer to add `.coeus/` to the vault's `.gitignore` (SPEC.md §Vault layout)
 - [ ] Editor source mode with syntax highlighting and save through `AtomicWriter` (`src/ui/Editor.cpp`)
 - [ ] Autosave journal with recovery on startup (SPEC.md §Autosave journal)

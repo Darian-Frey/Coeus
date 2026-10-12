@@ -37,7 +37,15 @@ name = "pontus"
 path = "/home/shane/src/pontus"
 ```
 
-Each root gets its own `VaultWatcher` and its own `.gitignore` handling. `notes.path` is relative to the root; `notes.root_id` identifies it. The UI displays `<name>/<path>`. A root whose `path` does not exist on this machine keeps its rows and is shown greyed. Roots are machine-specific: `config.toml` lives in `.coeus/`, which never syncs (D-011). Only root 0 passes through the sync provider.
+Each root gets its own `VaultWatcher` and its own `.gitignore` handling. `notes.path` is relative to the root; `notes.root_id` identifies it. The UI displays `<name>/<path>`. A root whose `path` does not exist on this machine keeps its rows and is shown greyed.
+
+- **Names.** Letters, digits, `.`, `_`, `-`; unique; `vault` is reserved for root 0. A rejected entry is reported and skipped; the others still load. Malformed TOML is reported with line and column, and the vault opens with no linked roots.
+- **Paths.** Absolute, `~/…`, or relative to the vault folder.
+- **Ids.** Root 0 is the vault. A linked root keeps the id recorded for its name in `roots`; a new name takes the next free id. Renaming a root is removing one and adding another.
+- **Absent roots** (`path` missing): `roots.present = 0`; the root is neither scanned nor watched, so its rows survive untouched (AV-010).
+- **Removed roots** (no longer in config): the root and every row derived from it are deleted.
+- **Ignore rules.** Paths a Git repository ignores are neither indexed nor watched, using Git's own rules through libgit2: nested `.gitignore` files, negation, `.git/info/exclude` and global excludes. Two kinds of repository apply: the one containing the root (found by searching upward; disregarded if it ignores the root itself), and repositories nested inside the root, recognised when the walk reaches a visible, non-ignored folder holding `.git`. A path is judged by the innermost repository containing it; outside every repository nothing is ignored. Editing a `.gitignore` rescans the root.
+- **Temporary files** from interrupted saves are swept from every present root on open (IMP-002). Roots are machine-specific: `config.toml` lives in `.coeus/`, which never syncs (D-011). Only root 0 passes through the sync provider.
 
 ## Ideas
 
@@ -288,11 +296,19 @@ CREATE VIRTUAL TABLE vec USING vec0(
 );
 ```
 
-Indexed files: `*.md` under each root, excluding any path with a segment beginning `.` (so `.coeus/`, `.git/` and temporary files) and folder symlinks. `title` is the filename without its last extension.
+Indexed files: `*.md` under each root, excluding any path with a segment beginning `.` (so `.coeus/`, `.git/` and temporary files), folder symlinks, and anything the root's Git ignore rules exclude (§Linked roots). `title` is the filename without its last extension.
 
 Incremental update: on a file event the indexer compares `hash`; a file with unchanged content only has `mtime` and `size` refreshed. A changed file has its rows deleted by cascade and re-inserted in one transaction, keeping its `notes.id`; its `fts` row (not covered by foreign keys) is deleted and re-inserted by `rowid` in the same transaction. Every scan or update ends by recomputing link resolution for the whole index in memory and writing only changed `links` rows, because adding or removing one note can resolve, unresolve or make ambiguous links in any other.
 
 File links are not resolved to notes and not counted as unresolved: wikilinks and Markdown links to attachments (images, PDFs, audio, video, `.canvas`), and Markdown links to any file whose extension is not `.md`.
+
+## File watching
+
+`VaultWatcher` (D-019) holds one inotify watch per visible, non-ignored folder of a present root, with mask `IN_CLOSE_WRITE | IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO | IN_ATTRIB | IN_DELETE_SELF | IN_MOVE_SELF`, not following symlinks. Events for hidden names (`.coeus/`, `.git/`, `AtomicWriter` temporary files) and non-Markdown files are dropped. Note events are collected by root-relative path and flushed together after `watcher_debounce_ms` of quiet as one `Indexer::update` batch (one transaction, one link resolution). A rename-based save arrives as a move onto the note's name and is handled like any write.
+
+A full scan of the root replaces the batch when a folder is created by a move, deleted or moved away, a `.gitignore` changes, or inotify reports a queue overflow. A newly created folder is watched at once and its existing notes reported. If `inotify_add_watch` fails for lack of watches, the status bar says so once per root, pointing to BUILD.md §Large vaults.
+
+Watches are added before a root's first scan, so nothing written during the scan is missed.
 
 ## Full-text query syntax
 

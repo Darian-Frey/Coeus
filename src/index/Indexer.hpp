@@ -5,6 +5,7 @@
 #include <QStringList>
 
 #include <expected>
+#include <functional>
 
 namespace coeus {
 
@@ -29,18 +30,28 @@ public:
         bool clean() const { return notIndexed.isEmpty() && notOnDisk.isEmpty() && stale.isEmpty(); }
     };
 
+    // True for root-relative paths the root's .gitignore excludes (GitIgnore).
+    using IgnoreFn = std::function<bool(const QString& relativePath, bool isDir)>;
+
     explicit Indexer(IndexStore& store);
 
-    // Full pass: indexes new and changed notes, drops deleted ones, resolves links.
-    std::expected<ScanReport, QString> scan(const RootInfo& root);
-    // One file was created, changed or deleted.
-    std::expected<void, QString> update(const RootInfo& root, const QString& relativePath);
+    // Full pass: indexes new and changed notes, drops deleted and newly
+    // ignored ones, resolves links.
+    std::expected<ScanReport, QString> scan(const RootInfo& root, const IgnoreFn& ignore = {});
+    // Files were created, changed or deleted: one transaction, one resolve.
+    std::expected<void, QString> update(const RootInfo& root, const QStringList& relativePaths,
+                                        const IgnoreFn& ignore = {});
+    std::expected<void, QString> update(const RootInfo& root, const QString& relativePath)
+    {
+        return update(root, QStringList{relativePath});
+    }
     // Compares the index with the disk without changing anything ("Verify index").
-    std::expected<VerifyReport, QString> verify(const RootInfo& root);
+    std::expected<VerifyReport, QString> verify(const RootInfo& root, const IgnoreFn& ignore = {});
 
     // Root-relative paths of every note under `rootPath`, sorted. Skips hidden
-    // files and folders (.coeus/, .git/, temporary files) and folder symlinks.
-    static QStringList noteFiles(const QString& rootPath);
+    // files and folders (.coeus/, .git/, temporary files), folder symlinks and
+    // anything `ignore` excludes.
+    static QStringList noteFiles(const QString& rootPath, const IgnoreFn& ignore = {});
 
 private:
     enum class Outcome { Added, Updated, Unchanged, Removed, Failed };

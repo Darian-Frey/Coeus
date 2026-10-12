@@ -13,6 +13,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <algorithm>
+
 using coeus::MainWindow;
 using coeus::Vault;
 
@@ -105,7 +107,10 @@ private slots:
     {
         MainWindow window;
         auto* palette = window.commandPalette();
-        const int all = int(window.registeredActions().size());
+        // Disabled commands (Verify and Rebuild Index without a vault) are hidden.
+        const int all = int(std::count_if(window.registeredActions().begin(), window.registeredActions().end(),
+                                          [](const QAction* action) { return action->isEnabled(); }));
+        QVERIFY(all < window.registeredActions().size());
 
         palette->setFilterText(QString());
         QCOMPARE(palette->visibleCount(), all);

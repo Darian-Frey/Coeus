@@ -4,6 +4,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Linked roots, ignore rules and live indexing: `Roots` (config.toml via toml++, D-016), `GitIgnore` (libgit2; the repository containing a root and repositories nested in it), `VaultWatcher` (inotify, one watch per folder, D-019), `IndexService` worker thread. Root ids are stable by name; missing roots keep their rows (AV-010). Verify Index and Rebuild Index commands; index status in the status bar. Tests `test_roots`, `test_git_ignore`, `test_vault_watcher`, `test_index_service`. On ~/Projects, 11 nested repositories' rules cut the index from 645 to 272 notes.
+- D-019 inotify watcher.
 - SQLite index (D-017, D-018): `Database`/`Statement`/`Transaction` wrapper, schema v1, `IndexStore`, `LinkResolver` (SPEC §Wikilink resolution, ambiguity flagged), `Indexer` scan/update/verify, BLAKE2b-128 `ContentHash`. Tests `test_database`, `test_indexer`, `test_rebuild_equivalence` (AV-001). A full scan of 645 notes takes 0.8 s; resolving 1,418 links takes 5 ms.
 - Markdown parser (`NoteParser`, `Frontmatter`; D-014, D-015): wikilinks, embeds, local Markdown links, tags, headings, block IDs, typed properties and plain text with file line numbers. `test_note_parser` (25 cases); 305 real notes parse at 0.5 ms each in a debug build.
 - `TempSweeper` removes stale `.coeus-tmp-*` files on vault open, off the UI thread (IMP-002 applied); the write invariant names it as the sole exception.
@@ -23,6 +25,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- libgit2 is now a build dependency (for `.gitignore` rules), ahead of Phase 3's Git features.
+- SPEC §Linked roots gains name, path, id, absent-root, removed-root and ignore rules; new §File watching.
 - SPEC §Index schema: `links.ambiguous`; no migrations, a mismatched or unreadable index is rebuilt; indexed-file rules; resolution recomputed per update; file links (attachments, Markdown links to non-`.md` files) are neither resolved nor counted as broken.
 - SPEC §Markdown dialect: local Markdown links are links, resolved relative to the note's folder; all-digit tags excluded and tag letters may be any script, as in Obsidian; embeds found by `parser/`; frontmatter property type inference. `links` gains `style`, `props` gains `line`.
 - ROADMAP Phase 2 deliverables now cover every Phase 2 feature's acceptance: `AtomicWriter`, rebuild-equivalence check, `.gitignore` offer, autosave journal, conflict prompt, reading mode, unlinked mentions.

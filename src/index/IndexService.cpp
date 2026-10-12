@@ -1,0 +1,241 @@
+#include "index/IndexService.hpp"
+
+#include "vault/GitIgnore.hpp"
+#include "vault/Roots.hpp"
+#include "vault/TempSweeper.hpp"
+#include "vault/VaultWatcher.hpp"
+
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QSet>
+
+#include <algorithm>
+
+namespace coeus {
+
+IndexService::IndexService(QObject* parent)
+    : QObject(parent)
+{
+}
+
+IndexService::~IndexService() = default;
+
+QString IndexService::indexPath(const QString& vaultPath)
+{
+    return vaultPath + QStringLiteral("/.coeus/index.db");
+}
+
+std::optional<Indexer::IgnoreFn> IndexService::ignoreFor(int rootId) const
+{
+    // Always a filter, even outside a repository: nested ones are found as
+    // folders are checked.
+    const std::shared_ptr<GitIgnore> ignore = m_ignores.value(rootId);
+    if (!ignore)
+        return std::nullopt;
+    return Indexer::IgnoreFn([ignore](const QString& path, bool isDir) { return ignore->isIgnored(path, isDir); });
+}
+
+void IndexService::open(const QString& vaultPath)
+{
+    m_vaultPath = vaultPath;
+    qDeleteAll(m_watchers);
+    m_watchers.clear();
+    m_ignores.clear();
+    m_roots.clear();
+    m_indexer.reset();
+    m_store.reset();
+
+    if (!QDir().mkpath(vaultPath + QStringLiteral("/.coeus"))) {
+        emit failed(tr("Cannot create %1/.coeus").arg(vaultPath));
+        return;
+    }
+    auto store = IndexStore::open(indexPath(vaultPath));
+    if (!store) {
+        emit failed(store.error());
+        return;
+    }
+    m_store.emplace(std::move(*store));
+    m_indexer = std::make_unique<Indexer>(*m_store);
+
+    // Root 0 is the vault; linked roots keep their id by name (SPEC.md §Linked roots).
+    const Roots::Loaded config = Roots::load(vaultPath);
+    QStringList problems = config.problems;
+    QHash<QString, int> knownIds;
+    int nextId = 1;
+    if (const auto known = m_store->roots()) {
+        for (const RootInfo& root : *known) {
+            knownIds.insert(root.name, root.id);
+            nextId = std::max(nextId, root.id + 1);
+        }
+    }
+
+    m_roots.insert(0, {{0, QLatin1String(Roots::kVaultRootName), vaultPath}, true});
+    QSet<QString> configured{QLatin1String(Roots::kVaultRootName)};
+    for (const RootConfig& root : config.roots) {
+        const int id = knownIds.contains(root.name) ? knownIds.value(root.name) : nextId++;
+        const bool present = QFileInfo(root.path).isDir();
+        m_roots.insert(id, {{id, root.name, root.path}, present});
+        configured.insert(root.name);
+        if (!present)
+            problems.append(tr("Linked root \"%1\" is missing on this machine (%2); its notes are kept but not updated.")
+                                .arg(root.name, root.path));
+    }
+
+    {
+        auto transaction = Transaction::begin(m_store->database(), Transaction::Kind::Immediate);
+        if (!transaction) {
+            emit failed(transaction.error());
+            return;
+        }
+        // Roots removed from config take their rows with them.
+        for (auto it = knownIds.constBegin(); it != knownIds.constEnd(); ++it) {
+            if (!configured.contains(it.key()) && it.value() != 0) {
+                if (auto removed = m_store->removeRoot(it.value()); !removed) {
+                    emit failed(removed.error());
+                    return;
+                }
+            }
+        }
+        for (const RootState& root : std::as_const(m_roots)) {
+            if (auto put = m_store->putRoot(root.info, root.present); !put) {
+                emit failed(put.error());
+                return;
+            }
+        }
+        if (auto committed = transaction->commit(); !committed) {
+            emit failed(committed.error());
+            return;
+        }
+    }
+
+    // Watch before scanning, so nothing written during the scan is missed.
+    QList<int> ids = m_roots.keys();
+    std::sort(ids.begin(), ids.end());
+    for (const int id : ids) {
+        const RootState& root = m_roots.value(id);
+        if (!root.present)
+            continue; // AV-010: an absent root is never scanned, so never emptied
+        m_ignores.insert(id, std::make_shared<GitIgnore>(root.info.path));
+        if (id != 0)
+            TempSweeper::sweep(root.info.path); // the vault itself is swept by MainWindow
+        startWatching(root);
+    }
+    for (const int id : std::as_const(ids)) {
+        if (m_roots.value(id).present)
+            rescanRoot(id);
+    }
+
+    const auto count = m_store->noteCount();
+    emit opened(count.value_or(0), problems);
+}
+
+void IndexService::startWatching(const RootState& root)
+{
+    const auto ignore = ignoreFor(root.info.id);
+    auto* watcher = new VaultWatcher(root.info.id, root.info.path, ignore.value_or(VaultWatcher::IgnoreFn()), this);
+    connect(watcher, &VaultWatcher::filesChanged, this, &IndexService::applyChanges);
+    connect(watcher, &VaultWatcher::rescanNeeded, this, &IndexService::rescanRoot);
+    connect(watcher, &VaultWatcher::watchLimitReached, this,
+            [this](int, const QString& message) { emit warning(message); });
+    m_watchers.insert(root.info.id, watcher);
+    watcher->start();
+}
+
+void IndexService::applyChanges(int rootId, const QStringList& paths)
+{
+    if (!m_indexer || !m_roots.contains(rootId))
+        return;
+    const auto ignore = ignoreFor(rootId);
+    if (auto result = m_indexer->update(m_roots.value(rootId).info, paths, ignore.value_or(Indexer::IgnoreFn())); !result) {
+        emit failed(result.error());
+        return;
+    }
+    reportCount();
+}
+
+void IndexService::rescanRoot(int rootId)
+{
+    if (!m_indexer || !m_roots.contains(rootId))
+        return;
+    const RootState& root = m_roots.value(rootId);
+    if (!root.present)
+        return;
+
+    // A .gitignore may have changed: reload the rules for the scan and the watcher.
+    m_ignores.insert(rootId, std::make_shared<GitIgnore>(root.info.path));
+    const auto ignore = ignoreFor(rootId);
+    if (VaultWatcher* watcher = m_watchers.value(rootId))
+        watcher->setIgnore(ignore.value_or(VaultWatcher::IgnoreFn()));
+
+    emit busy(tr("Indexing %1…").arg(root.info.name));
+    const auto report = m_indexer->scan(root.info, ignore.value_or(Indexer::IgnoreFn()));
+    if (!report) {
+        emit failed(report.error());
+        return;
+    }
+    if (!report->failures.isEmpty())
+        emit warning(tr("Could not read %n note(s) in %1", nullptr, int(report->failures.size())).arg(root.info.name));
+    reportCount();
+}
+
+void IndexService::rescanAll()
+{
+    QList<int> ids = m_roots.keys();
+    std::sort(ids.begin(), ids.end());
+    for (const int id : std::as_const(ids))
+        rescanRoot(id);
+}
+
+void IndexService::verify()
+{
+    if (!m_indexer)
+        return;
+    emit busy(tr("Verifying index…"));
+    QStringList lines;
+    bool clean = true;
+    QList<int> ids = m_roots.keys();
+    std::sort(ids.begin(), ids.end());
+    for (const int id : std::as_const(ids)) {
+        const RootState& root = m_roots.value(id);
+        if (!root.present)
+            continue;
+        const auto ignore = ignoreFor(id);
+        const auto report = m_indexer->verify(root.info, ignore.value_or(Indexer::IgnoreFn()));
+        if (!report) {
+            emit failed(report.error());
+            return;
+        }
+        if (report->clean())
+            continue;
+        clean = false;
+        auto list = [&](const QString& label, const QStringList& paths) {
+            for (const QString& path : paths)
+                lines.append(QStringLiteral("%1 %2/%3").arg(label, root.info.name, path));
+        };
+        list(tr("not indexed:"), report->notIndexed);
+        list(tr("missing on disk:"), report->notOnDisk);
+        list(tr("out of date:"), report->stale);
+    }
+    emit verified(clean ? tr("The index matches the vault.") : lines.join(QLatin1Char('\n')), clean);
+}
+
+void IndexService::rebuild()
+{
+    const QString vault = m_vaultPath;
+    qDeleteAll(m_watchers);
+    m_watchers.clear();
+    m_indexer.reset();
+    m_store.reset(); // closes the database before its files are removed
+    for (const char* suffix : {"", "-wal", "-shm"})
+        QFile::remove(indexPath(vault) + QLatin1String(suffix));
+    open(vault);
+}
+
+void IndexService::reportCount()
+{
+    if (const auto count = m_store->noteCount())
+        emit indexChanged(*count);
+}
+
+} // namespace coeus

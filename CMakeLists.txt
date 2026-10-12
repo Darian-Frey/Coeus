@@ -18,6 +18,7 @@ find_package(yaml-cpp REQUIRED)    # D-015
 find_package(SQLite3 3.40 REQUIRED) # D-018
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(sodium REQUIRED IMPORTED_TARGET libsodium>=1.0.18) # D-017
+pkg_check_modules(libgit2 REQUIRED IMPORTED_TARGET libgit2>=1.7)     # .gitignore rules; Git features in Phase 3
 qt_standard_project_setup()
 
 # Project-wide warning policy. Applied to Coeus targets only, never to Qt.
@@ -29,15 +30,19 @@ add_library(coeus_core STATIC
     src/index/ContentHash.cpp
     src/index/Database.cpp
     src/index/Indexer.cpp
+    src/index/IndexService.cpp
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
     src/index/Schema.cpp
     src/parser/Frontmatter.cpp
     src/parser/NoteParser.cpp
     src/vault/AtomicWriter.cpp
+    src/vault/GitIgnore.cpp
+    src/vault/Roots.cpp
     src/vault/TempSweeper.cpp
     src/vault/Vault.cpp
     src/vault/VaultLogging.cpp
+    src/vault/VaultWatcher.cpp
     src/ui/CommandPalette.cpp
     src/ui/ExplorerPanel.cpp
     src/ui/FuzzyMatch.cpp
@@ -47,7 +52,7 @@ add_library(coeus_core STATIC
 target_include_directories(coeus_core PUBLIC src)
 target_link_libraries(coeus_core
     PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Widgets
-    PRIVATE md4c::md4c yaml-cpp::yaml-cpp SQLite::SQLite3 PkgConfig::sodium coeus_warnings)
+    PRIVATE md4c::md4c yaml-cpp::yaml-cpp SQLite::SQLite3 PkgConfig::sodium PkgConfig::libgit2 coeus_warnings)
 
 qt_add_executable(coeus src/app/main.cpp)
 target_compile_definitions(coeus PRIVATE COEUS_VERSION="${PROJECT_VERSION}")

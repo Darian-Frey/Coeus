@@ -6,10 +6,10 @@ Verified 2026-10-12 on Linux Mint 22.3 (Ubuntu 24.04 base) with GCC 13.3, CMake 
 
 ```bash
 sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-tools \
-    libsqlite3-dev libmd4c-dev libmd4c-html0-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev
+    libsqlite3-dev libmd4c-dev libmd4c-html0-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev libgit2-dev
 ```
 
-All of these are required to build. toml++ is listed ahead of its first use with linked roots.
+All of these are required to build.
 
 | Requirement | Minimum | Why |
 |-------------|---------|-----|
@@ -21,8 +21,9 @@ All of these are required to build. toml++ is listed ahead of its first use with
 | yaml-cpp | 0.8 | Frontmatter (D-015) |
 | toml++ | 3.4 | `.coeus/config.toml` (D-016) |
 | libsodium | 1.0.18 | BLAKE2b-128 hashes; Phase 5 encryption (D-017) |
+| libgit2 | 1.7 | `.gitignore` rules per root; Git history, diff and blame in Phase 3 |
 
-Phase 3 adds libgit2 and a vendored `sqlite-vec` amalgamation.
+Phase 3 adds a vendored `sqlite-vec` amalgamation.
 
 ## Build
 

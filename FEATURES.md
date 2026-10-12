@@ -98,7 +98,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - External edits (git pull, another editor, Claude Code) appear in the open tab within one second
 - Rename-based saves (delete + create) handled as modifications
 - Conflicting unsaved edits prompt rather than clobber (AV-002)
-**Status:** Not started (Phase 2)
+**Status:** In progress (Phase 2): external edits reach the index (D-019); open tabs and the conflict prompt arrive with the editor
 
 ### F-012 Tabs and split panes
 **Priority:** Should
@@ -286,7 +286,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Explorer shows each root as a top-level node; a root missing on this machine is greyed, not removed
 - Wikilink resolution prefers same-root matches (SPEC.md §Wikilink resolution)
 - Linked roots are excluded from the sync provider (F-028)
-**Status:** Not started (Phase 2)
+**Status:** In progress (Phase 2): config, ids, ignore rules, watchers and indexing done; explorer display open
 **Notes:** Pulled into Phase 2 because the watcher and index schema must carry `root_id` from the start.
 
 ### F-035 Embeddings sidecar
