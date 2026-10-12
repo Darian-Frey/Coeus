@@ -13,6 +13,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(COEUS_BUILD_TESTS "Build the Coeus test suite" OFF)
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Core Concurrent Gui Widgets)
+find_package(md4c REQUIRED)        # D-014
+find_package(yaml-cpp REQUIRED)    # D-015
 qt_standard_project_setup()
 
 # Project-wide warning policy. Applied to Coeus targets only, never to Qt.
@@ -21,6 +23,8 @@ target_compile_options(coeus_warnings INTERFACE -Wall -Wextra -Werror)
 
 # Everything except main() lives in a static library so tests can link it.
 add_library(coeus_core STATIC
+    src/parser/Frontmatter.cpp
+    src/parser/NoteParser.cpp
     src/vault/AtomicWriter.cpp
     src/vault/TempSweeper.cpp
     src/vault/Vault.cpp
@@ -34,7 +38,7 @@ add_library(coeus_core STATIC
 target_include_directories(coeus_core PUBLIC src)
 target_link_libraries(coeus_core
     PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Widgets
-    PRIVATE coeus_warnings)
+    PRIVATE md4c::md4c yaml-cpp::yaml-cpp coeus_warnings)
 
 qt_add_executable(coeus src/app/main.cpp)
 target_compile_definitions(coeus PRIVATE COEUS_VERSION="${PROJECT_VERSION}")

@@ -52,7 +52,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **vault/** — Filesystem boundary. `Vault` resolves paths and enumerates files; `TempSweeper` removes temporary files left by interrupted saves, on a worker thread; `VaultWatcher` wraps `QFileSystemWatcher` on directories and normalises rename-based saves into modify events; `AtomicWriter` performs temp-write, fsync, rename.
 
-**parser/** — Pure functions from text to structures. CommonMark plus wikilinks, tags, frontmatter, callouts, block IDs. `RegisterParser` recognises the scaffold document types by filename and yields typed entries. No Qt dependencies beyond `QString`; unit-testable in isolation.
+**parser/** — Pure functions from text to structures. `NoteParser` runs md4c (D-014) and `Frontmatter` runs yaml-cpp (D-015) to yield a `ParsedNote`: links (wiki and Markdown), embeds, tags, headings, block IDs, properties and plain text, each with a file line number. Callouts follow with reading mode. `RegisterParser` recognises the scaffold document types by filename and yields typed entries. No Qt dependencies beyond `QString`; unit-testable in isolation.
 
 **index/** — SQLite schema (SPEC.md §Index), migrations, and `Indexer`, which consumes watcher events on a worker thread and updates rows incrementally. Exposes read-only query objects to the UI and emits `noteChanged`, `linksChanged`, `registersChanged` signals.
 

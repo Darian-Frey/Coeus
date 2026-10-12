@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Markdown parser (`NoteParser`, `Frontmatter`; D-014, D-015): wikilinks, embeds, local Markdown links, tags, headings, block IDs, typed properties and plain text with file line numbers. `test_note_parser` (25 cases); 305 real notes parse at 0.5 ms each in a debug build.
 - `TempSweeper` removes stale `.coeus-tmp-*` files on vault open, off the UI thread (IMP-002 applied); the write invariant names it as the sole exception.
 - `tools/check_xrefs.py` cross-reference checker with tests, ctest entries and a pre-commit hook (IMP-001 applied).
 - `AtomicWriter` (AV-002): temp write, fsync, rename, directory fsync; keeps mode, owner where permitted, and symlinks. `test_atomic_writer` includes a kill-during-write harness.
@@ -21,6 +22,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- SPEC §Markdown dialect: local Markdown links are links, resolved relative to the note's folder; all-digit tags excluded and tag letters may be any script, as in Obsidian; embeds found by `parser/`; frontmatter property type inference. `links` gains `style`, `props` gains `line`.
 - ROADMAP Phase 2 deliverables now cover every Phase 2 feature's acceptance: `AtomicWriter`, rebuild-equivalence check, `.gitignore` offer, autosave journal, conflict prompt, reading mode, unlinked mentions.
 - Phase 1 (GUI shell) Complete; F-001 and F-002 Complete (2026-10-12).
 - Minimum Qt lowered from 6.5 to 6.4 to build against the distribution's packaged Qt (Mint 22, Ubuntu 24.04).

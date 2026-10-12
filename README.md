@@ -53,7 +53,7 @@ coeus/
     └── design/       # UI mockups (main-window.png)
 ```
 
-`app/`, `ui/` and `vault/` hold the Phase 1 shell; the other module folders are empty placeholders (`.gitkeep`). Scaffold documents live at the repository root.
+`app/`, `ui/`, `vault/` and `parser/` hold code; the other module folders are empty placeholders (`.gitkeep`). Scaffold documents live at the repository root.
 
 ## Documentation
 

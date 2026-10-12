@@ -60,11 +60,12 @@ CommonMark 0.31 plus the following extensions, in order of parse precedence:
 
 | Construct | Grammar | Notes |
 |-----------|---------|-------|
-| Frontmatter | `---\n<YAML>\n---` at byte 0 only | YAML 1.2 subset: scalars, lists, flat maps |
-| Wikilink | `[[target]]`, `[[target\|alias]]`, `[[target#heading]]`, `[[target^block]]` | `target` is a note title or vault-relative path without `.md` |
-| Embed | `![[…]]` with the same target grammar | |
-| Tag | `#[A-Za-z0-9_/-]+` not preceded by `\w`; `/` nests | Frontmatter `tags:` list also contributes |
-| Block ID | `^[A-Za-z0-9-]+` at end of a paragraph | |
+| Frontmatter | `---\n<YAML>\n---` (or `...` to close) at byte 0 only, after an optional UTF-8 BOM | YAML 1.2 subset: scalars, lists, flat maps. Unclosed means not frontmatter. Invalid YAML is a lint entry, never a parse failure |
+| Wikilink | `[[target]]`, `[[target\|alias]]`, `[[target#heading]]`, `[[target#^block]]`, `[[target^block]]` | `target` is a note title or vault-relative path without `.md` |
+| Embed | `![[…]]` with the same target grammar | md4c does not recognise it; `parser/` finds it in plain text (D-014) |
+| Markdown link | `[text](path)`, `![alt](path)` (embed) | Local files only: no URL scheme, not `//…`, not `#…`. `path` is percent-decoded and relative to the source note's folder; `#fragment` is a heading |
+| Tag | `#` then letters (any script), digits, `_`, `-`, `/`; not preceded by a word character or `#`; at least one non-digit; `/` nests, trailing `/` dropped | Frontmatter `tags:` (list, or comma- or space-separated string; leading `#` stripped) also contributes. Not recognised in code, maths, links or embeds. All-digit tags (`#42`) are excluded, as in Obsidian (D-001) |
+| Block ID | `^[A-Za-z0-9-]+` at the end of a paragraph or list item, after whitespace | Not in code |
 | Callout | `> [!kind]` optionally `> [!kind]-` (folded) | Kinds: note, tip, info, warning, danger, quote, example, question, abstract |
 | Maths | `$…$` inline, `$$…$$` block | |
 | Mermaid | fenced ```` ```mermaid ```` | |
@@ -78,6 +79,12 @@ CommonMark 0.31 plus the following extensions, in order of parse precedence:
 4. Exact title match in any other root, nearest by the same rule.
 5. Alias match from any note's frontmatter `aliases:`, same-root first.
 6. Otherwise unresolved; the link is indexed with `target_note = NULL` and flagged (AV-006). Multiple candidates at steps 3–5 with equal rank are ambiguous and flagged.
+
+Markdown links (`style = 'markdown'`) resolve by path only: relative to the source note's folder, within the source's root. They never match by title or alias; an unmatched path is unresolved and flagged like a wikilink.
+
+### Frontmatter property types
+
+Each top-level key becomes a `props` row (one per list item). Types are inferred: a YAML sequence is `list`; a plain scalar `YYYY-MM-DD` is `date`; a plain numeric scalar is `number`; anything else, including every quoted scalar, null and nested map, is `text`. `aliases:` (or `alias:`) also feeds wikilink resolution step 5.
 
 ## Status header
 
@@ -193,6 +200,7 @@ CREATE TABLE links (
   src INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
   target_note INTEGER REFERENCES notes(id) ON DELETE SET NULL,
   target_raw TEXT NOT NULL,
+  style TEXT NOT NULL DEFAULT 'wiki', -- 'wiki' | 'markdown' (§Wikilink resolution)
   heading TEXT, block TEXT, alias TEXT,
   line INTEGER NOT NULL,
   embed INTEGER NOT NULL DEFAULT 0
@@ -208,7 +216,8 @@ CREATE INDEX tags_tag ON tags(tag);
 
 CREATE TABLE props (
   note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-  key TEXT NOT NULL, value TEXT, type TEXT NOT NULL
+  key TEXT NOT NULL, value TEXT, type TEXT NOT NULL,  -- text | number | date | list
+  line INTEGER
 );
 
 CREATE TABLE headings (
