@@ -4,7 +4,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 1 — GUI shell
 **Goal:** A running Qt6 window with the full panel skeleton so every later feature can be tested the moment it is wired in.
-**Status:** In progress
+**Status:** Complete (2026-10-12)
 **Features delivered:** F-001, F-002
 **Deliverables:**
 - [x] CMake project with `src/app`, `src/ui` and a test target (`CMakeLists.txt`)

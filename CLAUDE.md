@@ -11,14 +11,9 @@ Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt
 - `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.
 
 ## Active task
-**Phase 1 — GUI shell** (see ROADMAP.md). Deliver F-001 and F-002 first:
-- `QMainWindow` with central editor placeholder, left `QDockWidget` (file explorer), right `QDockWidget` (backlinks/outline/properties stack), `QToolBar` icon strip, `QStatusBar`, `QTabWidget` for open notes.
-- Opens a vault folder passed on the command line, lists its Markdown and attachment files (SPEC.md §Vault layout) in a `QTreeView` over a filtered `QFileSystemModel`.
-- Selecting a file loads it read-only into the central `QPlainTextEdit`.
-- Command palette on `Ctrl+P` listing all registered actions with fuzzy filtering.
-- Acceptance: builds clean with `-Wall -Wextra -Werror`; opens a 1,000-file vault and shows the tree in under 500 ms; dock layout persists across restarts via `QSettings`.
+**Phase 2 — Core vault** (see ROADMAP.md). Not yet started; scope and order to be agreed with the author before code is written.
 
-Every later feature is a panel or command dropped into this shell. Do not build features before the shell exists.
+Phase 1 (GUI shell, F-001, F-002) completed 2026-10-12. Every later feature is a panel added to `SidebarPanel`, a dock, or a command passed to `MainWindow::registerAction()`; do not restructure the shell to add one.
 
 ## Invariants
 - The vault is the source of truth. The index is derived and must be fully rebuildable from the vault with no data loss (AV-001).

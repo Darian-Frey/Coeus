@@ -17,6 +17,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-013 C++23 language standard.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- Phase 1 (GUI shell) Complete; F-001 and F-002 Complete (2026-10-12).
 - Minimum Qt lowered from 6.5 to 6.4 to build against the distribution's packaged Qt (Mint 22, Ubuntu 24.04).
 - C++20 → C++23 so `std::expected` is available (BUG-001, D-013).
 - `fts` stores its own text so snippets work (BUG-002).

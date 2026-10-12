@@ -1,7 +1,7 @@
 > **Status:** Active
 > **Provenance:** Shane Hartley (author); Claude (initial scaffolding 2026-09-25)
 > **Last reviewed:** 2026-10-12
-> **Why this status:** Scaffold extended 2026-10-12 with linked roots, project board, MCP server and sync model. Phase 1 (GUI shell) not yet started.
+> **Why this status:** Scaffold extended 2026-10-12 with linked roots, project board, MCP server and sync model. Phase 1 (GUI shell) complete 2026-10-12; Phase 2 (core vault) next.
 
 # Coeus
 
