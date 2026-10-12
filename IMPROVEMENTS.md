@@ -13,16 +13,6 @@ Effort vocabulary: trivial | small | medium | large.
 
 ## Suggested
 
-### IMP-001: Cross-reference checker for the scaffold docs
-**Status:** suggested
-**Found:** 2026-09-25 (scaffolding session)
-**Location:** `tools/check_xrefs.py` (does not exist)
-**Effort:** small
-**Description.** The documentation standard's Maintenance Rule 6 requires bidirectional cross-references between F-/D-/AV-/BUG-/IMP- entries, and acknowledges the rule decays without tooling. Coeus's own docs already have several one-way references (for example AV entries cite D entries but the D entries do not all cite back).
-**Proposal.** A Python script walking the six register files, building the reference graph, and reporting broken and one-way links; wired as a pre-commit hook. Once F-016 exists, the script becomes redundant and can be replaced by `coeus --lint`.
-**Trade-offs.** Throwaway tooling that F-016 supersedes; but F-016 is Phase 3 and the docs need checking from Phase 1. Cost is an hour.
-**Notes.** Same rule the register lint (SPEC.md §Lint L4) will enforce inside the app.
-
 ### IMP-002: Sweep stale temporary files left by interrupted writes
 **Status:** suggested
 **Found:** 2026-10-12 (building `AtomicWriter`)
@@ -34,6 +24,18 @@ Effort vocabulary: trivial | small | medium | large.
 **Notes.** Related to AV-002 and BUG-003.
 
 ## Applied
+
+### IMP-001: Cross-reference checker for the scaffold docs
+**Status:** applied
+**Found:** 2026-09-25 (scaffolding session)
+**Location:** `tools/check_xrefs.py`, `tools/test_check_xrefs.py`, `tools/hooks/pre-commit`
+**Effort:** small
+**Description.** The documentation standard's Maintenance Rule 6 requires bidirectional cross-references between F-/D-/AV-/BUG-/IMP- entries, and acknowledges the rule decays without tooling. Coeus's own docs already have several one-way references (for example AV entries cite D entries but the D entries do not all cite back).
+**Proposal.** A Python script walking the six register files, building the reference graph, and reporting broken and one-way links; wired as a pre-commit hook. Once F-016 exists, the script becomes redundant and can be replaced by `coeus --lint`.
+**Trade-offs.** Throwaway tooling that F-016 supersedes; but F-016 is Phase 3 and the docs need checking from Phase 1. Cost is an hour.
+**Notes.** Same rule the register lint (SPEC.md §Lint L4) will enforce inside the app.
+**Applied.** 2026-10-12. Checks every root-level and `docs/` Markdown file. Broken and duplicate IDs are errors and fail the hook and the `check_xrefs` ctest; one-way references are listed as warnings (65 on first run, 49 of them D→F) and fail only with `--strict`. Back-reference pairs follow Maintenance Rule 6 and rule 4 of the BUGS and IMPROVEMENTS sections. The hook is enabled per clone with `git config core.hooksPath tools/hooks`.
+
 
 ## Declined
 

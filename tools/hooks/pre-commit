@@ -1,0 +1,6 @@
+#!/bin/sh
+# Coeus pre-commit hook. Enable once per clone:
+#   git config core.hooksPath tools/hooks
+# Blocks the commit on broken or duplicate F-/C-/D-/AV-/BUG-/IMP- IDs and
+# lists one-way references without blocking (IMP-001, Maintenance Rule 6).
+exec python3 "$(git rev-parse --show-toplevel)/tools/check_xrefs.py"

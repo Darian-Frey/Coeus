@@ -45,6 +45,14 @@ Tests set `QT_QPA_PLATFORM=offscreen` themselves, so they run without a display.
 ./build/tests/test_open_large_vault
 ```
 
+Documentation cross-references are checked by two ctest entries, `check_xrefs` and `test_check_xrefs` (Python 3, standard library only). To run the checker on its own, or to make it block commits with broken IDs:
+
+```bash
+python3 tools/check_xrefs.py            # errors and one-way references
+python3 tools/check_xrefs.py --strict   # one-way references fail too
+git config core.hooksPath tools/hooks   # enable the pre-commit hook in this clone
+```
+
 ## Run
 
 ```bash

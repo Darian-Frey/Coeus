@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- `tools/check_xrefs.py` cross-reference checker with tests, ctest entries and a pre-commit hook (IMP-001 applied).
 - `AtomicWriter` (AV-002): temp write, fsync, rename, directory fsync; keeps mode, owner where permitted, and symlinks. `test_atomic_writer` includes a kill-during-write harness.
 - IMP-002 sweep of stale `.coeus-tmp-*` files.
 - Phase 1 shell (F-001, F-002): CMake project (C++23, `-Wall -Wextra -Werror`), `MainWindow` with explorer and sidebar docks, tool strip, tabs and status bar; vault opened from the command line or File menu; Markdown-and-attachments explorer; read-only note tabs; `Ctrl+P` command palette with fuzzy filter; dock layout persisted through `QSettings`.

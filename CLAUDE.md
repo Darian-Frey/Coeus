@@ -49,7 +49,7 @@ Verified 2026-10-12; details and dependencies in BUILD.md. New sources are liste
 - `QFileSystemWatcher` runs out of inotify watches on large vaults; watch directories, not files, and raise `fs.inotify.max_user_watches` guidance in BUILD.md.
 - Editors that save via rename (Vim, Claude Code) produce delete+create events, not modify. The watcher must handle both.
 - `sqlite-vec` must be loaded as an extension before any `vec0` table is touched; load it in the connection factory, not per-query.
-- Cross-references between docs may be stale until `tools/check_xrefs.py` exists (Maintenance Rule 6).
+- Run `python3 tools/check_xrefs.py` after editing any register entry. Broken IDs are errors; one-way references are reported but not yet all resolved, so cross-references may still be stale (Maintenance Rule 6).
 
 ## Out of scope
 - Do not add a plugin system, mobile build, or Publish feature.

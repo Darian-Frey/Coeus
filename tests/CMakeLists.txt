@@ -19,3 +19,12 @@ add_dependencies(test_atomic_writer atomic_write_helper)
 coeus_add_test(test_fuzzy_match ui/test_fuzzy_match.cpp)
 coeus_add_test(test_main_window ui/test_main_window.cpp)
 coeus_add_test(test_open_large_vault perf/test_open_large_vault.cpp)
+
+# Documentation cross-references (IMP-001): broken or duplicate IDs fail.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME check_xrefs
+             COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/check_xrefs.py --quiet ${PROJECT_SOURCE_DIR})
+    add_test(NAME test_check_xrefs
+             COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/test_check_xrefs.py)
+endif()
