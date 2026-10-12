@@ -4,6 +4,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Editor (F-003 source mode, F-011): editable tabs with Markdown highlighting; `Ctrl+S` saves through `Vault::writeNote` and `AtomicWriter`; saving over an external change, or an external change to a modified buffer, prompts (Keep Mine / Load Disk / Decide Later) instead of overwriting (AV-002); clean tabs follow external edits within a second; close and quit ask about unsaved changes.
+- Autosave journal: modified buffers written to `.coeus/journal/` every 5 s on a background thread; unsaved work offered for recovery when the vault reopens.
+- Tests `test_editor`, `test_journal`, `test_conflict_prompt`; sanitizer build documented in BUILD.md.
 - First-open `.gitignore` offer (Add / Not Now / Don't Ask Again) and File › Add Coeus Files to .gitignore; `VaultConfig` edits `config.toml` line by line. Tests `test_gitignore_offer` and two window cases.
 - Explorer sections for the vault and each linked root, collapsible, missing roots greyed; notes in linked roots open in tabs labelled `<root>/<path>` (F-034 complete).
 - Linked roots, ignore rules and live indexing: `Roots` (config.toml via toml++, D-016), `GitIgnore` (libgit2; the repository containing a root and repositories nested in it), `VaultWatcher` (inotify, one watch per folder, D-019), `IndexService` worker thread. Root ids are stable by name; missing roots keep their rows (AV-010). Verify Index and Rebuild Index commands; index status in the status bar. Tests `test_roots`, `test_git_ignore`, `test_vault_watcher`, `test_index_service`. On ~/Projects, 11 nested repositories' rules cut the index from 645 to 272 notes.
@@ -27,6 +30,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- SPEC §Autosave journal: journal entries older than their note are offered too, flagged, rather than hidden; new §Editing.
 - libgit2 is now a build dependency (for `.gitignore` rules), ahead of Phase 3's Git features.
 - SPEC §Linked roots gains name, path, id, absent-root, removed-root and ignore rules; new §File watching.
 - SPEC §Index schema: `links.ambiguous`; no migrations, a mismatched or unreadable index is rebuilt; indexed-file rules; resolution recomputed per update; file links (attachments, Markdown links to non-`.md` files) are neither resolved nor counted as broken.

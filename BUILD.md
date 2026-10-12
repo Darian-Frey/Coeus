@@ -54,6 +54,20 @@ python3 tools/check_xrefs.py --strict   # one-way references fail too
 git config core.hooksPath tools/hooks   # enable the pre-commit hook in this clone
 ```
 
+## Sanitizers
+
+A separate tree builds everything with AddressSanitizer and UndefinedBehaviorSanitizer (D-002 relies on them for memory safety). Run it after changes to object lifetimes, threads or widgets:
+
+```bash
+cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCOEUS_BUILD_TESTS=ON \
+    -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+    -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+cmake --build build-asan -j
+ASAN_OPTIONS=detect_leaks=0 ctest --test-dir build-asan --output-on-failure
+```
+
+Leak detection is off because Qt and the GPU stack hold allocations until exit. A test that hangs instead of failing in the normal build may be heap corruption whose abort deadlocked; run it here.
+
 ## Run
 
 ```bash

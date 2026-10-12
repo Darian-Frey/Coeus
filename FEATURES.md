@@ -37,7 +37,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Source, live-preview, and reading modes switchable per tab
 - Syntax highlighting for CommonMark plus wikilinks, tags, frontmatter, callouts
 - Saves are atomic (AV-002); unsaved changes survive a crash via an autosave journal
-**Status:** Not started (Phase 2)
+**Status:** In progress (Phase 2): source mode with highlighting, atomic save and autosave journal done; reading mode next
 **Notes:** Live preview is the single most expensive feature in the project. D-004 records the decision to start with source and reading modes and add live preview once the shell is stable.
 
 ### F-004 Wikilinks with autocomplete
@@ -98,7 +98,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - External edits (git pull, another editor, Claude Code) appear in the open tab within one second
 - Rename-based saves (delete + create) handled as modifications
 - Conflicting unsaved edits prompt rather than clobber (AV-002)
-**Status:** In progress (Phase 2): external edits reach the index (D-019); open tabs and the conflict prompt arrive with the editor
+**Status:** Complete (Phase 2, 2026-10-12)
 
 ### F-012 Tabs and split panes
 **Priority:** Should

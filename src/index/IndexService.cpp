@@ -147,10 +147,16 @@ void IndexService::applyChanges(int rootId, const QStringList& paths)
     if (!m_indexer || !m_roots.contains(rootId))
         return;
     const auto ignore = ignoreFor(rootId);
-    if (auto result = m_indexer->update(m_roots.value(rootId).info, paths, ignore.value_or(Indexer::IgnoreFn())); !result) {
+    const RootInfo& root = m_roots.value(rootId).info;
+    if (auto result = m_indexer->update(root, paths, ignore.value_or(Indexer::IgnoreFn())); !result) {
         emit failed(result.error());
         return;
     }
+    QStringList absolute;
+    absolute.reserve(paths.size());
+    for (const QString& path : paths)
+        absolute.append(root.path + QLatin1Char('/') + path);
+    emit filesChanged(absolute);
     reportCount();
 }
 
@@ -176,6 +182,7 @@ void IndexService::rescanRoot(int rootId)
     }
     if (!report->failures.isEmpty())
         emit warning(tr("Could not read %n note(s) in %1", nullptr, int(report->failures.size())).arg(root.info.name));
+    emit rootRescanned(root.info.path);
     reportCount();
 }
 

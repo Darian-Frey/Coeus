@@ -1,5 +1,7 @@
 #include "vault/Vault.hpp"
 
+#include "vault/AtomicWriter.hpp"
+
 #include <QFile>
 #include <QFileInfo>
 
@@ -46,7 +48,7 @@ QString Vault::relativePath(const QString& absolutePath) const
     return m_root.relativeFilePath(absolutePath);
 }
 
-std::expected<QString, QString> Vault::readNote(const QString& absolutePath) const
+std::expected<QByteArray, QString> Vault::readBytes(const QString& absolutePath) const
 {
     if (!contains(absolutePath))
         return std::unexpected(QStringLiteral("Outside the vault: %1").arg(absolutePath));
@@ -55,7 +57,24 @@ std::expected<QString, QString> Vault::readNote(const QString& absolutePath) con
     if (!file.open(QIODevice::ReadOnly))
         return std::unexpected(QStringLiteral("Cannot read %1: %2")
                                    .arg(relativePath(absolutePath), file.errorString()));
-    return QString::fromUtf8(file.readAll());
+    return file.readAll();
+}
+
+std::expected<QString, QString> Vault::readNote(const QString& absolutePath) const
+{
+    const auto bytes = readBytes(absolutePath);
+    if (!bytes)
+        return std::unexpected(bytes.error());
+    return QString::fromUtf8(*bytes);
+}
+
+std::expected<void, QString> Vault::writeNote(const QString& absolutePath, QByteArrayView content) const
+{
+    const QFileInfo info(absolutePath);
+    const bool inside = info.exists() ? contains(absolutePath) : contains(info.absolutePath());
+    if (!inside)
+        return std::unexpected(QStringLiteral("Outside the vault: %1").arg(absolutePath));
+    return AtomicWriter::write(absolutePath, content);
 }
 
 const QStringList& Vault::nameFilters()

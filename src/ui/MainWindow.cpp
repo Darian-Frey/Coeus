@@ -1,10 +1,12 @@
 #include "ui/MainWindow.hpp"
 
 #include "ui/CommandPalette.hpp"
+#include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
 #include "index/IndexService.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "vault/GitIgnoreOffer.hpp"
+#include "vault/Journal.hpp"
 #include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
 
@@ -20,11 +22,12 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QPlainTextEdit>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTabWidget>
 #include <QThread>
+#include <QThreadPool>
+#include <QTimer>
 #include <QToolBar>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -61,11 +64,14 @@ MainWindow::MainWindow(QWidget* parent)
     m_tabs->setMovable(true);
     setCentralWidget(m_tabs);
 
-    connect(m_tabs, &QTabWidget::tabCloseRequested, this, [this](int index) {
-        QWidget* page = m_tabs->widget(index);
-        m_tabs->removeTab(index);
-        page->deleteLater();
-    });
+    connect(m_tabs, &QTabWidget::tabCloseRequested, this, [this](int index) { closeTab(index); });
+
+    m_journalPool = new QThreadPool(this);
+    m_journalPool->setMaxThreadCount(1);
+    m_journalTimer = new QTimer(this);
+    m_journalTimer->setInterval(kJournalIntervalMs);
+    connect(m_journalTimer, &QTimer::timeout, this, &MainWindow::journalNow);
+    m_journalTimer->start();
     connect(m_tabs, &QTabWidget::currentChanged, this, &MainWindow::updateStatus);
 
     createDocks();
@@ -102,6 +108,10 @@ void MainWindow::createActions()
                                   tr("&Open Vault…"), this);
     openVault->setShortcut(QKeySequence::Open);
     connect(openVault, &QAction::triggered, this, &MainWindow::chooseVault);
+
+    m_save = new QAction(QIcon::fromTheme(QStringLiteral("document-save")), tr("&Save"), this);
+    m_save->setShortcut(QKeySequence::Save);
+    connect(m_save, &QAction::triggered, this, &MainWindow::saveCurrent);
 
     auto* closeTab = new QAction(tr("&Close Tab"), this);
     closeTab->setShortcut(QKeySequence::Close);
@@ -150,6 +160,7 @@ void MainWindow::createActions()
 
     QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(openVault);
+    fileMenu->addAction(m_save);
     fileMenu->addAction(closeTab);
     fileMenu->addSeparator();
     fileMenu->addAction(m_verifyIndex);
@@ -174,7 +185,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
+    for (QAction* action : {openVault, m_save, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -201,10 +212,14 @@ void MainWindow::registerAction(QAction* action)
 
 void MainWindow::openVault(const Vault& vault)
 {
+    if (!confirmCloseAll())
+        return;
     while (m_tabs->count() > 0) {
-        QWidget* page = m_tabs->widget(0);
+        Editor* editor = editorAt(0);
+        m_journalled.remove(editor);
+        m_conflictPrompts.remove(editor);
         m_tabs->removeTab(0);
-        page->deleteLater();
+        editor->deleteLater();
     }
     m_vault = vault;
     m_linkedRoots.clear();
@@ -224,6 +239,7 @@ void MainWindow::openVault(const Vault& vault)
     startIndex(vault.rootPath());
     m_gitignoreAction->setEnabled(true);
     checkGitignore(vault.rootPath(), true);
+    checkRecovery(vault.rootPath());
 }
 
 void MainWindow::checkGitignore(const QString& vaultPath, bool onOpen)
@@ -330,6 +346,8 @@ void MainWindow::startIndex(const QString& vaultPath)
         setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), m_indexLabel->toolTip());
         emit indexUpdated(notes);
     });
+    connect(m_index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
+    connect(m_index, &IndexService::rootRescanned, this, &MainWindow::onRootRescanned);
     connect(m_index, &IndexService::failed, this, [this](const QString& message) {
         setIndexStatus(tr("index error"), message);
         statusBar()->showMessage(message, kStatusTimeoutMs * 2);
@@ -392,41 +410,273 @@ void MainWindow::sweepTempFiles(const QString& root)
 
 void MainWindow::openNote(const QString& absolutePath)
 {
+    openEditor(absolutePath, false);
+}
+
+Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
+{
     if (!m_vault)
-        return;
+        return nullptr;
 
     if (const int existing = tabIndexFor(absolutePath); existing >= 0) {
         m_tabs->setCurrentIndex(existing);
-        return;
+        return editorAt(existing);
     }
 
     const Vault* root = rootFor(absolutePath);
+    if (!root && allowMissing) {
+        // A note deleted since: its folder decides the root.
+        for (const Vault* candidate : {&*m_vault}) {
+            if (candidate->contains(QFileInfo(absolutePath).absolutePath()))
+                root = candidate;
+        }
+        for (const LinkedRoot& linked : m_linkedRoots) {
+            if (!root && linked.vault.contains(QFileInfo(absolutePath).absolutePath()))
+                root = &linked.vault;
+        }
+    }
     if (!root) {
         statusBar()->showMessage(tr("Outside the vault and its linked roots: %1").arg(absolutePath), kStatusTimeoutMs);
-        return;
+        return nullptr;
     }
 
     if (!Vault::isNote(absolutePath)) {
         statusBar()->showMessage(tr("Attachments cannot be previewed yet: %1").arg(displayPath(absolutePath)),
                                  kStatusTimeoutMs);
-        return;
+        return nullptr;
     }
 
-    const auto text = root->readNote(absolutePath);
-    if (!text) {
-        statusBar()->showMessage(text.error(), kStatusTimeoutMs);
-        return;
+    auto* editor = new Editor(*root, absolutePath);
+    if (QFileInfo::exists(absolutePath) || !allowMissing) {
+        if (const auto loaded = editor->load(); !loaded) {
+            statusBar()->showMessage(loaded.error(), kStatusTimeoutMs);
+            delete editor;
+            return nullptr;
+        }
     }
-
-    auto* editor = new QPlainTextEdit;
-    editor->setReadOnly(true);
-    editor->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-    editor->setPlainText(*text);
     editor->setProperty(kPathProperty, absolutePath);
+    connect(editor, &Editor::modificationChanged, this, [this, editor] { updateTabTitle(editor); });
+    connect(editor, &Editor::conflictChanged, this, [this, editor] { updateTabTitle(editor); });
 
     const int index = m_tabs->addTab(editor, QFileInfo(absolutePath).completeBaseName());
     m_tabs->setTabToolTip(index, displayPath(absolutePath));
     m_tabs->setCurrentIndex(index);
+    return editor;
+}
+
+Editor* MainWindow::editorAt(int index) const
+{
+    return qobject_cast<Editor*>(m_tabs->widget(index));
+}
+
+Editor* MainWindow::currentEditor() const
+{
+    return qobject_cast<Editor*>(m_tabs->currentWidget());
+}
+
+Editor* MainWindow::editorFor(const QString& absolutePath) const
+{
+    const int index = tabIndexFor(absolutePath);
+    return index >= 0 ? editorAt(index) : nullptr;
+}
+
+void MainWindow::updateTabTitle(Editor* editor)
+{
+    const int index = m_tabs->indexOf(editor);
+    if (index < 0)
+        return;
+    QString title = QFileInfo(editor->path()).completeBaseName();
+    if (editor->inConflict())
+        title = QStringLiteral("⚠ ") + title;
+    else if (editor->isModified())
+        title = QStringLiteral("● ") + title;
+    m_tabs->setTabText(index, title);
+}
+
+bool MainWindow::saveCurrent()
+{
+    Editor* editor = currentEditor();
+    return editor && saveEditor(editor);
+}
+
+bool MainWindow::saveEditor(Editor* editor)
+{
+    QString error;
+    switch (editor->save(&error)) {
+    case Editor::SaveResult::Saved:
+        forgetJournal(editor->path());
+        statusBar()->showMessage(tr("Saved %1").arg(displayPath(editor->path())), kStatusTimeoutMs);
+        return true;
+    case Editor::SaveResult::Conflict:
+        promptConflict(editor, true);
+        return false;
+    case Editor::SaveResult::Failed:
+        statusBar()->showMessage(error, kStatusTimeoutMs * 2);
+        return false;
+    }
+    return false;
+}
+
+void MainWindow::promptConflict(Editor* editor, bool retrySave)
+{
+    if (m_conflictPrompts.value(editor))
+        return; // already asking
+    m_tabs->setCurrentWidget(editor);
+
+    auto* box = new QMessageBox(QMessageBox::Warning, tr("Note changed on disk"),
+                                tr("%1 was changed outside Coeus while you have unsaved changes.")
+                                    .arg(displayPath(editor->path())),
+                                QMessageBox::NoButton, this);
+    box->setObjectName(QStringLiteral("conflictPrompt"));
+    box->setInformativeText(tr("Keep your version to overwrite the file on the next save, or load the "
+                               "version on disk and discard your changes."));
+    QPushButton* mine = box->addButton(tr("Keep My Version"), QMessageBox::AcceptRole);
+    mine->setObjectName(QStringLiteral("mine"));
+    QPushButton* disk = box->addButton(tr("Load Disk Version"), QMessageBox::DestructiveRole);
+    disk->setObjectName(QStringLiteral("disk"));
+    QPushButton* later = box->addButton(tr("Decide Later"), QMessageBox::RejectRole);
+    later->setObjectName(QStringLiteral("later"));
+    box->setDefaultButton(later);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    m_conflictPrompts.insert(editor, box);
+
+    QPointer<Editor> guarded(editor);
+    connect(box, &QMessageBox::buttonClicked, this, [this, guarded, mine, disk, retrySave](QAbstractButton* button) {
+        if (!guarded)
+            return;
+        if (button == mine) {
+            guarded->keepMine();
+            if (retrySave)
+                saveEditor(guarded);
+        } else if (button == disk) {
+            if (const auto loaded = guarded->takeDisk(); !loaded)
+                statusBar()->showMessage(loaded.error(), kStatusTimeoutMs * 2);
+            else
+                forgetJournal(guarded->path());
+        }
+    });
+    box->open();
+    emit conflictPrompted(editor->path());
+}
+
+void MainWindow::handleDiskChange(Editor* editor)
+{
+    switch (editor->checkDisk()) {
+    case Editor::DiskState::Unchanged:
+        break;
+    case Editor::DiskState::Reloaded:
+        statusBar()->showMessage(tr("Reloaded %1: it changed on disk").arg(displayPath(editor->path())), kStatusTimeoutMs);
+        break;
+    case Editor::DiskState::Conflict:
+        promptConflict(editor, false);
+        break;
+    case Editor::DiskState::Deleted:
+        statusBar()->showMessage(tr("%1 was deleted on disk; saving will recreate it").arg(displayPath(editor->path())),
+                                 kStatusTimeoutMs * 2);
+        updateTabTitle(editor);
+        break;
+    }
+}
+
+void MainWindow::onFilesChanged(const QStringList& absolutePaths)
+{
+    for (const QString& path : absolutePaths) {
+        if (Editor* editor = editorFor(path))
+            handleDiskChange(editor);
+    }
+}
+
+void MainWindow::onRootRescanned(const QString& rootPath)
+{
+    const QString prefix = rootPath + QLatin1Char('/');
+    for (int i = 0; i < m_tabs->count(); ++i) {
+        if (Editor* editor = editorAt(i); editor && editor->path().startsWith(prefix))
+            handleDiskChange(editor);
+    }
+}
+
+void MainWindow::journalNow()
+{
+    if (!m_vault)
+        return;
+    const QString vaultPath = m_vault->rootPath();
+    for (int i = 0; i < m_tabs->count(); ++i) {
+        Editor* editor = editorAt(i);
+        if (!editor || !editor->isModified())
+            continue;
+        const int revision = editor->document()->revision();
+        if (m_journalled.value(editor, -1) == revision)
+            continue;
+        m_journalled.insert(editor, revision);
+        m_journalPool->start([vaultPath, path = editor->path(), base = editor->baseHash(), text = editor->toPlainText()] {
+            (void)Journal::write(vaultPath, path, base, text);
+        });
+    }
+}
+
+void MainWindow::waitForJournal()
+{
+    m_journalPool->waitForDone();
+}
+
+void MainWindow::forgetJournal(const QString& notePath)
+{
+    if (!m_vault)
+        return;
+    if (Editor* editor = editorFor(notePath))
+        m_journalled.remove(editor);
+    m_journalPool->start([vaultPath = m_vault->rootPath(), notePath] { Journal::remove(vaultPath, notePath); });
+}
+
+void MainWindow::checkRecovery(const QString& vaultPath)
+{
+    auto* watcher = new QFutureWatcher<QList<Journal::Entry>>(this);
+    connect(watcher, &QFutureWatcher<QList<Journal::Entry>>::finished, this, [this, watcher, vaultPath] {
+        const QList<Journal::Entry> entries = watcher->result();
+        watcher->deleteLater();
+        if (entries.isEmpty() || !m_vault || m_vault->rootPath() != vaultPath)
+            return;
+
+        QStringList paths;
+        QStringList lines;
+        for (const Journal::Entry& entry : entries) {
+            paths.append(entry.notePath);
+            QString line = displayPath(entry.notePath);
+            if (!QFileInfo::exists(entry.notePath))
+                line += tr(" (deleted since)");
+            else if (entry.noteChangedSince)
+                line += tr(" (changed on disk since)");
+            lines.append(line);
+        }
+        auto* box = new QMessageBox(QMessageBox::Question, tr("Recover unsaved changes?"),
+                                    tr("Coeus closed with unsaved changes in %n note(s).", nullptr, int(entries.size())),
+                                    QMessageBox::NoButton, this);
+        box->setObjectName(QStringLiteral("recoveryPrompt"));
+        box->setInformativeText(tr("Recovered text opens as unsaved changes; nothing is written until you save.")
+                                + QStringLiteral("\n\n") + lines.join(QLatin1Char('\n')));
+        QPushButton* recover = box->addButton(tr("Recover"), QMessageBox::AcceptRole);
+        recover->setObjectName(QStringLiteral("recover"));
+        QPushButton* discard = box->addButton(tr("Discard"), QMessageBox::DestructiveRole);
+        discard->setObjectName(QStringLiteral("discard"));
+        QPushButton* later = box->addButton(tr("Later"), QMessageBox::RejectRole);
+        later->setObjectName(QStringLiteral("later"));
+        box->setDefaultButton(recover);
+        box->setAttribute(Qt::WA_DeleteOnClose);
+        connect(box, &QMessageBox::buttonClicked, this, [this, entries, recover, discard](QAbstractButton* button) {
+            if (button == recover) {
+                for (const Journal::Entry& entry : entries) {
+                    if (Editor* editor = openEditor(entry.notePath, true))
+                        editor->restore(entry.text, entry.baseHash);
+                }
+            } else if (button == discard) {
+                for (const Journal::Entry& entry : entries)
+                    QFile::remove(entry.file);
+            }
+        });
+        box->open();
+        emit recoveryOffered(paths);
+    });
+    watcher->setFuture(QtConcurrent::run([vaultPath] { return Journal::recoverable(vaultPath); }));
 }
 
 const Vault* MainWindow::rootFor(const QString& absolutePath) const
@@ -481,7 +731,64 @@ void MainWindow::closeCurrentTab()
 {
     const int index = m_tabs->currentIndex();
     if (index >= 0)
-        emit m_tabs->tabCloseRequested(index);
+        closeTab(index);
+}
+
+bool MainWindow::closeTab(int index)
+{
+    Editor* editor = editorAt(index);
+    if (!editor)
+        return true;
+    if (editor->isModified()) {
+        QMessageBox box(QMessageBox::Question, tr("Unsaved changes"),
+                        tr("Save changes to %1?").arg(displayPath(editor->path())),
+                        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, this);
+        box.setObjectName(QStringLiteral("closePrompt"));
+        box.setDefaultButton(QMessageBox::Save);
+        const int answer = box.exec();
+        if (answer == QMessageBox::Cancel)
+            return false;
+        if (answer == QMessageBox::Save && !saveEditor(editor))
+            return false;
+        if (answer == QMessageBox::Discard)
+            forgetJournal(editor->path());
+    }
+    m_journalled.remove(editor);
+    m_conflictPrompts.remove(editor);
+    m_tabs->removeTab(m_tabs->indexOf(editor));
+    editor->deleteLater();
+    return true;
+}
+
+bool MainWindow::confirmCloseAll()
+{
+    QList<Editor*> modified;
+    for (int i = 0; i < m_tabs->count(); ++i) {
+        if (Editor* editor = editorAt(i); editor && editor->isModified())
+            modified.append(editor);
+    }
+    if (modified.isEmpty())
+        return true;
+
+    QMessageBox box(QMessageBox::Question, tr("Unsaved changes"),
+                    tr("%n note(s) have unsaved changes.", nullptr, int(modified.size())),
+                    QMessageBox::SaveAll | QMessageBox::Discard | QMessageBox::Cancel, this);
+    box.setObjectName(QStringLiteral("closeAllPrompt"));
+    box.setDefaultButton(QMessageBox::SaveAll);
+    const int answer = box.exec();
+    if (answer == QMessageBox::Cancel)
+        return false;
+    if (answer == QMessageBox::SaveAll) {
+        bool all = true;
+        for (Editor* editor : std::as_const(modified))
+            all = saveEditor(editor) && all;
+        return all;
+    }
+    for (Editor* editor : std::as_const(modified)) {
+        forgetJournal(editor->path());
+        editor->document()->setModified(false);
+    }
+    return true;
 }
 
 void MainWindow::showCommandPalette()
@@ -518,6 +825,11 @@ void MainWindow::saveLayout() const
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
+    if (!confirmCloseAll()) {
+        event->ignore();
+        return;
+    }
+    m_journalPool->waitForDone(); // pending journal writes and removals land first
     saveLayout();
     QMainWindow::closeEvent(event);
 }

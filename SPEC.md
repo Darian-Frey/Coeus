@@ -405,9 +405,29 @@ The temporary file is created with `O_EXCL`. If the original existed, its mode i
 
 A crash between creating the temporary file and the rename leaves it behind; the original is intact. On vault open, `TempSweeper` walks the vault on a worker thread and deletes files that match all of: a regular file (not a symlink), named `^\..+\.coeus-tmp-[0-9a-f]+$`, last modified more than 60 s ago, and not inside `.git/`. The age limit spares a save in progress in another Coeus process. This is the only deletion Coeus makes without a user command (IMP-002).
 
+## Editing
+
+A note opens in an `Editor` tab in source mode, highlighted by `MarkdownHighlighter` using the grammar of §Markdown dialect (display only; the index never depends on it). The editor remembers the `ContentHash` of the disk version its buffer is based on (the *base*).
+
+- **Save** (`Ctrl+S`) re-reads the file first. If its hash differs from the base, someone else changed it: the save becomes a conflict prompt and the file is not touched (AV-002). Otherwise the buffer is written through `Vault::writeNote`, which refuses paths outside the note's root, and `AtomicWriter`; the written content becomes the base.
+- **External change** (F-011). `IndexService` reports the absolute paths of every changed note, and every root it rescans. Each open editor for those paths compares the disk with its base: equal (including the echo of its own save) is ignored; a clean buffer reloads, keeping cursor and scroll; a modified buffer gets the conflict prompt. A deleted note keeps its text, becomes modified, and saving recreates it.
+- **Conflict prompt.** Keep My Version (the disk version becomes the base, so the next save overwrites it; a save that triggered the prompt goes ahead), Load Disk Version (the buffer is replaced and its journal entry dropped), or Decide Later (the tab shows ⚠ and the next save asks again). One prompt per editor at a time.
+- **Closing** a modified tab asks Save / Discard / Cancel; quitting or opening another vault asks Save All / Discard / Cancel. Discard drops the journal entries.
+- Tabs show `●` while modified and `⚠` while in conflict.
+
 ## Autosave journal
 
-Unsaved editor buffers are journalled every 5 s to `.coeus/journal/<hash-of-path>.md`. On startup, journal entries newer than the note's `mtime` are offered for recovery.
+Every `autosave_interval_s` (5 s) each modified buffer whose text changed since its last entry is written to `<vault>/.coeus/journal/<first 32 hex of SHA-256 of the note's absolute path>.md` through `AtomicWriter`, on a single background thread so entries for a note are written in order. Notes in linked roots are journalled in the vault's `.coeus/`. Format:
+
+```
+coeus-journal 1
+path: <absolute note path>
+base: <hex ContentHash of the base, empty for a note that did not exist>
+
+<buffer, verbatim>
+```
+
+A save, Load Disk Version or Discard removes the note's entry. On opening a vault, entries whose text equals the note on disk are deleted; every other entry is offered for recovery: Recover opens each as an unsaved buffer on top of its recorded base (so a note changed since conflicts on save rather than being overwritten), Discard deletes them, Later keeps them. Entries older than their note, or for notes deleted since, are offered too, flagged, because they may hold the only copy of unsaved work (AV-002); SPEC previously offered only entries newer than the note.
 
 ## Constants
 

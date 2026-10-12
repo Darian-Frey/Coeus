@@ -45,6 +45,10 @@ public slots:
 signals:
     void opened(int noteCount, const QStringList& problems);
     void indexChanged(int noteCount);
+    // Notes changed on disk (absolute paths), or a whole root was rescanned:
+    // open editors compare themselves with the disk (F-011).
+    void filesChanged(const QStringList& absolutePaths);
+    void rootRescanned(const QString& rootPath);
     void busy(const QString& what); // short status text while working
     void verified(const QString& summary, bool clean);
     void failed(const QString& message);

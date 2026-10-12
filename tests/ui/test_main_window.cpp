@@ -1,5 +1,6 @@
 #include "ui/CommandPalette.hpp"
 #include "ui/ExplorerPanel.hpp"
+#include "ui/Editor.hpp"
 #include "ui/MainWindow.hpp"
 #include "vault/GitIgnoreOffer.hpp"
 #include "vault/Roots.hpp"
@@ -53,7 +54,7 @@ private slots:
         QVERIFY(!window.registeredActions().isEmpty());
     }
 
-    void opensNoteReadOnlyOnce()
+    void opensNoteForEditingOnce()
     {
         QTemporaryDir dir;
         const QString path = writeNote(dir, QStringLiteral("alpha.md"), "# Alpha\n");
@@ -64,9 +65,10 @@ private slots:
         window.openNote(path);
 
         QCOMPARE(window.tabs()->count(), 1);
-        auto* editor = qobject_cast<QPlainTextEdit*>(window.tabs()->currentWidget());
+        coeus::Editor* editor = window.currentEditor();
         QVERIFY(editor);
-        QVERIFY(editor->isReadOnly());
+        QVERIFY(!editor->isReadOnly());
+        QVERIFY(!editor->isModified());
         QCOMPARE(editor->toPlainText(), QStringLiteral("# Alpha\n"));
         QCOMPARE(window.tabs()->tabText(0), QStringLiteral("alpha"));
     }

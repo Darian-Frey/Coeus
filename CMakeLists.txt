@@ -39,6 +39,7 @@ add_library(coeus_core STATIC
     src/vault/AtomicWriter.cpp
     src/vault/GitIgnore.cpp
     src/vault/GitIgnoreOffer.cpp
+    src/vault/Journal.cpp
     src/vault/Roots.cpp
     src/vault/TempSweeper.cpp
     src/vault/Vault.cpp
@@ -46,9 +47,11 @@ add_library(coeus_core STATIC
     src/vault/VaultLogging.cpp
     src/vault/VaultWatcher.cpp
     src/ui/CommandPalette.cpp
+    src/ui/Editor.cpp
     src/ui/ExplorerPanel.cpp
     src/ui/FuzzyMatch.cpp
     src/ui/MainWindow.cpp
+    src/ui/MarkdownHighlighter.cpp
     src/ui/SidebarPanel.cpp
 )
 target_include_directories(coeus_core PUBLIC src)

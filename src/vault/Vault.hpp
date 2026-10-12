@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArrayView>
 #include <QDir>
 #include <QString>
 #include <QStringList>
@@ -23,6 +24,10 @@ public:
 
     // Reads a note as UTF-8. The path must lie inside the vault.
     std::expected<QString, QString> readNote(const QString& absolutePath) const;
+    std::expected<QByteArray, QString> readBytes(const QString& absolutePath) const;
+    // The editor save path (CLAUDE.md §Invariants): writes through AtomicWriter.
+    // The note, or for a new note its folder, must lie inside the vault.
+    std::expected<void, QString> writeNote(const QString& absolutePath, QByteArrayView content) const;
 
     // Name filters for the explorer: Markdown plus attachments (SPEC.md §Vault layout).
     static const QStringList& nameFilters();
