@@ -16,7 +16,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-002 Data loss on save or external edit
 **Severity:** Critical
 **Description.** A note is truncated, half-written, or overwritten with stale editor contents. Causes: non-atomic write interrupted by crash; editor saving over a file changed on disk since it was loaded; sync provider replacing a file with unsaved editor changes.
-**Detection.** not implemented (would require `tests/vault/test_atomic_writer.cpp` with a kill-during-write harness, and `tests/ui/test_conflict_prompt.cpp` asserting that a modified-on-disk note with unsaved changes prompts rather than saves).
+**Detection.** Partly implemented. `tests/vault/test_atomic_writer.cpp` kills a helper process mid-write 40 times on a 4 MB file and asserts the target is always wholly the old or wholly the new content. Not implemented: `tests/ui/test_conflict_prompt.cpp`, asserting that a modified-on-disk note with unsaved changes prompts rather than saves.
 **Related decisions.** D-005.
 **History.** Identified during scaffolding 2026-09-25.
 

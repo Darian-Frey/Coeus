@@ -362,7 +362,7 @@ tmp = dir(path) / ("." + basename(path) + ".coeus-tmp-" + random)
 write(tmp); fsync(tmp); rename(tmp, path); fsync(dir(path))
 ```
 
-Mode and ownership copied from the original if it existed.
+The temporary file is created with `O_EXCL`. If the original existed, its mode is copied exactly and its owner and group are copied where the process is permitted; an ownership failure is logged as a warning and the save proceeds. If `path` is a symlink, the write replaces the link's target and the link is kept. Any failure before the rename removes the temporary file and leaves the original untouched. A failed directory fsync after the rename is logged, not reported as a failed save, because the new content is already in place.
 
 ## Autosave journal
 

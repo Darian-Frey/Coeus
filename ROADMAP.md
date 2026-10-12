@@ -18,10 +18,10 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 2 — Core vault
 **Goal:** Everything needed to use Coeus daily instead of Obsidian for plain notes.
-**Status:** Not started
+**Status:** In progress
 **Features delivered:** F-003 (source and reading modes), F-004, F-005, F-006, F-007, F-008, F-009, F-010, F-011, F-013, F-034
 **Deliverables:**
-- [ ] `AtomicWriter`: temp write, fsync, rename, directory fsync, mode and ownership preserved, with a kill-during-write test (`src/vault/AtomicWriter.cpp`, `tests/vault/test_atomic_writer.cpp`; SPEC.md §Atomic write, AV-002)
+- [x] `AtomicWriter`: temp write, fsync, rename, directory fsync, mode and ownership preserved, with a kill-during-write test (`src/vault/AtomicWriter.cpp`, `tests/vault/test_atomic_writer.cpp`; SPEC.md §Atomic write, AV-002)
 - [ ] Markdown parser with wikilink, tag, frontmatter, heading and block-ID extensions (`src/parser/`)
 - [ ] SQLite index: roots, notes, links, tags, properties, headings, blocks, FTS5 (`src/index/`)
 - [ ] Rebuild-equivalence test and a "Verify index" command comparing `notes.hash` to disk (`tests/index/test_rebuild_equivalence.cpp`; AV-001)

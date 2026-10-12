@@ -21,6 +21,7 @@ target_compile_options(coeus_warnings INTERFACE -Wall -Wextra -Werror)
 
 # Everything except main() lives in a static library so tests can link it.
 add_library(coeus_core STATIC
+    src/vault/AtomicWriter.cpp
     src/vault/Vault.cpp
     src/ui/CommandPalette.cpp
     src/ui/ExplorerPanel.cpp

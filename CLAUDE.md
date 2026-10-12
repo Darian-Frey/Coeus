@@ -4,14 +4,14 @@
 Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt6. The vault is a plain folder of `.md` files plus linked project repositories (F-034); Coeus keeps only a rebuildable SQLite index beside it. Three features define the product: scaffold-aware registers and the project board (F-015, F-016, F-032), Mnemosyne semantic search with a related-notes sidebar (F-018, F-019), and native Git (F-020–F-022). An MCP server (F-033) lets Claude chat and Claude Code read and write the same index.
 
 ## Current state
-- Phase 1 shell builds and passes its tests (see BUILD.md): `src/app/main.cpp`, `src/vault/Vault`, `src/ui/{MainWindow,ExplorerPanel,SidebarPanel,CommandPalette,FuzzyMatch}`; tests under `tests/{vault,ui,perf}`.
+- Phase 1 shell builds and passes its tests (see BUILD.md): `src/app/main.cpp`, `src/vault/{Vault,AtomicWriter}`, `src/ui/{MainWindow,ExplorerPanel,SidebarPanel,CommandPalette,FuzzyMatch}`; tests under `tests/{vault,ui,perf}`.
 - Remaining `src/` module folders and `tools/` are empty placeholders.
 - UI mockup of the target main window: `docs/design/main-window.png`.
 - `BUILD.md`: written 2026-10-12 from the first successful build.
 - `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.
 
 ## Active task
-**Phase 2 — Core vault** (see ROADMAP.md). Not yet started; scope and order to be agreed with the author before code is written.
+**Phase 2 — Core vault** (see ROADMAP.md). Scope and build order agreed 2026-10-12: deliverables are built in the order ROADMAP lists them. `AtomicWriter` is done; the Markdown parser (`src/parser/`, D-014, D-015) is next.
 
 Phase 1 (GUI shell, F-001, F-002) completed 2026-10-12. Every later feature is a panel added to `SidebarPanel`, a dock, or a command passed to `MainWindow::registerAction()`; do not restructure the shell to add one.
 
