@@ -6,6 +6,7 @@
 #include <QMainWindow>
 
 #include <optional>
+#include <vector>
 
 class QAction;
 class QDockWidget;
@@ -69,8 +70,17 @@ private:
     void showCommandPalette();
     void updateStatus();
     int tabIndexFor(const QString& absolutePath) const;
+    // The open root containing `absolutePath` (the vault or a linked root), or null.
+    const Vault* rootFor(const QString& absolutePath) const;
+    // "<path>" inside the vault, "<root name>/<path>" inside a linked root (SPEC.md §Linked roots).
+    QString displayPath(const QString& absolutePath) const;
 
     std::optional<Vault> m_vault;
+    struct LinkedRoot {
+        QString name;
+        Vault vault;
+    };
+    std::vector<LinkedRoot> m_linkedRoots; // present linked roots from config.toml (F-034)
     QList<QAction*> m_actions;
 
     QTabWidget* m_tabs = nullptr;

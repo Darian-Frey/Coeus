@@ -1,12 +1,16 @@
 #include "ui/CommandPalette.hpp"
 #include "ui/ExplorerPanel.hpp"
 #include "ui/MainWindow.hpp"
+#include "vault/Roots.hpp"
 #include "vault/Vault.hpp"
 
 #include <QAction>
 #include <QDockWidget>
 #include <QFile>
+#include <QFileSystemModel>
 #include <QPlainTextEdit>
+#include <QToolButton>
+#include <QTreeView>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QTabWidget>
@@ -89,6 +93,49 @@ private slots:
         QVERIFY(finished.wait(5000));
         QCOMPARE(finished.front().front().toInt(), 1);
         QVERIFY(!QFile::exists(stale));
+    }
+
+    void explorerShowsLinkedRootsAndOpensTheirNotes()
+    {
+        // F-034: the vault and each linked root are top-level sections; a
+        // missing root is greyed, not dropped.
+        QTemporaryDir vault, repo;
+        writeNote(vault, QStringLiteral("home.md"), "home");
+        writeNote(repo, QStringLiteral("README.md"), "# Repo\n");
+        QDir(vault.path()).mkdir(QStringLiteral(".coeus"));
+        QFile config(coeus::Roots::configPath(vault.path()));
+        QVERIFY(config.open(QIODevice::WriteOnly));
+        config.write(QStringLiteral("[[roots]]\nname = \"repo\"\npath = \"%1\"\n"
+                                    "[[roots]]\nname = \"gone\"\npath = \"/nonexistent/coeus-ui-test\"\n")
+                         .arg(repo.path())
+                         .toUtf8());
+        config.close();
+
+        MainWindow window;
+        window.openVault(*Vault::open(vault.path()));
+        coeus::ExplorerPanel* explorer = window.explorer();
+        QCOMPARE(explorer->sectionCount(), 3);
+        QCOMPARE(explorer->sectionHeader(1)->text(), QStringLiteral("repo"));
+        QVERIFY(explorer->sectionHeader(1)->isEnabled());
+        QVERIFY(explorer->sectionHeader(2)->text().startsWith(QStringLiteral("gone")));
+        QVERIFY(!explorer->sectionHeader(2)->isEnabled());
+        QVERIFY(!explorer->view(2));
+        QCOMPARE(explorer->model(1)->rootPath(), QFileInfo(repo.path()).canonicalFilePath());
+
+        // Collapsing a section hides its tree.
+        explorer->sectionHeader(1)->setChecked(false);
+        QVERIFY(explorer->view(1)->isHidden());
+
+        // A linked root's note opens, labelled "<root>/<path>".
+        window.openNote(repo.filePath(QStringLiteral("README.md")));
+        QCOMPARE(window.tabs()->count(), 1);
+        QCOMPARE(window.tabs()->tabToolTip(0), QStringLiteral("repo/README.md"));
+        QCOMPARE(qobject_cast<QPlainTextEdit*>(window.tabs()->widget(0))->toPlainText(), QStringLiteral("# Repo\n"));
+
+        // Anything outside every root is refused.
+        QTemporaryDir outside;
+        window.openNote(writeNote(outside, QStringLiteral("x.md"), "x"));
+        QCOMPARE(window.tabs()->count(), 1);
     }
 
     void dockLayoutPersists()

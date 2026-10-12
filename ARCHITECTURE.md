@@ -48,7 +48,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **app/** — `main()`, `QApplication`, settings file, command-line parsing, wiring modules together. Owns nothing else.
 
-**ui/** — All Qt widgets. `MainWindow` is a `QMainWindow` whose central widget is a `QTabWidget` of `Editor` instances; the explorer and sidebar are `QDockWidget`s. Panels subscribe to index signals and issue queries; they never touch the filesystem or SQLite directly.
+**ui/** — All Qt widgets. `MainWindow` is a `QMainWindow` whose central widget is a `QTabWidget` of `Editor` instances; the explorer and sidebar are `QDockWidget`s. `ExplorerPanel` holds one collapsible section per root, each a `QTreeView` over its own `QFileSystemModel`. Panels subscribe to index signals and issue queries; they never touch the filesystem or SQLite directly.
 
 **vault/** — Filesystem boundary. `Vault` resolves paths and enumerates files; `TempSweeper` removes temporary files left by interrupted saves, on a worker thread; `VaultWatcher` puts one inotify watch on each folder of a root (D-019) and reports changed notes by path, rename-based saves included; `Roots` reads linked roots from `config.toml` (D-016); `GitIgnore` applies a root's Git ignore rules through libgit2; `AtomicWriter` performs temp-write, fsync, rename.
 

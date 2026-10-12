@@ -4,6 +4,7 @@
 #include "ui/ExplorerPanel.hpp"
 #include "index/IndexService.hpp"
 #include "ui/SidebarPanel.hpp"
+#include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
 
 #include <QAction>
@@ -196,7 +197,17 @@ void MainWindow::openVault(const Vault& vault)
         page->deleteLater();
     }
     m_vault = vault;
-    m_explorer->setRootPath(vault.rootPath());
+    m_linkedRoots.clear();
+
+    // The explorer lists linked roots at once; the index reconciles them on its thread.
+    QList<ExplorerRoot> roots{ExplorerRoot{vault.name(), vault.rootPath(), true}};
+    for (const RootConfig& root : Roots::load(vault.rootPath()).roots) {
+        const auto opened = Vault::open(root.path);
+        roots.append(ExplorerRoot{root.name, root.path, opened.has_value()});
+        if (opened)
+            m_linkedRoots.push_back({root.name, *opened});
+    }
+    m_explorer->setRoots(roots);
     setWindowTitle(QStringLiteral("%1 — Coeus").arg(vault.name()));
     updateStatus();
     sweepTempFiles(vault.rootPath());
@@ -299,14 +310,19 @@ void MainWindow::openNote(const QString& absolutePath)
         return;
     }
 
+    const Vault* root = rootFor(absolutePath);
+    if (!root) {
+        statusBar()->showMessage(tr("Outside the vault and its linked roots: %1").arg(absolutePath), kStatusTimeoutMs);
+        return;
+    }
+
     if (!Vault::isNote(absolutePath)) {
-        statusBar()->showMessage(tr("Attachments cannot be previewed yet: %1")
-                                     .arg(m_vault->relativePath(absolutePath)),
+        statusBar()->showMessage(tr("Attachments cannot be previewed yet: %1").arg(displayPath(absolutePath)),
                                  kStatusTimeoutMs);
         return;
     }
 
-    const auto text = m_vault->readNote(absolutePath);
+    const auto text = root->readNote(absolutePath);
     if (!text) {
         statusBar()->showMessage(text.error(), kStatusTimeoutMs);
         return;
@@ -318,10 +334,34 @@ void MainWindow::openNote(const QString& absolutePath)
     editor->setPlainText(*text);
     editor->setProperty(kPathProperty, absolutePath);
 
-    const QString relative = m_vault->relativePath(absolutePath);
     const int index = m_tabs->addTab(editor, QFileInfo(absolutePath).completeBaseName());
-    m_tabs->setTabToolTip(index, relative);
+    m_tabs->setTabToolTip(index, displayPath(absolutePath));
     m_tabs->setCurrentIndex(index);
+}
+
+const Vault* MainWindow::rootFor(const QString& absolutePath) const
+{
+    if (m_vault && m_vault->contains(absolutePath))
+        return &*m_vault;
+    for (const LinkedRoot& root : m_linkedRoots) {
+        if (root.vault.contains(absolutePath))
+            return &root.vault;
+    }
+    return nullptr;
+}
+
+QString MainWindow::displayPath(const QString& absolutePath) const
+{
+    const Vault* root = rootFor(absolutePath);
+    if (!root)
+        return absolutePath;
+    if (root == &*m_vault)
+        return root->relativePath(absolutePath);
+    for (const LinkedRoot& linked : m_linkedRoots) {
+        if (&linked.vault == root)
+            return linked.name + QLatin1Char('/') + root->relativePath(absolutePath);
+    }
+    return absolutePath;
 }
 
 int MainWindow::tabIndexFor(const QString& absolutePath) const
@@ -369,8 +409,7 @@ void MainWindow::updateStatus()
     m_vaultLabel->setText(m_vault->rootPath());
 
     QWidget* page = m_tabs->currentWidget();
-    m_noteLabel->setText(page ? m_vault->relativePath(page->property(kPathProperty).toString())
-                              : QString());
+    m_noteLabel->setText(page ? displayPath(page->property(kPathProperty).toString()) : QString());
 }
 
 void MainWindow::restoreLayout()

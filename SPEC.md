@@ -45,7 +45,8 @@ Each root gets its own `VaultWatcher` and its own `.gitignore` handling. `notes.
 - **Absent roots** (`path` missing): `roots.present = 0`; the root is neither scanned nor watched, so its rows survive untouched (AV-010).
 - **Removed roots** (no longer in config): the root and every row derived from it are deleted.
 - **Ignore rules.** Paths a Git repository ignores are neither indexed nor watched, using Git's own rules through libgit2: nested `.gitignore` files, negation, `.git/info/exclude` and global excludes. Two kinds of repository apply: the one containing the root (found by searching upward; disregarded if it ignores the root itself), and repositories nested inside the root, recognised when the walk reaches a visible, non-ignored folder holding `.git`. A path is judged by the innermost repository containing it; outside every repository nothing is ignored. Editing a `.gitignore` rescans the root.
-- **Temporary files** from interrupted saves are swept from every present root on open (IMP-002). Roots are machine-specific: `config.toml` lives in `.coeus/`, which never syncs (D-011). Only root 0 passes through the sync provider.
+- **Temporary files** from interrupted saves are swept from every present root on open (IMP-002).
+- **Explorer.** The vault and each linked root, in config order, is a collapsible section with its own tree; the vault's header is its folder name. An absent root is a greyed "missing on this machine" header with no tree. The root list is read from `config.toml` when the vault opens, on the UI thread, so the tree does not wait for the first index scan. Notes from any root open in tabs labelled `<name>/<path>`; paths outside every root are refused. Roots are machine-specific: `config.toml` lives in `.coeus/`, which never syncs (D-011). Only root 0 passes through the sync provider.
 
 ## Ideas
 

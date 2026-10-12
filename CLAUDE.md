@@ -11,7 +11,7 @@ Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt
 - `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.
 
 ## Active task
-**Phase 2 — Core vault** (see ROADMAP.md). Scope and build order agreed 2026-10-12: deliverables are built in the order ROADMAP lists them. `AtomicWriter`, the parser, the index, linked roots, `.gitignore` rules, the inotify watcher and the indexer thread are done; the app keeps `.coeus/index.db` current and offers Verify Index and Rebuild Index. Next: the explorer showing linked roots (F-034), then the first-open `.gitignore` offer and the editor.
+**Phase 2 — Core vault** (see ROADMAP.md). Scope and build order agreed 2026-10-12: deliverables are built in the order ROADMAP lists them. `AtomicWriter`, the parser, the index, linked roots, `.gitignore` rules, the inotify watcher and the indexer thread are done; the app keeps `.coeus/index.db` current and offers Verify Index and Rebuild Index. The explorer shows linked roots (F-034 complete). Next: the first-open `.gitignore` offer, then the editor (source mode, save through `AtomicWriter`, autosave journal, conflict prompt).
 
 Phase 1 (GUI shell, F-001, F-002) completed 2026-10-12. Every later feature is a panel added to `SidebarPanel`, a dock, or a command passed to `MainWindow::registerAction()`; do not restructure the shell to add one.
 

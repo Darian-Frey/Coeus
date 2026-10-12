@@ -286,7 +286,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Explorer shows each root as a top-level node; a root missing on this machine is greyed, not removed
 - Wikilink resolution prefers same-root matches (SPEC.md §Wikilink resolution)
 - Linked roots are excluded from the sync provider (F-028)
-**Status:** In progress (Phase 2): config, ids, ignore rules, watchers and indexing done; explorer display open
+**Status:** Complete (Phase 2, 2026-10-12). The sync exclusion holds by construction (SPEC.md §Sync: providers see root 0 only) and is tested when F-028 lands
 **Notes:** Pulled into Phase 2 because the watcher and index schema must carry `root_id` from the start.
 
 ### F-035 Embeddings sidecar

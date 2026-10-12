@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Explorer sections for the vault and each linked root, collapsible, missing roots greyed; notes in linked roots open in tabs labelled `<root>/<path>` (F-034 complete).
 - Linked roots, ignore rules and live indexing: `Roots` (config.toml via toml++, D-016), `GitIgnore` (libgit2; the repository containing a root and repositories nested in it), `VaultWatcher` (inotify, one watch per folder, D-019), `IndexService` worker thread. Root ids are stable by name; missing roots keep their rows (AV-010). Verify Index and Rebuild Index commands; index status in the status bar. Tests `test_roots`, `test_git_ignore`, `test_vault_watcher`, `test_index_service`. On ~/Projects, 11 nested repositories' rules cut the index from 645 to 272 notes.
 - D-019 inotify watcher.
 - SQLite index (D-017, D-018): `Database`/`Statement`/`Transaction` wrapper, schema v1, `IndexStore`, `LinkResolver` (SPEC §Wikilink resolution, ambiguity flagged), `Indexer` scan/update/verify, BLAKE2b-128 `ContentHash`. Tests `test_database`, `test_indexer`, `test_rebuild_equivalence` (AV-001). A full scan of 645 notes takes 0.8 s; resolving 1,418 links takes 5 ms.

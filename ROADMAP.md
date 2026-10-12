@@ -27,7 +27,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Rebuild-equivalence test and a "Verify index" command comparing `notes.hash` to disk (`tests/index/test_rebuild_equivalence.cpp`; AV-001)
 - [x] Linked project roots from `config.toml`, one watcher per root, `.gitignore` honoured (`src/vault/Roots.cpp`, `src/vault/GitIgnore.cpp`)
 - [x] Incremental indexer driven by the file watchers on a worker thread (`src/vault/VaultWatcher.cpp`, `src/index/IndexService.cpp`; D-019)
-- [ ] Explorer shows each linked root as a top-level node, greyed when missing (F-034)
+- [x] Explorer shows each linked root as a top-level node, greyed when missing (`src/ui/ExplorerPanel.cpp`; F-034)
 - [ ] First-open offer to add `.coeus/` to the vault's `.gitignore` (SPEC.md §Vault layout)
 - [ ] Editor source mode with syntax highlighting and save through `AtomicWriter` (`src/ui/Editor.cpp`)
 - [ ] Autosave journal with recovery on startup (SPEC.md §Autosave journal)
