@@ -9,7 +9,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 **Deliverables:**
 - [ ] CMake project with `src/app`, `src/ui` and a test target (`CMakeLists.txt`)
 - [ ] `MainWindow` with central editor placeholder, explorer dock, sidebar dock, toolbar, status bar, tab widget (`src/ui/MainWindow.cpp`)
-- [ ] Vault open from command line; `QFileSystemModel` tree filtered to Markdown (`src/vault/Vault.cpp`, `src/ui/ExplorerPanel.cpp`)
+- [ ] Vault open from command line; `QFileSystemModel` tree filtered to Markdown and attachment types (`src/vault/Vault.cpp`, `src/ui/ExplorerPanel.cpp`)
 - [ ] Read-only load of a selected file into `QPlainTextEdit`
 - [ ] Command palette dialog with fuzzy action filter (`src/ui/CommandPalette.cpp`)
 - [ ] Layout persistence through `QSettings`

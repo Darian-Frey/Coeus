@@ -8,12 +8,18 @@ Authoritative technical reference for Coeus. FEATURES.md says what; this says ho
 <vault>/
 ├── **/*.md                 # notes; any depth
 ├── **/*.{png,jpg,svg,pdf,mp3,mp4}   # attachments
-├── .coeus/
+├── ideas/                  # idea notes (§Ideas)
+├── .coeus/                 # machine-local; never synced (D-011)
 │   ├── index.db            # SQLite, derived, safe to delete
-│   ├── config.toml         # per-vault settings
+│   ├── config.toml         # per-vault, per-machine settings
+│   ├── journal/            # autosave journal (§Autosave journal)
 │   └── logs/
-└── .gitignore              # `.coeus/` added on first open if absent
+├── .coeus-shared/          # synced, hash-keyed derived data (D-011)
+│   └── embeddings.bin      # §Embeddings sidecar
+└── .gitignore              # `.coeus/` offered on first open (below)
 ```
+
+On first open of a vault that is a Git repository whose `.gitignore` does not exclude `.coeus/`, Coeus offers to add it. Accepting is an explicit user command and goes through `AtomicWriter`; declining is remembered in `config.toml` and not asked again. Coeus never edits `.gitignore` unasked.
 
 A **project** is any folder containing a `README.md` whose first four lines are the scaffold status header (§Status header). Register files are recognised only inside a project folder.
 
@@ -123,7 +129,11 @@ The `Related` and `Related decisions` / `Related claims` fields are split on `,`
 
 ### ID allocation
 
-`NextId(project, kind)` = `max(existing IDs of kind in project) + 1`, zero-padded to at least three digits. IDs are never reused. If the register file does not exist, the first ID is `001` and the file is created from the standard's skeleton.
+`NextId(project, kind)` = `max(existing IDs of kind in project, unexpired reservations of kind in project) + 1`, zero-padded to at least three digits. IDs are never reused. If the register file does not exist, the first ID is `001` and the file is created from the standard's skeleton.
+
+The GUI and the MCP server are separate processes sharing `index.db`. `NextId` runs inside a `BEGIN IMMEDIATE` transaction, so SQLite's write lock serialises allocation across both. Inside it, existing IDs are read by parsing the register file on disk, not from `registers`, because the index can lag the file by the watcher debounce. The chosen number is inserted into `reservations` with `expires = now + 60` and the transaction commits. Expired rows are deleted on each call. A reservation is removed when its entry is written.
+
+Reservations are transient, not vault data, so losing them in an index rebuild loses nothing (AV-001). The last guard is at write time: `append_entry` and "Insert next ID" re-parse the register file immediately before the atomic write and fail if the ID already exists (AV-003).
 
 ### Lint rules
 
@@ -223,6 +233,15 @@ CREATE TABLE registers (
   UNIQUE(project_id, kind, number)
 );
 
+CREATE TABLE reservations (
+  project_id INTEGER NOT NULL REFERENCES projects(id),
+  kind TEXT NOT NULL,
+  number INTEGER NOT NULL,
+  expires INTEGER NOT NULL,           -- unix seconds
+  holder TEXT NOT NULL,               -- 'gui' or 'mcp:<pid>'
+  PRIMARY KEY (project_id, kind, number)
+);
+
 CREATE TABLE register_fields (
   reg INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
   name TEXT NOT NULL, value TEXT NOT NULL
@@ -241,8 +260,10 @@ CREATE TABLE lint (
 );
 
 CREATE VIRTUAL TABLE fts USING fts5(
-  title, body, path UNINDEXED, content='', tokenize='unicode61 remove_diacritics 2'
+  title, body, path UNINDEXED, tokenize='unicode61 remove_diacritics 2'
 );
+  -- rowid = notes.id. Stores its own copy of the text so snippet() and
+  -- highlight() work; the copy is derived and rebuilt like everything else.
 
 CREATE TABLE chunks (
   id INTEGER PRIMARY KEY,
@@ -257,7 +278,7 @@ CREATE VIRTUAL TABLE vec USING vec0(
 );
 ```
 
-Incremental update: on a file event the indexer compares `hash`; unchanged files are skipped. A changed file has its rows deleted by cascade and re-inserted in one transaction.
+Incremental update: on a file event the indexer compares `hash`; unchanged files are skipped. A changed file has its rows deleted by cascade and re-inserted in one transaction; its `fts` row (not covered by foreign keys) is deleted and re-inserted by `rowid` in the same transaction.
 
 ## Full-text query syntax
 
@@ -328,7 +349,7 @@ Encryption, when enabled, is age-style: a vault key derived from a passphrase wi
 | `list_registers` | `{project, kind?, status?}` | `[{ident, title, status, fields}]` | no |
 | `project_status` | `{project?}` | `[{name, status, last_reviewed, phase, unreleased, git: {branch, ahead, behind, dirty}}]` | no |
 | `list_ideas` | `{stage?}` | `[{path, stage, codename, summary}]` | no |
-| `next_id` | `{project, kind}` | `{ident}` | reserves for 60 s |
+| `next_id` | `{project, kind}` | `{ident}` | reserves for 60 s (§ID allocation) |
 | `append_entry` | `{project, kind, ident?, title, fields}` | `{ident, path, line}` | yes |
 | `write_note` | `{root, path, body, frontmatter?, mode: "create"\|"replace"\|"append"}` | `{path}` | yes |
 

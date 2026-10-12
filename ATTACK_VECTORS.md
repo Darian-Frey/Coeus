@@ -25,7 +25,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Description.** Two entries in one project share an ID, or an existing ID changes number, breaking every outside reference (commits, other projects, papers). Causes: "Insert next ID" racing with an external edit; two machines allocating the same ID before sync; a well-meaning refactor.
 **Detection.** not implemented (would require `tests/registers/test_next_id.cpp` and a lint rule flagging duplicate `(project, kind, number)` — the index `UNIQUE` constraint catches it at insert time but must surface as a Problems-panel error, not a silent skip).
 **Related decisions.** D-006.
-**History.** Identified during scaffolding 2026-09-25.
+**History.** Identified during scaffolding 2026-09-25. Cross-process reservation and write-time re-check specified in SPEC.md §ID allocation, 2026-10-12 (BUG-004).
 
 ### AV-004 Sync conflict clobbers a version
 **Severity:** Critical

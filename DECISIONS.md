@@ -31,7 +31,7 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 **Recorded:** 2026-09-25
 **Status:** Accepted
 **Authors:** Shane Hartley (with Claude discussion 2026-09-03)
-**Related:** F-001, F-003, F-012
+**Related:** F-001, F-003, F-012, D-013
 
 **Context.** Stack choice for a Linux-only desktop tool where the Markdown editor is the largest single cost and the author's strongest experience is C++/Qt (Pontus GUI, Argo).
 
@@ -48,6 +48,8 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 - Memory safety relies on discipline: RAII, Qt parent ownership, `std::unique_ptr`, sanitizers in CI.
 
 **Reversal conditions.** Revisit if the live-preview editor cannot reach acceptable quality within Phase 4, in which case embedding a web editor via `QWebEngineView` for the editor pane only is the fallback.
+
+**Amended 2026-10-12.** The language standard is C++23, not C++20 (D-013). Qt6 and the rest of this decision stand.
 
 ### D-003 Linux desktop only
 **Decided:** 2026-09-03
@@ -109,7 +111,7 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 **Consequences.**
 - All state that matters must round-trip through Markdown and frontmatter (or JSON files for Canvas).
 - A file watcher (F-011) is mandatory, not optional.
-- `.coeus/` is added to the vault's `.gitignore` by default.
+- `.coeus/` is added to the vault's `.gitignore` by default. (Amended 2026-10-12: offered on first open rather than written unasked, to respect the write invariant; see SPEC.md §Vault layout and BUG-003.)
 
 **Reversal conditions.** Revisit only if a feature genuinely cannot be represented in plain files; Canvas and Bases (F-030, F-031) are expected to fit as JSON.
 
@@ -131,6 +133,8 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 - Mnemosyne becomes a hard dependency (D-008).
 
 **Reversal conditions.** Revisit if any of the three proves unusable in daily work after Phase 3, or if a candidate feature turns out to be more valuable in practice.
+
+**Amended 2026-10-12.** F-017 is Withdrawn and absorbed into F-032; the freshness view is now a column of the project board.
 
 ### D-007 Sync through a provider interface; rclone first, Google Drive native later
 **Decided:** 2026-09-03
@@ -267,3 +271,24 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - A new attack surface: writes from an AI session must obey every invariant (AV-012).
 
 **Reversal conditions.** Revisit if MCP is superseded as the tool protocol the author's AI tools speak, or if write tools cause register corruption that the confirmation step does not prevent.
+
+### D-013 C++23 language standard
+**Decided:** 2026-10-12
+**Recorded:** 2026-10-12
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-12)
+**Related:** D-002, BUG-001, ARCHITECTURE.md §Cross-cutting concerns, SPEC.md §Sync
+
+**Context.** D-002 chose C++20, but ARCHITECTURE.md makes `std::expected<T, Error>` the error-handling convention for every module boundary and SPEC.md's `SyncProvider` uses it. `std::expected` is a C++23 library feature; GCC and Clang do not expose it under `-std=c++20`.
+
+**Options.**
+- **A. Stay on C++20 and vendor `tl::expected`.** Header-only, CC0. Adds a dependency and an alias to be removed later.
+- **B. Move to C++23.** Chosen. The stated minimum compilers (GCC 13+, Clang 17+) already ship `std::expected` in C++23 mode; Qt 6.5+ builds cleanly under it.
+
+**Decision.** Option B. CMake sets `CMAKE_CXX_STANDARD 23` with `CMAKE_CXX_STANDARD_REQUIRED ON` and extensions off.
+
+**Consequences.**
+- No extra dependency for error handling; SPEC and ARCHITECTURE use `std::expected` as written.
+- Other C++23 features (`std::print`, deducing `this`, `std::ranges::to`) are available, but only where both minimum compilers support them; anything newer needs this entry revisiting.
+
+**Reversal conditions.** Revisit if a target distribution's packaged compiler cannot build C++23 with `std::expected`, in which case Option A is the fallback.

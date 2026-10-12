@@ -5,7 +5,7 @@
 
 # Coeus
 
-Coeus is a local-first knowledge base for Linux desktop, built in C++20 and Qt6. A vault is a plain folder of Markdown files — Coeus never owns the data, only an index. It covers the core of what Obsidian does (wikilinks, backlinks, live-preview editing, full-text search, tags, properties, daily notes, templates) and adds three things Obsidian cannot do natively: it understands the project-scaffold documentation standard (F/D/C/AV/BUG/IMP registers as typed objects, not text), it does local semantic search through the Mnemosyne memory subsystem with a related-notes sidebar, and it treats Git as a first-class citizen with per-note history, blame and diff. Sync is a pluggable provider layer with Google Drive as the intended first native target.
+Coeus is a local-first knowledge base for Linux desktop, built in C++23 and Qt6. A vault is a plain folder of Markdown files — Coeus never owns the data, only an index. It covers the core of what Obsidian does (wikilinks, backlinks, live-preview editing, full-text search, tags, properties, daily notes, templates) and adds three things Obsidian cannot do natively: it understands the project-scaffold documentation standard (F/D/C/AV/BUG/IMP registers as typed objects, not text), it does local semantic search through the Mnemosyne memory subsystem with a related-notes sidebar, and it treats Git as a first-class citizen with per-note history, blame and diff. Sync is a pluggable provider layer with Google Drive as the intended first native target.
 
 Named for the Titan of intellect and the celestial axis — the pole everything turns around.
 
@@ -24,7 +24,7 @@ Commands above are the target for Phase 1; they are not yet verified. See `BUILD
 ## Build requirements
 
 - Linux (x86_64). Developed on Linux Mint; Kubuntu also targeted.
-- C++20 compiler (GCC 13+ or Clang 17+)
+- C++23 compiler (GCC 13+ or Clang 17+); `std::expected` is required (D-013)
 - CMake 3.25+
 - Qt 6.5+ (Widgets, Gui, Core, Concurrent)
 - SQLite 3.40+ with FTS5, plus the `sqlite-vec` extension

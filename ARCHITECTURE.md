@@ -87,7 +87,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **Threading.** One indexer worker, one embedding worker, one Git worker, one sync worker, each a `QThread` with a queue. Communication is signal/slot with queued connections. SQLite is opened per thread with WAL mode; the UI thread holds read-only connections.
 
-**Error handling.** Exceptions do not cross module boundaries. Modules return `std::expected<T, Error>` (or `tl::expected` if the compiler lacks it); the UI maps errors to status-bar messages or dialogs. A failed index update for one file never aborts the batch.
+**Error handling.** Exceptions do not cross module boundaries. Modules return `std::expected<T, Error>` (C++23, D-013); the UI maps errors to status-bar messages or dialogs. A failed index update for one file never aborts the batch.
 
 **Logging.** `QLoggingCategory` per module (`coeus.vault`, `coeus.index`, …). Default level warning; `--verbose` raises to debug. Logs go to stderr and a rotating file under `.coeus/logs/`.
 

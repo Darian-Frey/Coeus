@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project
-Coeus is a local-first Markdown knowledge base for Linux desktop in C++20 and Qt6. The vault is a plain folder of `.md` files plus linked project repositories (F-034); Coeus keeps only a rebuildable SQLite index beside it. Three features define the product: scaffold-aware registers and the project board (F-015, F-016, F-032), Mnemosyne semantic search with a related-notes sidebar (F-018, F-019), and native Git (F-020–F-022). An MCP server (F-033) lets Claude chat and Claude Code read and write the same index.
+Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt6. The vault is a plain folder of `.md` files plus linked project repositories (F-034); Coeus keeps only a rebuildable SQLite index beside it. Three features define the product: scaffold-aware registers and the project board (F-015, F-016, F-032), Mnemosyne semantic search with a related-notes sidebar (F-018, F-019), and native Git (F-020–F-022). An MCP server (F-033) lets Claude chat and Claude Code read and write the same index.
 
 ## Current state
 - Nothing built yet. Repository contains documentation only.
@@ -13,15 +13,16 @@ Coeus is a local-first Markdown knowledge base for Linux desktop in C++20 and Qt
 ## Active task
 **Phase 1 — GUI shell** (see ROADMAP.md). Deliver F-001 and F-002 first:
 - `QMainWindow` with central editor placeholder, left `QDockWidget` (file explorer), right `QDockWidget` (backlinks/outline/properties stack), `QToolBar` icon strip, `QStatusBar`, `QTabWidget` for open notes.
-- Opens a vault folder passed on the command line, lists its `.md` files in a `QTreeView` over a `QFileSystemModel` filtered to Markdown.
+- Opens a vault folder passed on the command line, lists its Markdown and attachment files (SPEC.md §Vault layout) in a `QTreeView` over a filtered `QFileSystemModel`.
 - Selecting a file loads it read-only into the central `QPlainTextEdit`.
+- Command palette on `Ctrl+P` listing all registered actions with fuzzy filtering.
 - Acceptance: builds clean with `-Wall -Wextra -Werror`; opens a 1,000-file vault and shows the tree in under 500 ms; dock layout persists across restarts via `QSettings`.
 
 Every later feature is a panel or command dropped into this shell. Do not build features before the shell exists.
 
 ## Invariants
 - The vault is the source of truth. The index is derived and must be fully rebuildable from the vault with no data loss (AV-001).
-- Coeus writes to a vault file only through the editor save path or an explicit user command (template insertion, daily-note creation, register ID assignment). Never on index rebuild, sync, or Git operations.
+- Coeus writes to a vault file only through the editor save path or an explicit user command (template insertion, daily-note creation, register ID assignment, accepting the first-open `.gitignore` offer). Never on index rebuild, sync, or Git operations.
 - All vault writes are atomic: write to a temp file in the same directory, fsync, rename (AV-002).
 - The UI thread never blocks on indexing, embedding, Git, or sync. Those run on worker threads and report back via signals (AV-005).
 - Register IDs are append-only and never renumbered (AV-003).
@@ -57,7 +58,7 @@ Not yet verified. Update when BUILD.md exists.
 
 ## Out of scope
 - Do not add a plugin system, mobile build, or Publish feature.
-- Do not change the stack (C++20 + Qt6) or the vault-is-a-folder model without a DECISIONS entry.
+- Do not change the stack (C++23 + Qt6, D-002, D-013) or the vault-is-a-folder model without a DECISIONS entry.
 - Do not implement native Google Drive sync before Phase 5; rclone is the interim.
 - Do not enable MCP write tools by default or bypass the GUI confirmation.
 - Do not renumber or delete any F-/D-/AV-/BUG-/IMP- entry.
