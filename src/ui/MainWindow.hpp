@@ -26,7 +26,10 @@ namespace coeus {
 class BacklinksPanel;
 class OutlinePanel;
 class TagPanel;
+class HistoryPanel;
 class ProblemsPanel;
+class VersionView;
+struct GitCommit;
 class RegisterPanel;
 struct ProjectRef;
 class SearchPanel;
@@ -62,6 +65,9 @@ public:
     CommandPalette* nextIdPicker() const { return m_nextIdPicker; }
     RegisterPanel* registers() const { return m_registers; }
     ProblemsPanel* problems() const { return m_problems; }
+    HistoryPanel* history() const { return m_history; }
+    // Opens the note as it was in `commit`, read-only, in a tab (F-020).
+    void openVersion(const QString& notePath, const GitCommit& commit, const QString& workdir);
     QDockWidget* problemsDock() const { return m_problemsDock; }
     QToolButton* problemsButton() const { return m_problemsButton; }
     CommandPalette* templatePicker() const { return m_templatePicker; }
@@ -103,6 +109,7 @@ public:
     NoteCatalogue* catalogue() const { return m_catalogue; }
 
 signals:
+    void versionOpened(coeus::VersionView* view);
     // An ID was reserved and its entry appended to the register's buffer (F-015).
     void nextIdInserted(const QString& ident, const QString& registerFile);
     // A template was inserted into the current buffer (F-010).
@@ -124,6 +131,7 @@ signals:
 
 protected:
     void closeEvent(QCloseEvent* event) override;
+    void changeEvent(QEvent* event) override;
 
 private:
     void createDocks();
@@ -205,6 +213,8 @@ private:
     RegisterPanel* m_registers = nullptr;
     QDockWidget* m_registersDock = nullptr;
     ProblemsPanel* m_problems = nullptr;
+    HistoryPanel* m_history = nullptr;
+    QThreadPool* m_gitPool = nullptr;
     QDockWidget* m_problemsDock = nullptr;
     QObject* m_templateActions = nullptr; // parent of the picker's per-template actions
     NoteCatalogue* m_catalogue = nullptr; // notes and aliases for [[ completion

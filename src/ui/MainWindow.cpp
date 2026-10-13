@@ -4,9 +4,11 @@
 #include "ui/CommandPalette.hpp"
 #include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
+#include "ui/HistoryPanel.hpp"
 #include "ui/NoteCatalogue.hpp"
 #include "ui/NoteView.hpp"
 #include "ui/OutlinePanel.hpp"
+#include "git/GitRepository.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
 #include "parser/RegisterParser.hpp"
@@ -18,6 +20,7 @@
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "ui/TagPanel.hpp"
+#include "ui/VersionView.hpp"
 #include "vault/DailyNotes.hpp"
 #include "vault/GitIgnoreOffer.hpp"
 #include "vault/Journal.hpp"
@@ -62,6 +65,7 @@ constexpr int kLayoutVersion = 1;
 constexpr int kStatusTimeoutMs = 5000;
 
 const char* const kPathProperty = "coeusPath";
+const char* const kVersionProperty = "coeusVersion"; // "<absolute path>@<commit id>" on a VersionView tab
 
 } // namespace
 
@@ -84,6 +88,9 @@ MainWindow::MainWindow(QWidget* parent)
 
     m_journalPool = new QThreadPool(this);
     m_journalPool->setMaxThreadCount(1);
+    // The Git worker (ARCHITECTURE.md threading): libgit2 calls, one at a time.
+    m_gitPool = new QThreadPool(this);
+    m_gitPool->setMaxThreadCount(1);
     m_journalTimer = new QTimer(this);
     m_journalTimer->setInterval(kJournalIntervalMs);
     connect(m_journalTimer, &QTimer::timeout, this, &MainWindow::journalNow);
@@ -92,6 +99,8 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_tabs, &QTabWidget::currentChanged, this, [this] {
         Editor* editor = currentEditor();
         m_backlinks->showNote(editor ? editor->path() : QString());
+        const auto* version = qobject_cast<VersionView*>(m_tabs->currentWidget());
+        m_history->showNote(editor ? editor->path() : version ? version->notePath() : QString());
         m_outline->setView(currentView());
         if (editor) {
             m_registers->followNote(editor->path());
@@ -118,6 +127,9 @@ void MainWindow::createDocks()
     m_backlinks = new BacklinksPanel;
     m_sidebar->addSection(tr("Backlinks"), m_backlinks);
     connect(m_backlinks, &BacklinksPanel::openRequested, this, &MainWindow::openNoteAt);
+    m_history = new HistoryPanel(m_gitPool);
+    m_sidebar->addSection(tr("History"), m_history);
+    connect(m_history, &HistoryPanel::versionRequested, this, &MainWindow::openVersion);
     m_outline = new OutlinePanel;
     m_sidebar->addSection(tr("Outline"), m_outline);
     m_sidebarDock = new QDockWidget(tr("Sidebar"), this);
@@ -394,11 +406,13 @@ void MainWindow::openVault(const Vault& vault)
     if (!confirmCloseAll())
         return;
     while (m_tabs->count() > 0) {
-        NoteView* view = viewAt(0);
-        m_journalled.remove(view->editor());
-        m_conflictPrompts.remove(view->editor());
+        if (NoteView* view = viewAt(0)) {
+            m_journalled.remove(view->editor());
+            m_conflictPrompts.remove(view->editor());
+        }
+        QWidget* page = m_tabs->widget(0);
         m_tabs->removeTab(0);
-        view->deleteLater();
+        page->deleteLater();
     }
     m_vault = vault;
     m_linkedRoots.clear();
@@ -540,6 +554,10 @@ void MainWindow::startIndex(const QString& vaultPath)
         emit indexUpdated(notes);
     });
     connect(m_index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
+    connect(m_index, &IndexService::filesChanged, this, [this](const QStringList& paths) {
+        if (paths.contains(m_history->notePath()))
+            m_history->refresh(); // e.g. git checkout or pull changed it
+    });
     connect(m_index, &IndexService::rootRescanned, this, &MainWindow::onRootRescanned);
     connect(m_index, &IndexService::failed, this, [this](const QString& message) {
         setIndexStatus(tr("index error"), message);
@@ -1282,8 +1300,13 @@ void MainWindow::closeCurrentTab()
 bool MainWindow::closeTab(int index)
 {
     Editor* editor = editorAt(index);
-    if (!editor)
+    if (!editor) {
+        // A read-only page (a VersionView): nothing to save.
+        QWidget* page = m_tabs->widget(index);
+        m_tabs->removeTab(index);
+        page->deleteLater();
         return true;
+    }
     if (editor->isModified()) {
         QMessageBox box(QMessageBox::Question, tr("Unsaved changes"),
                         tr("Save changes to %1?").arg(displayPath(editor->path())),
@@ -1352,6 +1375,10 @@ void MainWindow::updateStatus()
     m_vaultLabel->setText(m_vault->rootPath());
 
     QWidget* page = m_tabs->currentWidget();
+    if (const auto* version = qobject_cast<VersionView*>(page)) {
+        m_noteLabel->setText(tr("%1 as of %2 (read-only)").arg(displayPath(version->notePath()), version->commit().shortId));
+        return;
+    }
     m_noteLabel->setText(page ? displayPath(page->property(kPathProperty).toString()) : QString());
 }
 
@@ -1367,6 +1394,48 @@ void MainWindow::saveLayout() const
     QSettings settings;
     settings.setValue(QStringLiteral("mainWindow/geometry"), saveGeometry());
     settings.setValue(QStringLiteral("mainWindow/state"), saveState(kLayoutVersion));
+}
+
+void MainWindow::openVersion(const QString& notePath, const GitCommit& commit, const QString& workdir)
+{
+    const QString key = notePath + QLatin1Char('@') + commit.id;
+    for (int i = 0; i < m_tabs->count(); ++i) {
+        if (m_tabs->widget(i)->property(kVersionProperty).toString() == key) {
+            m_tabs->setCurrentIndex(i);
+            return;
+        }
+    }
+    // Read the blob on the Git worker, then open the tab.
+    auto* watcher = new QFutureWatcher<std::expected<QByteArray, QString>>(this);
+    connect(watcher, &QFutureWatcher<std::expected<QByteArray, QString>>::finished, this,
+            [this, watcher, notePath, commit, key] {
+                watcher->deleteLater();
+                const auto bytes = watcher->result();
+                if (!bytes) {
+                    statusBar()->showMessage(bytes.error(), kStatusTimeoutMs * 2);
+                    return;
+                }
+                auto* view = new VersionView(notePath, commit, QString::fromUtf8(*bytes));
+                view->setProperty(kVersionProperty, key);
+                const int index = m_tabs->addTab(view, view->title());
+                m_tabs->setTabToolTip(index, tr("%1 as of %2 — %3").arg(displayPath(notePath), commit.shortId, commit.summary));
+                m_tabs->setCurrentIndex(index);
+                emit versionOpened(view);
+            });
+    watcher->setFuture(QtConcurrent::run(m_gitPool, [workdir, commit]() -> std::expected<QByteArray, QString> {
+        const auto repo = GitRepository::discover(workdir);
+        if (!repo)
+            return std::unexpected(repo.error());
+        return repo->fileAt(commit.id, commit.path);
+    }));
+}
+
+void MainWindow::changeEvent(QEvent* event)
+{
+    // Commits made elsewhere (a terminal, Claude Code) show on coming back.
+    if (event->type() == QEvent::ActivationChange && isActiveWindow() && m_history)
+        m_history->refresh();
+    QMainWindow::changeEvent(event);
 }
 
 void MainWindow::closeEvent(QCloseEvent* event)

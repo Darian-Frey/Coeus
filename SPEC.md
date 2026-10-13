@@ -493,6 +493,16 @@ In source mode a collapsible "Properties (N)" card sits above the editor (F-008)
 
 **Variables**, in templates for both: `{{date}}` (`yyyy-MM-dd`), `{{time}}` (`HH:mm`), `{{title}}` (the note's file name without extension), and `{{date:FORMAT}}` / `{{time:FORMAT}}` with any Qt date or time format. `{{next:KIND}}` (KIND one of `F C D AV BUG IMP`), in a template inserted into a note inside a project, becomes that project's next ID of the kind, allocated by `NextId` on a worker thread before the template is inserted (§ID allocation); each kind is allocated once per insertion, so repeated `{{next:D}}` give the same ID. Outside a project, and in daily notes, it is left as written. Anything else in braces is left as written, and anything left is named in the status bar.
 
+## Git
+
+Coeus reads Git repositories through libgit2 (`git/GitRepository`), never the `git` command. Every libgit2 call runs on the Git worker, a one-thread pool owned by `MainWindow`, never the UI thread (AV-005). Reading history never writes to the working tree or the repository.
+
+**Repository.** A note's repository is the non-bare one whose working tree contains it, found by searching upward from its folder: the vault, a folder inside it, a folder above it, or a linked root (F-034). Notes in different repositories show their own histories.
+
+**History** (F-020). The sidebar's History section shows the current note's branch (`main`; `detached at a41c9e2`; before the first commit, the branch HEAD names) and the commits that changed it, newest first, at most 500: short ID, summary, author date and author, with the full message on hover. A commit is listed when its version of the file differs from every parent's, so a merge that took one side unchanged is not, as `git log` does without `--full-history`. When a commit added the file by renaming another (found by similarity), older commits are followed under the old path, as `git log --follow` does. An untracked note shows "No commits of this note yet"; a note outside every repository, "Not in a Git repository". The section refreshes when the tab changes, when the note changes on disk (a checkout or pull), when the window is activated (commits made in a terminal or by Claude Code), and from its ↻ button; a newer request supersedes an older one still running.
+
+**Versions.** Clicking a commit opens the note as it was there in a read-only tab, `<name> @ <short ID>`, under a header naming the path at that commit, the commit, its date and author. It is not an editor: nothing can save it, and the journal and conflict checks never see it. Opening the same version again focuses its tab; opening the note itself goes to the note's own tab.
+
 ## Reading mode
 
 Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.

@@ -176,7 +176,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Acceptance:**
 - If the vault (or a subfolder) is a Git repository, the sidebar shows the current note's commit history via libgit2
 - Selecting a commit shows that version read-only in a new tab
-**Status:** Not started (Phase 3)
+**Status:** Complete (Phase 3, 2026-10-13): History sidebar section and read-only versions through libgit2, renames followed (SPEC.md §Git)
 
 ### F-021 Diff and blame
 **Priority:** Must

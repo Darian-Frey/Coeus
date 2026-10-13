@@ -36,6 +36,7 @@ add_library(coeus_core STATIC
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
     src/index/ProjectResolver.cpp
+    src/git/GitRepository.cpp
     src/index/LintResolver.cpp
     src/index/Schema.cpp
     src/index/Search.cpp
@@ -73,11 +74,13 @@ add_library(coeus_core STATIC
     src/ui/NoteView.cpp
     src/ui/OutlinePanel.cpp
     src/ui/PropertiesPanel.cpp
+    src/ui/HistoryPanel.cpp
     src/ui/ProblemsPanel.cpp
     src/ui/RegisterPanel.cpp
     src/ui/SearchPanel.cpp
     src/ui/SidebarPanel.cpp
     src/ui/TagPanel.cpp
+    src/ui/VersionView.cpp
     src/ui/WikilinkCompleter.cpp
     src/ui/WikilinkCompletion.cpp
 )

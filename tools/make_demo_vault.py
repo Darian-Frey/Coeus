@@ -20,6 +20,7 @@ only.
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import shutil
 import struct
@@ -67,6 +68,24 @@ SVG = """<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
 def git_init(folder: Path) -> None:
     if shutil.which("git"):
         subprocess.run(["git", "init", "-q", str(folder)], check=False)
+
+
+def git_history(root: Path) -> None:
+    """Two commits of DECISIONS.md in the linked root, for the History section (F-020)."""
+    if not shutil.which("git"):
+        return
+    def git(*args: str, date: str) -> None:
+        env = dict(os.environ, GIT_AUTHOR_DATE=date, GIT_COMMITTER_DATE=date)
+        subprocess.run(["git", "-C", str(root), "-c", "user.name=Demo Author", "-c", "user.email=demo@example.org",
+                        "-c", "commit.gpgsign=false", *args], check=False, env=env,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    decisions = root / "DECISIONS.md"
+    final = decisions.read_text(encoding="utf-8")
+    decisions.write_text(final.replace("Fixed 120 Hz timestep.", "Fixed 60 Hz timestep."), encoding="utf-8")
+    git("add", "-A", date="2026-10-01T10:00:00+01:00")
+    git("commit", "-q", "-m", "Start Pontus", date="2026-10-01T10:00:00+01:00")
+    decisions.write_text(final, encoding="utf-8")
+    git("commit", "-q", "-am", "Raise the timestep to 120 Hz\n\nThe contact solver needed it.", date="2026-10-05T16:30:00+01:00")
 
 
 def build_linked_root(root: Path) -> None:
@@ -217,6 +236,12 @@ def build_vault(vault: Path, linked: Path) -> None:
         - Click a problem: the register opens at its line, the culprit underlined
           with a wavy line; hover it for the message. Change *Planned* to
           *Not started* and save: the error goes.
+
+        ## Git history
+        - Open [[pontus:DECISIONS]]: the sidebar's **History** shows the branch
+          and two commits. Click the older one: the note as it was (60 Hz) opens
+          read-only in its own tab. The vault itself has no commits yet, so its
+          notes say so.
 
         ## Index
         - File → **Verify Index**; File → **Rebuild Index**.
@@ -490,6 +515,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_git:
         git_init(vault)
         git_init(linked)
+        git_history(linked)
 
     notes = sum(1 for p in vault.rglob("*.md") if not any(part.startswith(".") for part in p.relative_to(vault).parts))
     print(f"Demo vault: {vault} ({notes} notes)\nLinked root: {linked}\nOpen it with: ./build/coeus {vault}")
