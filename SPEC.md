@@ -321,7 +321,9 @@ Watches are added before a root's first scan, so nothing written during the scan
 
 ## Full-text query syntax
 
-`term` — FTS5 match on title or body. `"phrase"` — exact. `tag:x` — tag filter. `path:x` — prefix on path. `file:x` — substring on title. `-term` — exclude. `re:/pattern/` — SQLite `REGEXP` on body, applied after FTS narrowing. Terms are ANDed.
+`term` — FTS5 match on title or body, as a prefix (`arch` finds `architecture`), so results appear while typing. `"phrase"` — exact. `-term` or `-"phrase"` — exclude notes matching it. `tag:x` — notes tagged `x` or beneath it (`#` optional, any case). `path:x` — the display path (`projects/…` in the vault, `pontus/…` in a linked root) starts with `x`; `%` and `_` are literal. `file:x` — the title contains `x`, any case. `re:/pattern/` — the note's text matches the Qt regular expression (which may contain spaces), applied in SQL after the other conditions narrow the notes. Everything is ANDed. Only words and phrases can be excluded; `-tag:` and the like are an error, as is an invalid pattern. A word of punctuation alone is ignored, so a half-typed `-` does nothing.
+
+Results, at most 200, are ordered by BM25 with title matches weighted ten times body matches when the query has words or phrases, otherwise by display path. Each carries a snippet with the matches marked. The Search dock is the third tab beside Explorer and Tags (`Ctrl+Shift+F` focuses it); each search runs off the UI thread 150 ms after typing pauses, a newer one supersedes an older, and the shown results re-run whenever the index changes. Opening a hit selects the first occurrence of a phrase, word or `file:` value in the note. F-006's budget is 100 ms on 10,000 notes; `tests/perf/test_search_speed.cpp` measures 0–29 ms across representative queries in a debug build.
 
 ## Embeddings
 

@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Search (F-006): a Search dock (`Ctrl+Shift+F`) with prefix words, phrases, exclusions, `tag:`, `path:`, `file:` and `re:/…/`, BM25 ranking with titles first, marked snippets; hits open with the match selected. Tests `test_search`, `test_search_panel`, and `test_search_speed` (10,000 notes, 29 ms worst case against a 100 ms budget).
 - Tag pane (F-007): a Tags dock tabbed with the Explorer listing every tag nested on `/` with note counts, case-insensitive; activating a tag (or a reading-mode tag link) filters the Explorer to its notes until cleared. Tests `test_tags`, `test_tag_panel`.
 - Outline panel (F-013): the current note's headings as a tree, parsed from the unsaved buffer off the UI thread; clicking goes to the heading in source or reading mode; the cursor's section is highlighted. Test `test_outline_panel`.
 - Backlinks panel (F-005): links to the current note grouped by source with their lines, and unlinked mentions of its title and aliases found by FTS5 and confirmed line by line; clicking opens the source at the line (`MainWindow::openNoteAt`). Tests `test_backlinks`, `test_backlinks_panel`.

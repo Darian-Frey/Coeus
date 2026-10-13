@@ -61,7 +61,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Acceptance:**
 - SQLite FTS5 over note bodies with `tag:`, `path:`, `file:`, and quoted-phrase operators
 - Results update as-you-type with under 100 ms latency on a 10,000-note vault
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-10-13)
 
 ### F-007 Tags
 **Priority:** Must

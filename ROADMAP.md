@@ -37,7 +37,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Backlinks panel with unlinked mentions (`src/index/Backlinks.cpp`, `src/ui/BacklinksPanel.cpp`; F-005)
 - [x] Outline panel (`src/ui/OutlinePanel.cpp`; F-013)
 - [x] Tag pane (`src/index/Tags.cpp`, `src/ui/TagPanel.cpp`; F-007)
-- [ ] Search panel (F-006)
+- [x] Search panel (`src/index/Search.cpp`, `src/ui/SearchPanel.cpp`; F-006)
 - [ ] Properties panel with typed validation
 - [ ] Daily notes and templates
 **Acceptance:** A real vault (the author's project repos) can be browsed, searched, edited and saved for a week without data loss or index drift (AV-001, AV-002).

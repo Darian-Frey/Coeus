@@ -9,6 +9,7 @@
 #include "ui/OutlinePanel.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
+#include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "ui/TagPanel.hpp"
 #include "vault/GitIgnoreOffer.hpp"
@@ -28,6 +29,7 @@
 #include <QFutureWatcher>
 #include <QUrl>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QPushButton>
@@ -124,6 +126,15 @@ void MainWindow::createDocks()
     m_tagsDock->setWidget(m_tags);
     addDockWidget(Qt::LeftDockWidgetArea, m_tagsDock);
     tabifyDockWidget(m_explorerDock, m_tagsDock);
+
+    // Search joins them as a third tab (mockup's magnifier).
+    m_search = new SearchPanel;
+    m_searchDock = new QDockWidget(tr("Search"), this);
+    m_searchDock->setObjectName(QStringLiteral("searchDock"));
+    m_searchDock->setWidget(m_search);
+    addDockWidget(Qt::LeftDockWidgetArea, m_searchDock);
+    tabifyDockWidget(m_explorerDock, m_searchDock);
+    connect(m_search, &SearchPanel::openRequested, this, &MainWindow::openNoteAtWords);
     m_explorerDock->raise();
     connect(m_tags, &TagPanel::tagActivated, this, &MainWindow::showTag);
     connect(m_tags, &TagPanel::reloaded, this, [this] {
@@ -234,6 +245,19 @@ void MainWindow::createActions()
     strip->setIconSize(QSize(18, 18));
     strip->setToolButtonStyle(Qt::ToolButtonIconOnly);
     strip->addAction(toggleExplorer);
+    auto* findNotes = new QAction(QIcon::fromTheme(QStringLiteral("edit-find")), tr("Search &Notes…"), this);
+    findNotes->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
+    connect(findNotes, &QAction::triggered, this, [this] {
+        m_searchDock->show();
+        m_searchDock->raise();
+        m_search->input()->setFocus();
+        m_search->input()->selectAll();
+    });
+    strip->addAction(findNotes);
+    viewMenu->addAction(findNotes);
+    addAction(findNotes);
+    registerAction(findNotes);
+
     QAction* toggleTags = m_tagsDock->toggleViewAction();
     toggleTags->setText(tr("Toggle &Tags"));
     toggleTags->setIcon(QIcon::fromTheme(QStringLiteral("tag"), QIcon::fromTheme(QStringLiteral("bookmarks"))));
@@ -395,6 +419,7 @@ void MainWindow::startIndex(const QString& vaultPath)
     m_catalogue->setIndexPath(IndexService::indexPath(vaultPath));
     m_backlinks->setIndexPath(IndexService::indexPath(vaultPath));
     m_tags->setIndexPath(IndexService::indexPath(vaultPath));
+    m_search->setIndexPath(IndexService::indexPath(vaultPath));
     connect(m_indexThread, &QThread::finished, m_index, &QObject::deleteLater);
 
     connect(m_index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
@@ -407,6 +432,7 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_catalogue->reload();
         m_backlinks->refresh();
         m_tags->reload();
+        m_search->refresh();
         emit indexOpened(notes);
     });
     connect(m_index, &IndexService::indexChanged, this, [this](int notes) {
@@ -414,6 +440,7 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_catalogue->reload();
         m_backlinks->refresh();
         m_tags->reload();
+        m_search->refresh();
         emit indexUpdated(notes);
     });
     connect(m_index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
@@ -481,6 +508,22 @@ void MainWindow::sweepTempFiles(const QString& root)
 void MainWindow::openNote(const QString& absolutePath)
 {
     openEditor(absolutePath, false);
+}
+
+void MainWindow::openNoteAtWords(const QString& absolutePath, const QStringList& words)
+{
+    Editor* editor = openEditor(absolutePath, false);
+    if (!editor)
+        return;
+    for (const QString& word : words) {
+        const QTextCursor found = editor->document()->find(word);
+        if (!found.isNull()) {
+            editor->setTextCursor(found);
+            editor->centerCursor();
+            break;
+        }
+    }
+    editor->setFocus();
 }
 
 void MainWindow::openNoteAt(const QString& absolutePath, int line)

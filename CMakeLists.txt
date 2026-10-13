@@ -36,6 +36,8 @@ add_library(coeus_core STATIC
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
     src/index/Schema.cpp
+    src/index/Search.cpp
+    src/index/SearchQuery.cpp
     src/index/Tags.cpp
     src/parser/Frontmatter.cpp
     src/parser/HtmlRenderer.cpp
@@ -60,6 +62,7 @@ add_library(coeus_core STATIC
     src/ui/NoteCatalogue.cpp
     src/ui/NoteView.cpp
     src/ui/OutlinePanel.cpp
+    src/ui/SearchPanel.cpp
     src/ui/SidebarPanel.cpp
     src/ui/TagPanel.cpp
     src/ui/WikilinkCompleter.cpp

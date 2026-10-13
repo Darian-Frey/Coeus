@@ -25,6 +25,7 @@ namespace coeus {
 class BacklinksPanel;
 class OutlinePanel;
 class TagPanel;
+class SearchPanel;
 class CommandPalette;
 class Editor;
 class NoteCatalogue;
@@ -50,6 +51,9 @@ public:
     BacklinksPanel* backlinks() const { return m_backlinks; }
     OutlinePanel* outline() const { return m_outline; }
     TagPanel* tags() const { return m_tags; }
+    SearchPanel* search() const { return m_search; }
+    // Opens a note and selects the first of `words` it contains (search hits).
+    void openNoteAtWords(const QString& absolutePath, const QStringList& words);
     // Filters the explorer to notes tagged `tag` or beneath it (F-007).
     void showTag(const QString& tag);
     // Saves the current tab's note; false if it was not saved.
@@ -152,6 +156,8 @@ private:
     OutlinePanel* m_outline = nullptr;
     TagPanel* m_tags = nullptr;
     QDockWidget* m_tagsDock = nullptr;
+    SearchPanel* m_search = nullptr;
+    QDockWidget* m_searchDock = nullptr;
     QString m_activeTag; // the tag the explorer is filtered by, if any
     CommandPalette* m_palette = nullptr;
     QLabel* m_noteLabel = nullptr;
