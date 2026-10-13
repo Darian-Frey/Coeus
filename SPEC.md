@@ -147,11 +147,11 @@ An entry begins at a level-3 heading matching:
 ^### (F|C|D|AV|BUG|IMP)-(\d{3,})(:)? (.+)$
 ```
 
-and ends at the next level-2 or level-3 heading or end of file. Headings inside fenced code are ignored. Within an entry, fields are lines matching `^\*\*([A-Za-z ]+):\*\*( (.*))?$` (single-line fields) or `^\*\*([A-Za-z ]+)\.\*\*( (.*))?$` (paragraph fields). A paragraph field continues over the following non-blank lines until a blank line, another field or a heading, so `**Options.**` followed by a list keeps the list. Both forms are stored under the same field name; the trailing `:` or `.` is stripped. An entry's status is the first line of its `Status` field, as written.
+and ends at the next level-2 or level-3 heading or end of file. Headings inside fenced code are ignored. Within an entry, fields are lines matching `^\*\*([A-Za-z][A-Za-z -]*):\*\*( (.*))?$` (single-line fields) or `^\*\*([A-Za-z][A-Za-z -]*)\.\*\*( (.*))?$` (paragraph fields); names may contain hyphens, as the standard's `Trade-offs` does (BUG-006). A paragraph field continues over the following non-blank lines until a blank line, another field or a heading, so `**Options.**` followed by a list keeps the list. Both forms are stored under the same field name; the trailing `:` or `.` is stripped. An entry's status is the first line of its `Status` field, as written.
 
-Every field whose name is `Related` or begins `Related ` (`Related decisions`, `Related claims`) is a citation list: each `(F|C|D|AV|BUG|IMP)-\d+` in it becomes a cross-reference edge, made canonical (three or more digits, so `D-5` is `D-005`), once per target, never to the entry itself.
+Every field whose name is `Related` or begins `Related ` (`Related decisions`, `Related claims`) is a citation list: each `(F|C|D|AV|BUG|IMP)-\d+` in it becomes a cross-reference edge, made canonical (three or more digits, so `D-5` is `D-005`), once per target, never to the entry itself, with the line it is on. Separately, every ident with three or more digits anywhere in the entry (title, fields, prose; not fenced code) is a *mention*, once per ident with its first line, never the entry itself. FEATURES, BUGS and IMPROVEMENTS entries cite in prose, so back-references (L4) are judged on mentions; unresolved and stale citations (L1, L2) only on Related fields, so prose may name another project's IDs freely.
 
-**Membership.** A register file is recognised by name anywhere under a project folder (`docs/BUGS.md` counts). A project is a folder whose `README.md` opens with the status header; a note belongs to the nearest such folder above it in its own root, so projects nest. Entries in register files outside every project are indexed with no project and take part in nothing else. `ProjectResolver` recomputes projects, note membership and citation targets after every index change, keeping existing project ids, and writes only rows that differ. A citation resolves to the entry with that ident in the citing entry's project; if the ident is duplicated (AV-003), to the first by note path and line, never by row id, so an incrementally updated index and a rebuilt one agree (AV-001).
+**Membership.** A register file is recognised by name anywhere under a project folder (`docs/BUGS.md` counts). A project is a folder whose `README.md` opens with the status header; a note belongs to the nearest such folder above it in its own root, so projects nest. A root's own folder is a project when its top-level README carries the header, as a linked project repository's does (F-034); its project path is the empty string, never NULL (BUG-007). Entries in register files outside every project are indexed with no project and take part in nothing else. `ProjectResolver` recomputes projects, note membership and citation targets after every index change, keeping existing project ids, and writes only rows that differ. A citation resolves to the entry with that ident in the citing entry's project; if the ident is duplicated (AV-003), to the first by note path and line, never by row id, so an incrementally updated index and a rebuilt one agree (AV-001).
 
 ### ID allocation
 
@@ -171,20 +171,33 @@ Reservations are transient, not vault data, so losing them in an index rebuild l
 
 ### Lint rules
 
-| Rule | Level | Condition |
-|------|-------|-----------|
-| L1 unresolved-ref | error | A cross-reference token names an ID that does not exist in the project |
-| L2 stale-ref | warning | Target entry status is Superseded, Withdrawn, Refuted, Deprecated, wontfix, or declined |
-| L3 bad-vocab | error | A field value is outside its vocabulary (§Vocabularies) |
-| L4 one-way-ref | warning | A cites B but B's Related fields do not cite A |
-| L5 missing-reversal | error | A D- or C- entry has no `Reversal conditions` field |
-| L6 missing-tradeoffs | error | An IMP- entry has no `Trade-offs` field |
-| L7 missing-detection | error | An AV- entry has no `Detection` field |
-| L8 stale-review | info | Project `Last reviewed` older than `review_threshold_days` (default 14) |
+`registers/Lint` checks every entry inside a project (F-016); entries outside every project are never linted. `LintResolver` runs it after `ProjectResolver` on every index change, in the same transaction, and writes only `lint` rows that differ; a pass over 704 real entries takes about 12 ms in a debug build. L8 depends on the date, so it is not stored: `IndexQueries::problems` evaluates it when problems are read.
+
+| Rule | Level | Line | Condition |
+|------|-------|------|-----------|
+| L1 unresolved-ref | error | the citation | A Related field cites an ID that does not exist in the project |
+| L2 stale-ref | warning | the citation | A Related field cites an entry whose status term is Superseded, Withdrawn, Refuted, Deprecated, wontfix or declined; not when the target is "Superseded by" the citing entry itself |
+| L3 bad-vocab | error | the field | A Status, Priority, Domain, Severity or Effort field (as §Vocabularies gives them per kind), or a README's project status, does not open with a vocabulary term |
+| L4 one-way-ref | warning | the mention | A mentions B, the standard requires B to mention A back (D↔AV, F, C; AV→D, C; F→D; C→D, AV; BUG→AV, D, IMP, BUG; IMP→BUG, D, IMP: Maintenance Rule 6 and rule 4 of the BUGS and IMPROVEMENTS sections), and B does not |
+| L5 missing-reversal | error | the heading | A D- or C- entry has no `Reversal conditions` field |
+| L6 missing-tradeoffs | error | the heading | An IMP- entry has no `Trade-offs` field |
+| L7 missing-detection | error | the heading | An AV- entry has no `Detection` field |
+| L8 stale-review | info | `Last reviewed` | Project `Last reviewed` is older than `review_threshold_days` (default 14), or not a date |
+| L9 duplicate-id | error | the heading | An ident already used by an earlier entry (by path, then line) in the project (AV-003) |
+
+**Vocabulary terms.** Values are case-sensitive. A field passes L3 when its first line is a term, or a term followed by a character that cannot continue a word and then anything: the standard's registers qualify their statuses as `fixed (2026-10-05)`, `Complete (Phase 2, 2026-10-13): …` or `applied 2026-09-23`. `Superseded by D-NNN` is matched as `Superseded by D-` and digits. `Completed`, `Medium` and `Done` fail.
+
+L4 is the rule `tools/check_xrefs.py` applies, and gives the same findings on Coeus's own registers.
+
+### Problems panel
+
+A Problems dock below the editor (`Ctrl+Shift+M`; hidden until asked for) lists the lint problems of the current note's project, or of every project, filtered by level, grouped by file with counts, from the `NoteCatalogue` snapshot. Clicking a problem opens its file at its line. With a note in a project open, the status bar shows that project's errors and warnings (`✖ 2  ⚠ 1`); clicking it opens the dock.
+
+In the editor each problem in the open note is underlined with a wavy line, red for errors, amber for warnings, blue for info, under its subject on its line: the cited ID, the field's value, the entry's ID. Hovering shows the message. Problems come from the index, so they reflect the note as last saved; one whose line no longer holds its subject is not shown, and they refresh when the index catches up.
 
 ## Index schema
 
-SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 2 (Phase 3) adds `status_headers`, the register tables, `lint` and `reservations` to version 1's Phase 2 tables; `ideas`, `chunks` and `vec` arrive later in Phase 3 with further bumps. Opening an index of an older version rebuilds it.
+SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 2 (Phase 3) adds `status_headers`, the register tables, `lint` and `reservations` to version 1's Phase 2 tables; version 3 gives fields and citations their lines, adds `register_mentions`, and gives lint rows a subject (F-016). `ideas`, `chunks` and `vec` arrive later in Phase 3 with further bumps. Opening an index of an older version rebuilds it.
 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -287,19 +300,28 @@ CREATE TABLE reservations (
 
 CREATE TABLE register_fields (
   reg INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
-  name TEXT NOT NULL, value TEXT NOT NULL
+  name TEXT NOT NULL, value TEXT NOT NULL,
+  line INTEGER NOT NULL
 );
 
-CREATE TABLE register_refs (
+CREATE TABLE register_refs (            -- citations in Related fields
   src INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
   target_ident TEXT NOT NULL,
-  target INTEGER REFERENCES registers(id) ON DELETE SET NULL
+  target INTEGER REFERENCES registers(id) ON DELETE SET NULL,
+  line INTEGER NOT NULL
 );
 
-CREATE TABLE lint (
+CREATE TABLE register_mentions (        -- every ident anywhere in the entry (L4)
+  src INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
+  ident TEXT NOT NULL,
+  line INTEGER NOT NULL
+);
+
+CREATE TABLE lint (                     -- L1–L7, L9; L8 is evaluated when read
   note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
   rule TEXT NOT NULL, level TEXT NOT NULL,
-  line INTEGER, message TEXT NOT NULL
+  line INTEGER, message TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT ''    -- text on the line to underline
 );
 
 CREATE VIRTUAL TABLE fts USING fts5(

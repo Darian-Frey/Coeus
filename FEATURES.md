@@ -138,7 +138,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - References to entries with status Superseded / Withdrawn / Refuted / Deprecated are flagged as warnings
 - Status values outside the fixed vocabularies are flagged as errors
 - Unidirectional cross-references (D cites AV but AV does not cite D) are reported, satisfying Maintenance Rule 6 of the standard
-**Status:** Not started (Phase 3)
+**Status:** Complete (Phase 3, 2026-10-13): lint rules L1–L9, the Problems panel and editor underlines (SPEC.md §Lint rules, §Problems panel)
 
 ### F-017 Review-freshness dashboard
 **Priority:** Should

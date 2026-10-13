@@ -1,5 +1,6 @@
 #pragma once
 
+#include "index/IndexQueries.hpp"
 #include "vault/Vault.hpp"
 
 #include <QByteArray>
@@ -53,8 +54,18 @@ public:
     void setCatalogue(const NoteCatalogue* catalogue);
     WikilinkCompleter* completer() const { return m_completer; }
 
+    // Lint problems in this note (F-016), underlined with a wavy line in the
+    // level's colour and shown as tooltips. Each is found by its subject on
+    // its line; one whose line no longer holds it (the buffer has moved on
+    // since the index read the file) is not shown. Kept across reloads, and
+    // refreshed from the catalogue whenever it reloads.
+    void setProblems(const QList<ProblemRef>& problems);
+    // The problem text under `position` in the document, or empty.
+    QString problemAt(int position) const;
+
 protected:
     void keyPressEvent(QKeyEvent* event) override;
+    bool viewportEvent(QEvent* event) override;
 
 signals:
     void modificationChanged(bool modified);
@@ -65,6 +76,7 @@ private:
     QByteArray currentHashOnDisk() const; // empty if the file is gone or unreadable
     void setBuffer(const QString& text);
     void setConflict(bool conflict);
+    void applyProblems();
 
     Vault m_root;
     QString m_path;
@@ -72,6 +84,8 @@ private:
     bool m_conflict = false;
     MarkdownHighlighter* m_highlighter = nullptr;
     WikilinkCompleter* m_completer = nullptr;
+    QList<ProblemRef> m_problems;
+    QMetaObject::Connection m_catalogueReloaded;
 };
 
 } // namespace coeus

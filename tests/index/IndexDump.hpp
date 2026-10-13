@@ -32,11 +32,15 @@ inline QStringList dumpIndex(Database& db)
         "FROM notes n LEFT JOIN projects p ON p.id = n.project_id",
         "SELECT 'register', n.root_id || ':' || n.path, r.ident, r.title, r.status, r.line, p.path "
         "FROM registers r JOIN notes n ON n.id = r.note LEFT JOIN projects p ON p.id = r.project_id",
-        "SELECT 'field', n.root_id || ':' || n.path, r.ident, f.name, f.value FROM register_fields f "
+        "SELECT 'field', n.root_id || ':' || n.path, r.ident, f.name, f.value, f.line FROM register_fields f "
         "JOIN registers r ON r.id = f.reg JOIN notes n ON n.id = r.note",
-        "SELECT 'ref', n.root_id || ':' || n.path, r.ident, x.target_ident, tn.root_id || ':' || tn.path, t.line "
+        "SELECT 'ref', n.root_id || ':' || n.path, r.ident, x.target_ident, x.line, tn.root_id || ':' || tn.path, t.line "
         "FROM register_refs x JOIN registers r ON r.id = x.src JOIN notes n ON n.id = r.note "
         "LEFT JOIN registers t ON t.id = x.target LEFT JOIN notes tn ON tn.id = t.note",
+        "SELECT 'mention', n.root_id || ':' || n.path, r.ident, m.ident, m.line FROM register_mentions m "
+        "JOIN registers r ON r.id = m.src JOIN notes n ON n.id = r.note",
+        "SELECT 'lint', n.root_id || ':' || n.path, l.rule, l.level, l.line, l.message, l.subject FROM lint l "
+        "JOIN notes n ON n.id = l.note",
     };
 
     QStringList rows;

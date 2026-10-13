@@ -4,8 +4,9 @@ namespace coeus {
 
 namespace {
 
-// Version 2 adds the register tables (F-015). Ideas, chunks and vectors
-// arrive later in Phase 3 with another bump.
+// Version 2 adds the register tables (F-015); version 3 gives fields and
+// citations their lines, mentions their own table, and lint rows a subject (F-016). Ideas, chunks and
+// vectors arrive later in Phase 3 with another bump.
 constexpr const char* kSchemaSql = R"sql(
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
 
@@ -104,21 +105,32 @@ CREATE INDEX registers_project ON registers(project_id, kind, number);
 
 CREATE TABLE register_fields (
   reg INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
-  name TEXT NOT NULL, value TEXT NOT NULL
+  name TEXT NOT NULL, value TEXT NOT NULL,
+  line INTEGER NOT NULL
 );
 CREATE INDEX register_fields_reg ON register_fields(reg);
 
 CREATE TABLE register_refs (
   src INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
   target_ident TEXT NOT NULL,
-  target INTEGER REFERENCES registers(id) ON DELETE SET NULL
+  target INTEGER REFERENCES registers(id) ON DELETE SET NULL,
+  line INTEGER NOT NULL               -- the line citing it
 );
 CREATE INDEX register_refs_src ON register_refs(src);
+
+-- Every ident an entry mentions anywhere, for back-references (lint L4).
+CREATE TABLE register_mentions (
+  src INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
+  ident TEXT NOT NULL,
+  line INTEGER NOT NULL
+);
+CREATE INDEX register_mentions_src ON register_mentions(src);
 
 CREATE TABLE lint (
   note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
   rule TEXT NOT NULL, level TEXT NOT NULL,
-  line INTEGER, message TEXT NOT NULL
+  line INTEGER, message TEXT NOT NULL,
+  subject TEXT NOT NULL DEFAULT ''    -- text on the line to underline, e.g. the cited ID
 );
 CREATE INDEX lint_note ON lint(note);
 

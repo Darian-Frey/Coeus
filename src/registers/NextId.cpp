@@ -42,7 +42,7 @@ std::expected<NextId::Allocation, QString> NextId::allocate(const Request& reque
     auto project = db->prepare("SELECT p.id FROM projects p JOIN roots r ON r.id = p.root_id WHERE r.path = ? AND p.path = ?");
     if (!project)
         return std::unexpected(project.error());
-    project->bind(1, request.rootPath).bind(2, request.projectPath);
+    project->bind(1, request.rootPath).bind(2, request.projectPath.isNull() ? QStringLiteral("") : request.projectPath);
     if (!project->step().value_or(false))
         return std::unexpected(QStringLiteral("Not a project: %1").arg(request.projectPath));
     const std::int64_t projectId = project->int64(0);

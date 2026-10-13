@@ -49,7 +49,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 **Deliverables:**
 - [x] Register parser and model over the scaffold document types (`src/parser/RegisterParser.cpp`, `src/index/ProjectResolver.cpp`; index schema 2)
 - [x] Register panel, ID completion, "Insert next ID" command and `{{next:KIND}}` (`src/ui/RegisterPanel.cpp`, `src/registers/NextId.cpp`, `src/registers/RegisterTemplates.cpp`; F-010, F-015)
-- [ ] Lint rules L1–L8 and the Problems panel (F-016)
+- [x] Lint rules L1–L9, the Problems panel and editor underlines (`src/registers/Lint.cpp`, `src/index/LintResolver.cpp`, `src/ui/ProblemsPanel.cpp`; index schema 3; F-016)
 - [ ] Ideas register and project board with freshness, phase and Git ahead/behind columns (`src/ui/ProjectBoard.cpp`)
 - [ ] Mnemosyne embedding worker and `sqlite-vec` table (`src/search/Semantic.cpp`)
 - [ ] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`)

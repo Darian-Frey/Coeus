@@ -92,6 +92,23 @@ private slots:
         QVERIFY(idents.contains(QStringLiteral("BUG-001")) && idents.contains(QStringLiteral("BUG-008")));
     }
 
+    void aRootThatIsItselfAProject()
+    {
+        // A linked repository whose own README carries the header: project path "".
+        QTemporaryDir repo;
+        writeFile(repo.filePath(QStringLiteral("README.md")),
+                  "> **Status:** Active\n> **Provenance:** T\n> **Last reviewed:** 2026-10-13\n> **Why this status:** T\n");
+        writeFile(repo.filePath(QStringLiteral("BUGS.md")), "### BUG-007: Seventh\n**Status:** open\n");
+        const QString index = repo.filePath(QStringLiteral(".index.db"));
+        auto store = IndexStore::open(index);
+        const auto scanned = Indexer(*store).scan({0, QStringLiteral("vault"), repo.path()});
+        QVERIFY2(scanned, scanned ? "" : qPrintable(scanned.error()));
+        NextId::Request at{index, repo.path(), QString(), QStringLiteral("BUG"), QStringLiteral("gui"), {}}; // a null path, as a query returns ""
+        const auto allocated = NextId::allocate(at);
+        QVERIFY2(allocated, allocated ? "" : qPrintable(allocated.error()));
+        QCOMPARE(allocated->ident, QStringLiteral("BUG-008"));
+    }
+
     void refusesWhatIsNotAProject()
     {
         QVERIFY(!NextId::allocate(request(QStringLiteral("D"), QStringLiteral("nowhere"))).has_value());

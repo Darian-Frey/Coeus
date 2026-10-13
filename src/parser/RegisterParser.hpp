@@ -18,6 +18,14 @@ struct StatusHeader {
     QString why;
 };
 
+// One field of a register entry: `**Name:** value` or a `**Name.**` paragraph.
+struct RegisterField {
+    QString name;
+    QString value;
+    int line = 0;      // 1-based line of the field's first line
+    int valueLine = 0; // line of the value's first line: `line`, or the next for `**Name.**` alone
+};
+
 // One entry of a register file (SPEC.md §Registers), e.g. "### D-005 Vault…".
 struct RegisterEntry {
     QString kind;   // F C D AV BUG IMP
@@ -26,8 +34,14 @@ struct RegisterEntry {
     QString title;
     QString status; // the Status field's text, as written
     int line = 0;   // 1-based line of the heading
-    QList<QPair<QString, QString>> fields; // name -> value, in order
+    QList<RegisterField> fields; // in order
     QStringList references; // idents cited in Related fields, canonical, in order, unique
+    QList<int> referenceLines; // the line citing each of `references` first
+    // Every ident the entry mentions anywhere (title, fields, prose), with
+    // three or more digits, canonical, first line each, never itself. FEATURES,
+    // BUGS and IMPROVEMENTS entries cite in prose, so back-references (L4)
+    // are judged on mentions, as tools/check_xrefs.py does.
+    QList<QPair<QString, int>> mentions;
 };
 
 // Pure parsing of the scaffold standard's documents (F-015). No file access.

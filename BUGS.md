@@ -13,6 +13,24 @@ _None._
 
 ## Fixed
 
+### BUG-007: A root whose own README is a project could not be indexed
+**Status:** fixed
+**Severity:** high
+**Found:** 2026-10-13 (F-016, linting Coeus's own registers in a test)
+**Fixed:** 2026-10-13
+**Location:** `src/index/ProjectResolver.cpp` (`folderOf`), `src/registers/NextId.cpp`
+**Description.** A project at a root's top level has the folder "" — a linked repository whose README carries the status header (F-034), or a vault that is itself one. `folderOf` returned a null `QString` there, which binds as SQL NULL, so the project insert broke `projects.path NOT NULL` and the root's whole scan failed: none of its notes were indexed. The demo vault's Pontus root was one. Introduced with F-015 step 1 (fdfb1b3); the screenshot check then opened the demo's parent folder, where Pontus was a subfolder, so it was missed. `NextId` would likewise have refused such a project, given the null path a query returns for "".
+**Fix.** `folderOf` returns `""` (in `ProjectResolver` and `LintResolver`), and `NextId` binds a null project path as `""`. Tested by `test_lint` (Coeus's own README makes its root a project) and `test_next_id::aRootThatIsItselfAProject`; both fail with the old code.
+
+### BUG-006: Field names with a hyphen were not parsed
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-10-13 (F-016, surveying real registers before writing L6)
+**Fixed:** 2026-10-13
+**Location:** `src/parser/RegisterParser.cpp`, SPEC.md §Entry grammar
+**Description.** The field pattern `[A-Za-z ]+` from SPEC excluded the hyphen, so the standard's own `**Trade-offs:**` was never a field: it was dropped, or swallowed by the field before it. Across `~/Projects`, 66 of 68 IMP entries carry it; L6 would have flagged nearly all of them.
+**Fix.** Names are `[A-Za-z][A-Za-z -]*` in the parser and SPEC. `test_register_parser` parses a `Trade-offs` field; `test_lint` lints Coeus's own registers and requires no errors (AV-008).
+
 ### BUG-001: `std::expected` used under C++20
 **Status:** fixed
 **Severity:** high

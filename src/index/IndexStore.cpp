@@ -289,9 +289,10 @@ std::expected<void, QString> IndexStore::putNote(const NoteRecord& record, const
 
     // Entries are stored per note; ProjectResolver attaches them to a project.
     auto reg = m_db.prepare("INSERT INTO registers(note, kind, number, ident, title, status, line) VALUES (?, ?, ?, ?, ?, ?, ?)");
-    auto field = m_db.prepare("INSERT INTO register_fields(reg, name, value) VALUES (?, ?, ?)");
-    auto ref = m_db.prepare("INSERT INTO register_refs(src, target_ident) VALUES (?, ?)");
-    if (!reg || !field || !ref)
+    auto field = m_db.prepare("INSERT INTO register_fields(reg, name, value, line) VALUES (?, ?, ?, ?)");
+    auto ref = m_db.prepare("INSERT INTO register_refs(src, target_ident, line) VALUES (?, ?, ?)");
+    auto mentioned = m_db.prepare("INSERT INTO register_mentions(src, ident, line) VALUES (?, ?, ?)");
+    if (!reg || !field || !ref || !mentioned)
         return std::unexpected(QStringLiteral("Cannot prepare register statements"));
     for (const RegisterEntry& entry : parsed.registers) {
         reg->reset();
@@ -304,13 +305,18 @@ std::expected<void, QString> IndexStore::putNote(const NoteRecord& record, const
                       .bind(7, entry.line)
                       .run());
         const std::int64_t regId = m_db.lastInsertRowId();
-        for (const auto& [name, value] : entry.fields) {
+        for (const RegisterField& f : entry.fields) {
             field->reset();
-            COEUS_TRY(field->bind(1, regId).bind(2, name).bind(3, value.isNull() ? QStringLiteral("") : value).run());
+            COEUS_TRY(field->bind(1, regId).bind(2, f.name).bind(3, f.value.isNull() ? QStringLiteral("") : f.value)
+                          .bind(4, f.line).run());
         }
-        for (const QString& target : entry.references) {
+        for (qsizetype i = 0; i < entry.references.size(); ++i) {
             ref->reset();
-            COEUS_TRY(ref->bind(1, regId).bind(2, target).run());
+            COEUS_TRY(ref->bind(1, regId).bind(2, entry.references[i]).bind(3, entry.referenceLines.value(i)).run());
+        }
+        for (const auto& [ident, line] : entry.mentions) {
+            mentioned->reset();
+            COEUS_TRY(mentioned->bind(1, regId).bind(2, ident).bind(3, line).run());
         }
     }
 

@@ -13,6 +13,7 @@
 class QAction;
 class QDockWidget;
 class QLabel;
+class QToolButton;
 class QMessageBox;
 class QTabWidget;
 class QThread;
@@ -25,6 +26,7 @@ namespace coeus {
 class BacklinksPanel;
 class OutlinePanel;
 class TagPanel;
+class ProblemsPanel;
 class RegisterPanel;
 struct ProjectRef;
 class SearchPanel;
@@ -59,6 +61,9 @@ public:
     void insertNextId(const QString& kind);
     CommandPalette* nextIdPicker() const { return m_nextIdPicker; }
     RegisterPanel* registers() const { return m_registers; }
+    ProblemsPanel* problems() const { return m_problems; }
+    QDockWidget* problemsDock() const { return m_problemsDock; }
+    QToolButton* problemsButton() const { return m_problemsButton; }
     CommandPalette* templatePicker() const { return m_templatePicker; }
     // Opens a note with the cursor on `line` (1-based), e.g. from a backlink.
     void openNoteAt(const QString& absolutePath, int line);
@@ -155,6 +160,7 @@ private:
     QString unsavedRegisterText(const ProjectRef& project, const QString& kind) const;
     void showCommandPalette();
     void updateStatus();
+    void updateProblemsButton();
     int tabIndexFor(const QString& absolutePath) const;
     // The open root containing `absolutePath` (the vault or a linked root), or null.
     const Vault* rootFor(const QString& absolutePath) const;
@@ -185,6 +191,7 @@ private:
     QLabel* m_noteLabel = nullptr;
     QLabel* m_vaultLabel = nullptr;
     QLabel* m_indexLabel = nullptr;
+    QToolButton* m_problemsButton = nullptr;
     QThread* m_indexThread = nullptr;
     IndexService* m_index = nullptr;
     QAction* m_verifyIndex = nullptr;
@@ -197,6 +204,8 @@ private:
     QObject* m_nextIdActions = nullptr;
     RegisterPanel* m_registers = nullptr;
     QDockWidget* m_registersDock = nullptr;
+    ProblemsPanel* m_problems = nullptr;
+    QDockWidget* m_problemsDock = nullptr;
     QObject* m_templateActions = nullptr; // parent of the picker's per-template actions
     NoteCatalogue* m_catalogue = nullptr; // notes and aliases for [[ completion
     QTimer* m_journalTimer = nullptr;

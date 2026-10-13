@@ -36,6 +36,7 @@ add_library(coeus_core STATIC
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
     src/index/ProjectResolver.cpp
+    src/index/LintResolver.cpp
     src/index/Schema.cpp
     src/index/Search.cpp
     src/index/SearchQuery.cpp
@@ -44,6 +45,7 @@ add_library(coeus_core STATIC
     src/parser/HtmlRenderer.cpp
     src/parser/NoteParser.cpp
     src/parser/RegisterParser.cpp
+    src/registers/Lint.cpp
     src/registers/NextId.cpp
     src/registers/RegisterTemplates.cpp
     src/registers/Vocabulary.cpp
@@ -70,6 +72,7 @@ add_library(coeus_core STATIC
     src/ui/NoteView.cpp
     src/ui/OutlinePanel.cpp
     src/ui/PropertiesPanel.cpp
+    src/ui/ProblemsPanel.cpp
     src/ui/RegisterPanel.cpp
     src/ui/SearchPanel.cpp
     src/ui/SidebarPanel.cpp

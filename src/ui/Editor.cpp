@@ -2,14 +2,17 @@
 
 #include "index/ContentHash.hpp"
 #include "ui/MarkdownHighlighter.hpp"
+#include "ui/NoteCatalogue.hpp"
 #include "ui/WikilinkCompleter.hpp"
 
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QHelpEvent>
 #include <QKeyEvent>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QToolTip>
 
 namespace coeus {
 
@@ -29,6 +32,75 @@ void Editor::setCatalogue(const NoteCatalogue* catalogue)
 {
     delete m_completer;
     m_completer = catalogue ? new WikilinkCompleter(this, catalogue, m_path) : nullptr;
+    disconnect(m_catalogueReloaded);
+    if (catalogue) {
+        m_catalogueReloaded = connect(catalogue, &NoteCatalogue::reloaded, this,
+                                      [this, catalogue] { setProblems(catalogue->problemsFor(m_path)); });
+        setProblems(catalogue->problemsFor(m_path));
+    }
+}
+
+void Editor::setProblems(const QList<ProblemRef>& problems)
+{
+    m_problems = problems;
+    applyProblems();
+}
+
+void Editor::applyProblems()
+{
+    QList<QTextEdit::ExtraSelection> selections;
+    for (const ProblemRef& problem : std::as_const(m_problems)) {
+        const QTextBlock block = document()->findBlockByNumber(problem.line - 1);
+        if (!block.isValid())
+            continue;
+        const QString text = block.text();
+        qsizetype start = 0;
+        qsizetype length = text.size();
+        if (!problem.subject.isEmpty()) {
+            start = text.indexOf(problem.subject);
+            if (start < 0)
+                continue; // the line has changed since the index read it
+            length = problem.subject.size();
+        }
+        if (length == 0)
+            continue;
+        QTextEdit::ExtraSelection selection;
+        selection.cursor = QTextCursor(block);
+        selection.cursor.setPosition(block.position() + int(start));
+        selection.cursor.setPosition(block.position() + int(start + length), QTextCursor::KeepAnchor);
+        selection.format.setUnderlineStyle(QTextCharFormat::WaveUnderline);
+        selection.format.setUnderlineColor(problem.level == QLatin1String("error")     ? QColor(0xd3, 0x2f, 0x2f)
+                                           : problem.level == QLatin1String("warning") ? QColor(0xe6, 0x8a, 0x00)
+                                                                                       : QColor(0x19, 0x76, 0xd2));
+        selection.format.setToolTip(problem.message);
+        selections.append(selection);
+    }
+    setExtraSelections(selections);
+}
+
+QString Editor::problemAt(int position) const
+{
+    QStringList messages;
+    for (const QTextEdit::ExtraSelection& selection : extraSelections()) {
+        if (!selection.format.toolTip().isEmpty() && position >= selection.cursor.selectionStart()
+            && position < selection.cursor.selectionEnd())
+            messages.append(selection.format.toolTip());
+    }
+    return messages.join(QLatin1Char('\n'));
+}
+
+bool Editor::viewportEvent(QEvent* event)
+{
+    if (event->type() == QEvent::ToolTip) {
+        const auto* help = static_cast<QHelpEvent*>(event);
+        const QString text = problemAt(cursorForPosition(help->pos()).position());
+        if (text.isEmpty())
+            QToolTip::hideText();
+        else
+            QToolTip::showText(help->globalPos(), text, viewport());
+        return true;
+    }
+    return QPlainTextEdit::viewportEvent(event);
 }
 
 void Editor::keyPressEvent(QKeyEvent* event)
@@ -67,6 +139,7 @@ void Editor::setBuffer(const QString& text)
     const int position = textCursor().position();
     const int scroll = verticalScrollBar()->value();
     setPlainText(text);
+    applyProblems(); // the old selections went with the old text
     QTextCursor cursor = textCursor();
     cursor.setPosition(std::min(position, int(document()->characterCount()) - 1));
     setTextCursor(cursor);

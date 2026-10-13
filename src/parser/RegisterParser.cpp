@@ -4,6 +4,8 @@
 #include <QRegularExpression>
 #include <QSet>
 
+#include <algorithm>
+
 namespace coeus {
 
 namespace {
@@ -72,10 +74,22 @@ QList<RegisterEntry> RegisterParser::parse(QStringView text)
 {
     static const QRegularExpression kEntry(QStringLiteral(R"(^### (F|C|D|AV|BUG|IMP)-(\d{3,})(:)? (.+)$)"));
     static const QRegularExpression kSection(QStringLiteral(R"(^#{2,3} )"));
-    static const QRegularExpression kSingle(QStringLiteral(R"(^\*\*([A-Za-z ]+):\*\*(?: (.*))?$)"));
-    static const QRegularExpression kParagraph(QStringLiteral(R"(^\*\*([A-Za-z ]+)\.\*\*(?: (.*))?$)"));
+    // Hyphens allowed: the standard's IMP entries carry **Trade-offs:**.
+    static const QRegularExpression kSingle(QStringLiteral(R"(^\*\*([A-Za-z][A-Za-z -]*):\*\*(?: (.*))?$)"));
+    static const QRegularExpression kParagraph(QStringLiteral(R"(^\*\*([A-Za-z][A-Za-z -]*)\.\*\*(?: (.*))?$)"));
     static const QRegularExpression kIdent(QStringLiteral(R"((?<![\w-])(F|C|D|AV|BUG|IMP)-(\d+)(?!\d))"));
     static const QRegularExpression kFence(QStringLiteral(R"(^\s{0,3}(`{3,}|~{3,}))"));
+    static const QRegularExpression kMention(QStringLiteral(R"((?<![\w-])(F|C|D|AV|BUG|IMP)-(\d{3,})(?!\w))"));
+    auto mention = [](RegisterEntry& entry, const QString& text, int line) {
+        for (auto it = kMention.globalMatch(text); it.hasNext();) {
+            const auto m = it.next();
+            const QString ident = QStringLiteral("%1-%2").arg(m.captured(1)).arg(m.captured(2).toInt(), 3, 10, QLatin1Char('0'));
+            const bool seen = std::any_of(entry.mentions.cbegin(), entry.mentions.cend(),
+                                          [&ident](const auto& known) { return known.first == ident; });
+            if (ident != entry.ident && !seen)
+                entry.mentions.append({ident, line});
+        }
+    };
 
     QList<RegisterEntry> entries;
     RegisterEntry* current = nullptr;
@@ -99,6 +113,7 @@ QList<RegisterEntry> RegisterParser::parse(QStringView text)
             entry.line = int(i + 1);
             entries.append(entry);
             current = &entries.back();
+            mention(*current, current->title, current->line);
             paragraph = -1;
             continue;
         }
@@ -109,12 +124,13 @@ QList<RegisterEntry> RegisterParser::parse(QStringView text)
         }
         if (!current)
             continue;
+        mention(*current, line, int(i + 1));
 
         const auto single = kSingle.match(line);
         const auto para = single.hasMatch() ? QRegularExpressionMatch() : kParagraph.match(line);
         if (single.hasMatch() || para.hasMatch()) {
             const auto& m = single.hasMatch() ? single : para;
-            current->fields.append({m.captured(1).trimmed(), m.captured(2).trimmed()});
+            current->fields.append({m.captured(1).trimmed(), m.captured(2).trimmed(), int(i + 1), int(i + 1)});
             paragraph = para.hasMatch() ? int(current->fields.size() - 1) : -1;
             continue;
         }
@@ -123,24 +139,32 @@ QList<RegisterEntry> RegisterParser::parse(QStringView text)
             continue;
         }
         if (paragraph >= 0) {
-            QString& value = current->fields[paragraph].second;
+            RegisterField& field = current->fields[paragraph];
+            QString& value = field.value;
+            if (value.isEmpty())
+                field.valueLine = int(i + 1);
             value += (value.isEmpty() ? QString() : QStringLiteral("\n")) + line.trimmed();
         }
     }
 
     for (RegisterEntry& entry : entries) {
         QSet<QString> seen;
-        for (const auto& [name, value] : std::as_const(entry.fields)) {
-            if (name == QLatin1String("Status") && entry.status.isEmpty())
-                entry.status = value.section(QLatin1Char('\n'), 0, 0).trimmed();
-            if (!isRelatedField(name))
+        for (const RegisterField& field : std::as_const(entry.fields)) {
+            if (field.name == QLatin1String("Status") && entry.status.isEmpty())
+                entry.status = field.value.section(QLatin1Char('\n'), 0, 0).trimmed();
+            if (!isRelatedField(field.name))
                 continue;
-            for (auto it = kIdent.globalMatch(value); it.hasNext();) {
-                const auto m = it.next();
-                const QString ident = QStringLiteral("%1-%2").arg(m.captured(1)).arg(m.captured(2).toInt(), 3, 10, QLatin1Char('0'));
-                if (ident != entry.ident && !seen.contains(ident)) {
-                    seen.insert(ident);
-                    entry.references.append(ident);
+            // A paragraph field's value joins its lines with '\n', one per source line.
+            const QStringList valueLines = field.value.split(QLatin1Char('\n'));
+            for (qsizetype l = 0; l < valueLines.size(); ++l) {
+                for (auto it = kIdent.globalMatch(valueLines[l]); it.hasNext();) {
+                    const auto m = it.next();
+                    const QString ident = QStringLiteral("%1-%2").arg(m.captured(1)).arg(m.captured(2).toInt(), 3, 10, QLatin1Char('0'));
+                    if (ident != entry.ident && !seen.contains(ident)) {
+                        seen.insert(ident);
+                        entry.references.append(ident);
+                        entry.referenceLines.append(field.valueLine + int(l));
+                    }
                 }
             }
         }

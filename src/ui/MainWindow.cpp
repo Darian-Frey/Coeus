@@ -10,8 +10,10 @@
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
 #include "parser/RegisterParser.hpp"
+#include "registers/Lint.hpp"
 #include "registers/NextId.hpp"
 #include "registers/RegisterTemplates.hpp"
+#include "ui/ProblemsPanel.hpp"
 #include "ui/RegisterPanel.hpp"
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
@@ -22,6 +24,7 @@
 #include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
 #include "vault/Templates.hpp"
+#include "vault/VaultConfig.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -47,6 +50,7 @@
 #include <QTimer>
 #include <QTextBlock>
 #include <QToolBar>
+#include <QToolButton>
 #include <QtConcurrent/QtConcurrentRun>
 
 namespace coeus {
@@ -89,8 +93,11 @@ MainWindow::MainWindow(QWidget* parent)
         Editor* editor = currentEditor();
         m_backlinks->showNote(editor ? editor->path() : QString());
         m_outline->setView(currentView());
-        if (editor)
+        if (editor) {
             m_registers->followNote(editor->path());
+            m_problems->followNote(editor->path());
+        }
+        updateProblemsButton();
     });
 
     createDocks();
@@ -149,6 +156,21 @@ void MainWindow::createDocks()
             m_registers->followNote(editor->path());
     });
     m_explorerDock->raise();
+
+    // Problems: the register lint for the current project (F-016), below the editor.
+    m_problems = new ProblemsPanel(m_catalogue);
+    m_problemsDock = new QDockWidget(tr("Problems"), this);
+    m_problemsDock->setObjectName(QStringLiteral("problemsDock"));
+    m_problemsDock->setWidget(m_problems);
+    addDockWidget(Qt::BottomDockWidgetArea, m_problemsDock);
+    m_problemsDock->hide(); // the status bar's count opens it
+    connect(m_problems, &ProblemsPanel::openRequested, this, &MainWindow::openNoteAt);
+    connect(m_catalogue, &NoteCatalogue::reloaded, m_problems, [this] {
+        if (Editor* editor = currentEditor())
+            m_problems->followNote(editor->path());
+        m_problems->refresh();
+        updateProblemsButton();
+    });
     connect(m_tags, &TagPanel::tagActivated, this, &MainWindow::showTag);
     connect(m_tags, &TagPanel::reloaded, this, [this] {
         if (!m_activeTag.isEmpty() && m_explorer->isFiltered())
@@ -290,6 +312,13 @@ void MainWindow::createActions()
     addAction(findNotes);
     registerAction(findNotes);
 
+    QAction* toggleProblems = m_problemsDock->toggleViewAction();
+    toggleProblems->setText(tr("Toggle &Problems"));
+    toggleProblems->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_M));
+    viewMenu->addAction(toggleProblems);
+    addAction(toggleProblems);
+    registerAction(toggleProblems);
+
     QAction* toggleTags = m_tagsDock->toggleViewAction();
     toggleTags->setText(tr("Toggle &Tags"));
     toggleTags->setIcon(QIcon::fromTheme(QStringLiteral("tag"), QIcon::fromTheme(QStringLiteral("bookmarks"))));
@@ -314,9 +343,42 @@ void MainWindow::createStatusBar()
     m_vaultLabel = new QLabel;
     m_indexLabel = new QLabel;
     statusBar()->addWidget(m_noteLabel, 1);
+    m_problemsButton = new QToolButton;
+    m_problemsButton->setAutoRaise(true);
+    m_problemsButton->setToolTip(tr("Register problems in this project (Ctrl+Shift+M)"));
+    m_problemsButton->hide();
+    connect(m_problemsButton, &QToolButton::clicked, this, [this] {
+        m_problemsDock->show();
+        m_problemsDock->raise();
+    });
+    statusBar()->addPermanentWidget(m_problemsButton);
     statusBar()->addPermanentWidget(m_indexLabel);
     statusBar()->addPermanentWidget(m_vaultLabel);
     updateStatus();
+}
+
+void MainWindow::updateProblemsButton()
+{
+    if (!m_problemsButton)
+        return;
+    // Counts for the current note's project, whatever the panel's filters.
+    Editor* editor = currentEditor();
+    const auto project = editor ? m_catalogue->projectOf(editor->path()) : std::nullopt;
+    if (!project) {
+        m_problemsButton->hide();
+        return;
+    }
+    int errors = 0;
+    int warnings = 0;
+    for (const ProblemRef& problem : m_catalogue->problems()) {
+        const auto owner = m_catalogue->projectOf(problem.notePath);
+        if (!owner || owner->rootPath != project->rootPath || owner->path != project->path)
+            continue;
+        errors += problem.level == QLatin1String("error");
+        warnings += problem.level == QLatin1String("warning");
+    }
+    m_problemsButton->setText(QStringLiteral("✖ %1  ⚠ %2").arg(errors).arg(warnings));
+    m_problemsButton->show();
 }
 
 void MainWindow::registerAction(QAction* action)
@@ -449,6 +511,8 @@ void MainWindow::startIndex(const QString& vaultPath)
     m_index = new IndexService; // no parent: it moves to the worker thread
     m_index->moveToThread(m_indexThread);
     m_catalogue->setIndexPath(IndexService::indexPath(vaultPath));
+    m_catalogue->setReviewThreshold(
+        int(VaultConfig::integer(vaultPath, "registers", "review_threshold_days").value_or(Lint::kDefaultReviewThresholdDays)));
     m_backlinks->setIndexPath(IndexService::indexPath(vaultPath));
     m_tags->setIndexPath(IndexService::indexPath(vaultPath));
     m_search->setIndexPath(IndexService::indexPath(vaultPath));

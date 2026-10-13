@@ -10,9 +10,9 @@ namespace {
 
 QString field(const RegisterEntry& entry, const QString& name)
 {
-    for (const auto& [key, value] : entry.fields) {
-        if (key == name)
-            return value;
+    for (const coeus::RegisterField& f : entry.fields) {
+        if (f.name == name)
+            return f.value;
     }
     return QStringLiteral("<absent>");
 }
@@ -65,6 +65,31 @@ private slots:
         QCOMPARE(bug.ident, QStringLiteral("BUG-001"));
         QCOMPARE(bug.title, QStringLiteral("Something broke"));
         QCOMPARE(bug.references, (QStringList{QStringLiteral("D-005"), QStringLiteral("D-013")}));
+    }
+
+    void recordsLinesAndMentions()
+    {
+        const auto entries = RegisterParser::parse(QStringLiteral(
+            "### IMP-002: Faster scans, after BUG-004\n"      // 1
+            "**Status:** suggested\n"                          // 2
+            "**Trade-offs.** Memory for speed; see D-007.\n"   // 3
+            "**Related.**\n"                                   // 4
+            "- BUG-004 (the slow scan)\n"                      // 5
+            "- D-007, IMP-002\n"                               // 6
+            "\n"
+            "Prose names F-1, F-010 and D-007 again.\n"));     // 8
+        QCOMPARE(entries.size(), 1);
+        const RegisterEntry& imp = entries[0];
+        QCOMPARE(field(imp, QStringLiteral("Trade-offs")), QStringLiteral("Memory for speed; see D-007.")); // hyphenated name
+        QCOMPARE(imp.fields[0].line, 2);
+        QCOMPARE(imp.fields[2].line, 4);
+        QCOMPARE(imp.fields[2].valueLine, 5); // a bare **Related.** starts its value below
+        QCOMPARE(imp.references, (QStringList{QStringLiteral("BUG-004"), QStringLiteral("D-007")}));
+        QCOMPARE(imp.referenceLines, (QList<int>{5, 6}));
+        // Mentions: anywhere, title included, three digits or more, first line each, never itself.
+        const QList<QPair<QString, int>> mentions{{QStringLiteral("BUG-004"), 1}, {QStringLiteral("D-007"), 3},
+                                                  {QStringLiteral("F-010"), 8}};
+        QCOMPARE(imp.mentions, mentions);
     }
 
     void ignoresCodeAndShortIds()

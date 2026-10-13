@@ -18,8 +18,10 @@ namespace {
 
 QString folderOf(const QString& path)
 {
+    // "" rather than a null QString at the root: a null binds NULL, and
+    // projects.path is NOT NULL (a root whose own README is a project).
     const qsizetype slash = path.lastIndexOf(QLatin1Char('/'));
-    return slash < 0 ? QString() : path.left(slash);
+    return slash < 0 ? QStringLiteral("") : path.left(slash);
 }
 
 struct Header {

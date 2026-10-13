@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QList>
+#include <QDate>
 #include <QString>
 #include <QStringList>
 
@@ -42,6 +43,18 @@ struct ProjectRef {
     QString lastReviewed;
 };
 
+// One lint problem (F-016), for the Problems panel and the editor.
+struct ProblemRef {
+    QString rootName;
+    QString rootPath;
+    QString notePath;  // absolute
+    QString rule;      // L1 … L9
+    QString level;     // error, warning, info
+    int line = 0;
+    QString message;
+    QString subject;   // text on the line to underline
+};
+
 // Read-only questions the UI asks of the index (ARCHITECTURE.md: the UI
 // thread holds read-only connections). Each call opens and closes its own
 // connection, so a Rebuild Index on the worker can never leave it pointing at
@@ -65,6 +78,10 @@ public:
     // Every register entry inside a project, by project then kind then number.
     static std::expected<QList<RegisterRef>, QString> registers(const QString& indexPath);
     static std::expected<QList<ProjectRef>, QString> projects(const QString& indexPath);
+    // Every stored lint problem, plus L8 (stale review) evaluated for `today`,
+    // by root, note path and line.
+    static std::expected<QList<ProblemRef>, QString> problems(const QString& indexPath, const QDate& today,
+                                                              int reviewThresholdDays);
     // Heading texts of the note at `notePath`, in document order.
     static std::expected<QStringList, QString> headings(const QString& indexPath, const QString& notePath);
 };

@@ -2,6 +2,7 @@
 
 #include "index/ContentHash.hpp"
 #include "index/LinkResolver.hpp"
+#include "index/LintResolver.hpp"
 #include "index/ProjectResolver.hpp"
 #include "parser/RegisterParser.hpp"
 #include "parser/NoteParser.hpp"
@@ -145,6 +146,8 @@ std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root, 
         return std::unexpected(resolved.error());
     if (auto projects = ProjectResolver::resolveAll(m_store.database()); !projects)
         return std::unexpected(projects.error());
+    if (auto lint = LintResolver::resolveAll(m_store.database()); !lint)
+        return std::unexpected(lint.error());
     if (auto committed = transaction->commit(); !committed)
         return std::unexpected(committed.error());
     return report;
@@ -184,6 +187,8 @@ std::expected<void, QString> Indexer::update(const RootInfo& root, const QString
             return std::unexpected(resolved.error());
         if (auto projects = ProjectResolver::resolveAll(m_store.database()); !projects)
             return std::unexpected(projects.error());
+        if (auto lint = LintResolver::resolveAll(m_store.database()); !lint)
+            return std::unexpected(lint.error());
     }
     return transaction->commit();
 }

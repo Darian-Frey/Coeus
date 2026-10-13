@@ -16,6 +16,7 @@ void NoteCatalogue::setIndexPath(const QString& indexPath)
     m_notes.clear();
     m_registers.clear();
     m_projects.clear();
+    m_problems.clear();
     ++m_generation;
 }
 
@@ -28,6 +29,7 @@ void NoteCatalogue::reload()
         QList<NoteEntry> notes;
         QList<RegisterRef> registers;
         QList<ProjectRef> projects;
+        QList<ProblemRef> problems;
     };
     auto* watcher = new QFutureWatcher<Snapshot>(this);
     connect(watcher, &QFutureWatcher<Snapshot>::finished, this, [this, watcher, generation] {
@@ -38,13 +40,25 @@ void NoteCatalogue::reload()
         m_notes = snapshot.notes;
         m_registers = snapshot.registers;
         m_projects = snapshot.projects;
+        m_problems = snapshot.problems;
         emit reloaded();
     });
-    watcher->setFuture(QtConcurrent::run([path = m_indexPath] {
+    watcher->setFuture(QtConcurrent::run([path = m_indexPath, threshold = m_reviewThresholdDays] {
         return Snapshot{IndexQueries::allNotes(path).value_or(QList<NoteEntry>()),
                         IndexQueries::registers(path).value_or(QList<RegisterRef>()),
-                        IndexQueries::projects(path).value_or(QList<ProjectRef>())};
+                        IndexQueries::projects(path).value_or(QList<ProjectRef>()),
+                        IndexQueries::problems(path, QDate::currentDate(), threshold).value_or(QList<ProblemRef>())};
     }));
+}
+
+QList<ProblemRef> NoteCatalogue::problemsFor(const QString& absolutePath) const
+{
+    QList<ProblemRef> found;
+    for (const ProblemRef& problem : m_problems) {
+        if (problem.notePath == absolutePath)
+            found.append(problem);
+    }
+    return found;
 }
 
 NoteCatalogue::Location NoteCatalogue::locate(const QString& absolutePath) const

@@ -207,6 +207,17 @@ def build_vault(vault: Path, linked: Path) -> None:
           appends D-020 with *Title* selected. Choose *Bugs* instead and
           `BUGS.md` is created for it.
 
+        ## Problems
+        - With a note in `projects/coeus/` open, the status bar shows the
+          project's lint count (3 errors, 3 warnings); click it, or press
+          `Ctrl+Shift+M`, for the **Problems** panel. Each is planted:
+          D-019 cites F-099, which does not exist, and has no *Reversal
+          conditions*; F-018's status *Planned* is not in the vocabulary; F-018
+          cites D-003, which is superseded; two citations are not returned.
+        - Click a problem: the register opens at its line, the culprit underlined
+          with a wavy line; hover it for the message. Change *Planned* to
+          *Not started* and save: the error goes.
+
         ## Index
         - File → **Verify Index**; File → **Rebuild Index**.
         """)
@@ -248,16 +259,27 @@ def build_vault(vault: Path, linked: Path) -> None:
     write(vault / "projects/coeus/DECISIONS.md", """
         # Decisions
 
+        ### D-003 Index in JSON files
+        **Status:** Superseded by D-005
+
+        **Decision.** One JSON file per note beside it.
+
+        **Reversal conditions.** None; superseded.
+
         ### D-005 Vault is a plain folder
         **Status:** Accepted
+        **Related:** F-004
 
         **Context.** Notes already live in Git and are edited by other tools.
 
         **Decision.** A plain folder of Markdown and a derived index; deleting the
         index loses nothing. The [[Mnemosyne]] embeddings are a cache too.
 
+        **Reversal conditions.** If a second machine cannot keep the folder in sync.
+
         ### D-019 Watch with inotify
         **Status:** Accepted
+        **Related:** F-004, F-099
 
         **Decision.** One watch per folder, so in-place edits are seen. #storage/index
         """)
@@ -266,9 +288,11 @@ def build_vault(vault: Path, linked: Path) -> None:
 
         ### F-004 Wikilinks with autocomplete
         **Status:** Complete
+        **Related:** D-005
 
         ### F-018 Semantic search
-        **Status:** Not started
+        **Status:** Planned
+        **Related:** D-003
         Uses the memory engine. #project/coeus
         """)
     write(vault / "projects/pontus-notes/README.md", """
