@@ -68,6 +68,19 @@ ASAN_OPTIONS=detect_leaks=0 ctest --test-dir build-asan --output-on-failure
 
 Leak detection is off because Qt and the GPU stack hold allocations until exit. A test that hangs instead of failing in the normal build may be heap corruption whose abort deadlocked; run it here.
 
+## Demo vault
+
+`tools/make_demo_vault.py` builds a vault that exercises every feature so far, with a linked root, a missing root, attachments, every link form, tags, properties with vocabulary errors and broken YAML, and a "Start here" note listing what to try:
+
+```bash
+python3 tools/make_demo_vault.py              # ~/CoeusDemo/vault and ~/CoeusDemo/pontus
+./build/coeus ~/CoeusDemo/vault
+python3 tools/make_demo_vault.py --force      # reset it after experimenting
+python3 tools/make_demo_vault.py --bulk 2000  # add 2,000 synthetic notes
+```
+
+`--force` deletes the target only if this script made it (it leaves a `.coeus-demo` marker). The script uses the Python standard library and `git init`, if Git is installed, so the `.gitignore` offer and ignore rules can be tried.
+
 ## Run
 
 ```bash

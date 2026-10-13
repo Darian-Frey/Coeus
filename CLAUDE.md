@@ -5,7 +5,7 @@ Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt
 
 ## Current state
 - Phase 1 shell builds and passes its tests (see BUILD.md): `src/app/main.cpp`, `src/vault/{Vault,AtomicWriter,TempSweeper}`, `src/parser/{NoteParser,Frontmatter,HtmlRenderer}`, `src/registers/Vocabulary`, `src/index/{Database,Schema,IndexStore,IndexQueries,Backlinks,Tags,Search,SearchQuery,LinkResolver,Indexer,IndexService,ContentHash}`, `src/vault/{Roots,GitIgnore,GitIgnoreOffer,VaultConfig,VaultWatcher,Journal}`, `src/ui/{MainWindow,NoteView,Editor,PropertiesPanel,BacklinksPanel,OutlinePanel,TagPanel,SearchPanel,WikilinkCompleter,WikilinkCompletion,NoteCatalogue,MarkdownHighlighter,ExplorerPanel,SidebarPanel,CommandPalette,FuzzyMatch}`; tests under `tests/{vault,parser,index,ui,perf}`.
-- Remaining `src/` module folders and `tools/` are empty placeholders.
+- Remaining `src/` module folders are empty placeholders. `tools/` holds `check_xrefs.py` (Maintenance Rule 6), the pre-commit hook, and `make_demo_vault.py`, which builds a vault exercising every feature (BUILD.md §Demo vault).
 - UI mockup of the target main window: `docs/design/main-window.png`.
 - `BUILD.md`: written 2026-10-12 from the first successful build.
 - `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.

@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- `tools/make_demo_vault.py`: a demo vault with a linked and a missing root, attachments, every link form, tags, properties and a "Start here" checklist; `--bulk N` for performance; `--force` only ever deletes a demo it made. Test `test_make_demo_vault`.
 - Properties panel (F-008): typed frontmatter fields above the source editor, with `status`/`stage` as vocabulary drop-downs; invalid values shown as errors and never rewritten; edits, additions and removals change only the key's lines in the buffer (D-015), one undo step each. `Frontmatter::setValue`/`removeKey`/`yamlScalar`/`yamlList`; `registers/Vocabulary`. Tests `test_frontmatter_edit`, `test_properties_panel`.
 - Search (F-006): a Search dock (`Ctrl+Shift+F`) with prefix words, phrases, exclusions, `tag:`, `path:`, `file:` and `re:/…/`, BM25 ranking with titles first, marked snippets; hits open with the match selected. Tests `test_search`, `test_search_panel`, and `test_search_speed` (10,000 notes, 29 ms worst case against a 100 ms budget).
 - Tag pane (F-007): a Tags dock tabbed with the Explorer listing every tag nested on `/` with note counts, case-insensitive; activating a tag (or a reading-mode tag link) filters the Explorer to its notes until cleared. Tests `test_tags`, `test_tag_panel`.

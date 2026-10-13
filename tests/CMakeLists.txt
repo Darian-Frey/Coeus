@@ -57,4 +57,6 @@ if(Python3_Interpreter_FOUND)
              COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/check_xrefs.py --quiet ${PROJECT_SOURCE_DIR})
     add_test(NAME test_check_xrefs
              COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/test_check_xrefs.py)
+    add_test(NAME test_make_demo_vault
+             COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/test_make_demo_vault.py)
 endif()
