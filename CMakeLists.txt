@@ -58,6 +58,7 @@ add_library(coeus_core STATIC
     src/ui/MarkdownHighlighter.cpp
     src/ui/NoteCatalogue.cpp
     src/ui/NoteView.cpp
+    src/ui/OutlinePanel.cpp
     src/ui/SidebarPanel.cpp
     src/ui/WikilinkCompleter.cpp
     src/ui/WikilinkCompletion.cpp

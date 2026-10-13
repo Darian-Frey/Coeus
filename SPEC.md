@@ -423,6 +423,12 @@ The sidebar's Backlinks section follows the current tab (F-005). `Backlinks::col
 - **Unlinked mentions**: the note's title and aliases of 3 characters or more, searched with FTS5 (`body : ("title" OR "alias")`, at most 100 notes) and confirmed line by line: a case-insensitive whole-word match (not joined to a letter, digit or `_`) outside wikilinks, Markdown links, code spans, fenced code and frontmatter. One entry per line.
 - Clicking a note or a line opens the source note with the cursor on that line. The section refreshes when the tab changes and whenever the index reports a change, so a link written elsewhere appears once that note is indexed.
 
+## Outline
+
+The sidebar's Outline section shows the current tab's headings (F-013). It is built from the editor's buffer, not the index, so unsaved headings appear: `NoteParser` re-parses the buffer on a background thread 300 ms after the text stops changing, and a newer parse supersedes an older one. Headings are those of §Markdown dialect (empty ones excluded); each nests under the nearest preceding heading of a lower level, so a skipped level still nests.
+
+Clicking a heading in source mode puts the cursor on its line and scrolls it to the top; in reading mode it scrolls the rendered heading to the top, matched by text and occurrence (for repeated headings), falling back to position. Moving the cursor highlights the section it is in: the last heading at or above its line.
+
 ## Reading mode
 
 Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.

@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Outline panel (F-013): the current note's headings as a tree, parsed from the unsaved buffer off the UI thread; clicking goes to the heading in source or reading mode; the cursor's section is highlighted. Test `test_outline_panel`.
 - Backlinks panel (F-005): links to the current note grouped by source with their lines, and unlinked mentions of its title and aliases found by FTS5 and confirmed line by line; clicking opens the source at the line (`MainWindow::openNoteAt`). Tests `test_backlinks`, `test_backlinks_panel`.
 - Wikilink completer (F-004): `[[` offers notes and aliases ranked by fuzzy match and nearness, `[[Note#` offers headings; shared titles insert a path so the link resolves to the chosen note (AV-006). `NoteCatalogue` reloads off the UI thread. Tests `test_wikilink_completion`, `test_wikilink_completer`; 10,000 notes rank in 6 ms.
 - Reading mode (F-003): Source | Live | Reading switch per tab and `Ctrl+E`; `HtmlRenderer` renders properties, callouts, highlights, tags, task lists, tables and images from md4c; wikilinks open the note the index resolved, Markdown links their relative path. Tests `test_html_renderer`, `test_note_view`.

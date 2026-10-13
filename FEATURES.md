@@ -111,7 +111,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Should
 **Acceptance:**
 - Heading tree for the current note; click scrolls the editor
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-10-13)
 
 ### F-014 Bookmarks and recent files
 **Priority:** Could

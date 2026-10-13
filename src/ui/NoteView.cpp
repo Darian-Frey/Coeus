@@ -12,7 +12,9 @@
 #include <QLabel>
 #include <QPalette>
 #include <QScrollBar>
+#include <QAbstractTextDocumentLayout>
 #include <QStackedWidget>
+#include <QTextBlock>
 #include <QTextBrowser>
 #include <QTimer>
 #include <QToolButton>
@@ -126,6 +128,37 @@ void NoteView::render()
     const int scroll = m_reader->verticalScrollBar()->value();
     m_reader->setHtml(HtmlRenderer::render(m_editor->toPlainText().toUtf8(), options));
     m_reader->verticalScrollBar()->setValue(scroll);
+}
+
+void NoteView::goToHeading(int line, const QString& text, int occurrence, int index)
+{
+    if (m_mode == Mode::Source) {
+        const QTextBlock block = m_editor->document()->findBlockByNumber(line - 1);
+        if (!block.isValid())
+            return;
+        m_editor->setTextCursor(QTextCursor(block));
+        m_editor->verticalScrollBar()->setValue(block.firstLineNumber());
+        m_editor->setFocus();
+        return;
+    }
+    // Rendered headings carry their level in the block format.
+    QTextBlock byText;
+    QTextBlock byIndex;
+    int seenText = 0;
+    int seen = 0;
+    for (QTextBlock block = m_reader->document()->begin(); block.isValid(); block = block.next()) {
+        if (block.blockFormat().headingLevel() <= 0)
+            continue;
+        if (seen++ == index)
+            byIndex = block;
+        if (block.text().simplified() == text && seenText++ == occurrence)
+            byText = block;
+    }
+    const QTextBlock target = byText.isValid() ? byText : byIndex;
+    if (!target.isValid())
+        return;
+    const qreal top = m_reader->document()->documentLayout()->blockBoundingRect(target).top();
+    m_reader->verticalScrollBar()->setValue(int(top));
 }
 
 QString NoteView::resolveImage(const QString& target, bool wiki) const

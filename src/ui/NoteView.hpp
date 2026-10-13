@@ -37,6 +37,11 @@ public:
     // Renders the buffer into the reading view now.
     void render();
 
+    // Brings a heading to the top of the view, in either mode (F-013).
+    // `line` is 1-based in the buffer; in reading mode the heading is found
+    // by its text and occurrence, falling back to its position `index`.
+    void goToHeading(int line, const QString& text, int occurrence, int index);
+
     // Delay before the reading view follows a changed buffer.
     static constexpr int kRenderDelayMs = 250;
 

@@ -6,6 +6,7 @@
 #include "ui/ExplorerPanel.hpp"
 #include "ui/NoteCatalogue.hpp"
 #include "ui/NoteView.hpp"
+#include "ui/OutlinePanel.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
 #include "ui/SidebarPanel.hpp"
@@ -86,6 +87,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_tabs, &QTabWidget::currentChanged, this, [this] {
         Editor* editor = currentEditor();
         m_backlinks->showNote(editor ? editor->path() : QString());
+        m_outline->setView(currentView());
     });
 
     createDocks();
@@ -106,7 +108,8 @@ void MainWindow::createDocks()
     m_backlinks = new BacklinksPanel;
     m_sidebar->addSection(tr("Backlinks"), m_backlinks);
     connect(m_backlinks, &BacklinksPanel::openRequested, this, &MainWindow::openNoteAt);
-    m_sidebar->addSection(tr("Outline"), placeholder(tr("Outline arrives in Phase 2.")));
+    m_outline = new OutlinePanel;
+    m_sidebar->addSection(tr("Outline"), m_outline);
     m_sidebar->addSection(tr("Properties"), placeholder(tr("Properties arrive in Phase 2.")));
     m_sidebarDock = new QDockWidget(tr("Sidebar"), this);
     m_sidebarDock->setObjectName(QStringLiteral("sidebarDock"));
