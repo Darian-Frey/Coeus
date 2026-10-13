@@ -30,11 +30,13 @@ add_library(coeus_core STATIC
     src/index/ContentHash.cpp
     src/index/Database.cpp
     src/index/Indexer.cpp
+    src/index/IndexQueries.cpp
     src/index/IndexService.cpp
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
     src/index/Schema.cpp
     src/parser/Frontmatter.cpp
+    src/parser/HtmlRenderer.cpp
     src/parser/NoteParser.cpp
     src/vault/AtomicWriter.cpp
     src/vault/GitIgnore.cpp
@@ -52,6 +54,7 @@ add_library(coeus_core STATIC
     src/ui/FuzzyMatch.cpp
     src/ui/MainWindow.cpp
     src/ui/MarkdownHighlighter.cpp
+    src/ui/NoteView.cpp
     src/ui/SidebarPanel.cpp
 )
 target_include_directories(coeus_core PUBLIC src)

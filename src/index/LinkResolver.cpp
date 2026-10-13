@@ -1,5 +1,7 @@
 #include "index/LinkResolver.hpp"
 
+#include "parser/Attachments.hpp"
+
 #include <QDir>
 #include <QFileInfo>
 #include <QHash>
@@ -152,13 +154,7 @@ public:
 
 bool LinkResolver::isAttachment(const QString& target)
 {
-    static const QSet<QString> kExtensions{
-        QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("gif"),
-        QStringLiteral("svg"), QStringLiteral("webp"), QStringLiteral("bmp"), QStringLiteral("pdf"),
-        QStringLiteral("mp3"), QStringLiteral("wav"), QStringLiteral("ogg"), QStringLiteral("m4a"),
-        QStringLiteral("mp4"), QStringLiteral("webm"), QStringLiteral("mov"), QStringLiteral("canvas"),
-    };
-    return kExtensions.contains(QFileInfo(target).suffix().toLower());
+    return isAttachmentTarget(target);
 }
 
 bool LinkResolver::isFileLink(bool markdown, const QString& target)

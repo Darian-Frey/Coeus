@@ -3,6 +3,8 @@
 #include "ui/CommandPalette.hpp"
 #include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
+#include "ui/NoteView.hpp"
+#include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "vault/GitIgnoreOffer.hpp"
@@ -17,7 +19,10 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QDesktopServices>
+#include <QDir>
 #include <QFutureWatcher>
+#include <QUrl>
 #include <QLabel>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -113,6 +118,10 @@ void MainWindow::createActions()
     m_save->setShortcut(QKeySequence::Save);
     connect(m_save, &QAction::triggered, this, &MainWindow::saveCurrent);
 
+    m_toggleReading = new QAction(tr("Toggle &Reading Mode"), this);
+    m_toggleReading->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_E));
+    connect(m_toggleReading, &QAction::triggered, this, &MainWindow::toggleReadingMode);
+
     auto* closeTab = new QAction(tr("&Close Tab"), this);
     closeTab->setShortcut(QKeySequence::Close);
     connect(closeTab, &QAction::triggered, this, &MainWindow::closeCurrentTab);
@@ -171,6 +180,7 @@ void MainWindow::createActions()
 
     QMenu* viewMenu = menuBar()->addMenu(tr("&View"));
     viewMenu->addAction(palette);
+    viewMenu->addAction(m_toggleReading);
     viewMenu->addSeparator();
     viewMenu->addAction(toggleExplorer);
     viewMenu->addAction(toggleSidebar);
@@ -185,7 +195,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, m_save, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
+    for (QAction* action : {openVault, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -215,11 +225,11 @@ void MainWindow::openVault(const Vault& vault)
     if (!confirmCloseAll())
         return;
     while (m_tabs->count() > 0) {
-        Editor* editor = editorAt(0);
-        m_journalled.remove(editor);
-        m_conflictPrompts.remove(editor);
+        NoteView* view = viewAt(0);
+        m_journalled.remove(view->editor());
+        m_conflictPrompts.remove(view->editor());
         m_tabs->removeTab(0);
-        editor->deleteLater();
+        view->deleteLater();
     }
     m_vault = vault;
     m_linkedRoots.clear();
@@ -446,32 +456,107 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
         return nullptr;
     }
 
-    auto* editor = new Editor(*root, absolutePath);
+    auto* view = new NoteView(*root, absolutePath, displayPath(absolutePath));
+    Editor* editor = view->editor();
     if (QFileInfo::exists(absolutePath) || !allowMissing) {
         if (const auto loaded = editor->load(); !loaded) {
             statusBar()->showMessage(loaded.error(), kStatusTimeoutMs);
-            delete editor;
+            delete view;
             return nullptr;
         }
     }
-    editor->setProperty(kPathProperty, absolutePath);
+    view->setProperty(kPathProperty, absolutePath);
     connect(editor, &Editor::modificationChanged, this, [this, editor] { updateTabTitle(editor); });
     connect(editor, &Editor::conflictChanged, this, [this, editor] { updateTabTitle(editor); });
+    connect(view, &NoteView::linkActivated, this, [this, view](const QUrl& url) { followLink(view, url); });
 
-    const int index = m_tabs->addTab(editor, QFileInfo(absolutePath).completeBaseName());
+    const int index = m_tabs->addTab(view, QFileInfo(absolutePath).completeBaseName());
     m_tabs->setTabToolTip(index, displayPath(absolutePath));
     m_tabs->setCurrentIndex(index);
     return editor;
 }
 
+NoteView* MainWindow::viewAt(int index) const
+{
+    return qobject_cast<NoteView*>(m_tabs->widget(index));
+}
+
+NoteView* MainWindow::currentView() const
+{
+    return qobject_cast<NoteView*>(m_tabs->currentWidget());
+}
+
 Editor* MainWindow::editorAt(int index) const
 {
-    return qobject_cast<Editor*>(m_tabs->widget(index));
+    NoteView* view = viewAt(index);
+    return view ? view->editor() : nullptr;
 }
 
 Editor* MainWindow::currentEditor() const
 {
-    return qobject_cast<Editor*>(m_tabs->currentWidget());
+    NoteView* view = currentView();
+    return view ? view->editor() : nullptr;
+}
+
+NoteView* MainWindow::viewOf(const Editor* editor) const
+{
+    for (int i = 0; i < m_tabs->count(); ++i) {
+        if (NoteView* view = viewAt(i); view && view->editor() == editor)
+            return view;
+    }
+    return nullptr;
+}
+
+void MainWindow::toggleReadingMode()
+{
+    if (NoteView* view = currentView())
+        view->toggleMode();
+}
+
+void MainWindow::followLink(NoteView* view, const QUrl& url)
+{
+    const QString scheme = url.scheme();
+    if (scheme == QLatin1String("coeus-tag")) {
+        statusBar()->showMessage(tr("Tag #%1: the tag pane arrives later in Phase 2").arg(url.path()), kStatusTimeoutMs);
+        return;
+    }
+    if (scheme == QLatin1String("coeus-file")) {
+        // A Markdown link: a path relative to the note (SPEC.md §Wikilink resolution).
+        const QString relative = url.path();
+        QString target = relative.startsWith(QLatin1Char('/'))
+                             ? QDir::cleanPath(rootFor(view->path())->rootPath() + relative)
+                             : QDir::cleanPath(QFileInfo(view->path()).absolutePath() + QLatin1Char('/') + relative);
+        if (!QFileInfo(target).isFile() && QFileInfo(target + QStringLiteral(".md")).isFile())
+            target += QStringLiteral(".md");
+        if (!QFileInfo(target).isFile()) {
+            statusBar()->showMessage(tr("No such file: %1").arg(relative), kStatusTimeoutMs);
+            return;
+        }
+        openNote(target);
+        return;
+    }
+    if (scheme == QLatin1String("coeus-wiki")) {
+        // As the index resolved it; the index never guesses (AV-006).
+        QString target = url.path();
+        if (const qsizetype caret = target.indexOf(QLatin1Char('^')); caret >= 0)
+            target.truncate(caret);
+        const auto result = IndexQueries::wikilinkTarget(IndexService::indexPath(m_vault->rootPath()), view->path(), target);
+        if (!result) {
+            statusBar()->showMessage(result.error(), kStatusTimeoutMs);
+        } else if (!*result) {
+            statusBar()->showMessage(tr("[[%1]] is not indexed yet; save the note and try again").arg(target), kStatusTimeoutMs);
+        } else if ((*result)->ambiguous) {
+            statusBar()->showMessage(tr("[[%1]] matches more than one note; use a path to choose").arg(target), kStatusTimeoutMs * 2);
+        } else if ((*result)->absolutePath.isEmpty()) {
+            statusBar()->showMessage(tr("No note matches [[%1]]").arg(target), kStatusTimeoutMs);
+        } else {
+            openNote((*result)->absolutePath);
+        }
+        return;
+    }
+    if (url.isRelative() && url.hasFragment())
+        return; // an in-page anchor
+    QDesktopServices::openUrl(url); // external: the desktop decides
 }
 
 Editor* MainWindow::editorFor(const QString& absolutePath) const
@@ -482,7 +567,7 @@ Editor* MainWindow::editorFor(const QString& absolutePath) const
 
 void MainWindow::updateTabTitle(Editor* editor)
 {
-    const int index = m_tabs->indexOf(editor);
+    const int index = m_tabs->indexOf(viewOf(editor));
     if (index < 0)
         return;
     QString title = QFileInfo(editor->path()).completeBaseName();
@@ -521,7 +606,8 @@ void MainWindow::promptConflict(Editor* editor, bool retrySave)
 {
     if (m_conflictPrompts.value(editor))
         return; // already asking
-    m_tabs->setCurrentWidget(editor);
+    if (NoteView* view = viewOf(editor))
+        m_tabs->setCurrentWidget(view);
 
     auto* box = new QMessageBox(QMessageBox::Warning, tr("Note changed on disk"),
                                 tr("%1 was changed outside Coeus while you have unsaved changes.")
@@ -755,8 +841,9 @@ bool MainWindow::closeTab(int index)
     }
     m_journalled.remove(editor);
     m_conflictPrompts.remove(editor);
-    m_tabs->removeTab(m_tabs->indexOf(editor));
-    editor->deleteLater();
+    NoteView* view = viewOf(editor); // the index may have moved while the prompt was open
+    m_tabs->removeTab(m_tabs->indexOf(view));
+    view->deleteLater();
     return true;
 }
 

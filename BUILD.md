@@ -6,7 +6,7 @@ Verified 2026-10-12 on Linux Mint 22.3 (Ubuntu 24.04 base) with GCC 13.3, CMake 
 
 ```bash
 sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-tools \
-    libsqlite3-dev libmd4c-dev libmd4c-html0-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev libgit2-dev
+    libsqlite3-dev libmd4c-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev libgit2-dev
 ```
 
 All of these are required to build.
@@ -17,7 +17,7 @@ All of these are required to build.
 | CMake | 3.25 | |
 | Qt | 6.4 | Core, Concurrent, Gui, Widgets; Test for the test suite. Linked dynamically (D-009) |
 | SQLite | 3.40 | FTS5 and extension loading enabled; C API, not Qt SQL (D-018) |
-| md4c, md4c-html | 0.4.8 | Markdown parsing and reading mode (D-014) |
+| md4c | 0.4.8 | Markdown parsing for the index and reading mode (D-014) |
 | yaml-cpp | 0.8 | Frontmatter (D-015) |
 | toml++ | 3.4 | `.coeus/config.toml` (D-016) |
 | libsodium | 1.0.18 | BLAKE2b-128 hashes; Phase 5 encryption (D-017) |

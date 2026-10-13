@@ -405,6 +405,21 @@ The temporary file is created with `O_EXCL`. If the original existed, its mode i
 
 A crash between creating the temporary file and the rename leaves it behind; the original is intact. On vault open, `TempSweeper` walks the vault on a worker thread and deletes files that match all of: a regular file (not a symlink), named `^\..+\.coeus-tmp-[0-9a-f]+$`, last modified more than 60 s ago, and not inside `.git/`. The age limit spares a save in progress in another Coeus process. This is the only deletion Coeus makes without a user command (IMP-002).
 
+## Reading mode
+
+Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.
+
+- **Frontmatter** becomes a key/value properties table; invalid YAML shows a one-line problem instead.
+- **Soft line breaks** render as line breaks, as Obsidian does (CommonMark renders them as spaces).
+- **Raw HTML** is shown as escaped text, never interpreted.
+- **Callouts** (`> [!kind] Title`) become a box with a coloured left border; the title defaults to the kind.
+- **Task lists** show ☐ / ☑; a list whose items are all tasks drops its bullets.
+- **Block IDs** are hidden. **Highlights** get a background. **Maths** shows as code until F-025; Mermaid shows as its code block.
+- **Images** (`![](path)`, relative to the note; `![[file.png]]`, relative to the note then the root) load only from inside the note's root; a missing or outside image shows as `[target]`. Note embeds (`![[Note]]`) render as `↪` links until transclusion (F-023, Phase 4).
+- **Tables** follow md4c: a delimiter cell with a single dash (`:-`) is not recognised; `:--` or longer is.
+
+Links carry their kind in the URL scheme. Clicking `coeus-wiki:` opens the note the index resolved the wikilink to (SPEC §Wikilink resolution, read through `IndexQueries`), and reports ambiguous, unresolved or not-yet-indexed links in the status bar rather than guessing. `coeus-file:` opens the Markdown link's path relative to the note. `coeus-tag:` is reserved for the tag pane. Any other scheme opens in the desktop's handler.
+
 ## Editing
 
 A note opens in an `Editor` tab in source mode, highlighted by `MarkdownHighlighter` using the grammar of §Markdown dialect (display only; the index never depends on it). The editor remembers the `ContentHash` of the disk version its buffer is based on (the *base*).

@@ -18,11 +18,13 @@ class QTabWidget;
 class QThread;
 class QThreadPool;
 class QTimer;
+class QUrl;
 
 namespace coeus {
 
 class CommandPalette;
 class Editor;
+class NoteView;
 class ExplorerPanel;
 class IndexService;
 class SidebarPanel;
@@ -44,6 +46,8 @@ public:
     // Closes the current tab, asking first if it has unsaved changes.
     void closeCurrentTab();
 
+    NoteView* viewAt(int index) const;
+    NoteView* currentView() const;
     Editor* editorAt(int index) const;
     Editor* currentEditor() const;
     Editor* editorFor(const QString& absolutePath) const;
@@ -105,6 +109,9 @@ private:
     void onFilesChanged(const QStringList& absolutePaths);
     void onRootRescanned(const QString& rootPath);
     void updateTabTitle(Editor* editor);
+    NoteView* viewOf(const Editor* editor) const;
+    void toggleReadingMode();
+    void followLink(NoteView* view, const QUrl& url);
     Editor* openEditor(const QString& absolutePath, bool allowMissing);
     void checkRecovery(const QString& vaultPath);
     void forgetJournal(const QString& notePath);
@@ -139,6 +146,7 @@ private:
     QAction* m_rebuildIndex = nullptr;
     QAction* m_gitignoreAction = nullptr;
     QAction* m_save = nullptr;
+    QAction* m_toggleReading = nullptr;
     QTimer* m_journalTimer = nullptr;
     QThreadPool* m_journalPool = nullptr; // one thread: journal writes stay in order
     QHash<Editor*, int> m_journalled;     // document revision last written to the journal

@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Reading mode (F-003): Source | Live | Reading switch per tab and `Ctrl+E`; `HtmlRenderer` renders properties, callouts, highlights, tags, task lists, tables and images from md4c; wikilinks open the note the index resolved, Markdown links their relative path. Tests `test_html_renderer`, `test_note_view`.
 - Editor (F-003 source mode, F-011): editable tabs with Markdown highlighting; `Ctrl+S` saves through `Vault::writeNote` and `AtomicWriter`; saving over an external change, or an external change to a modified buffer, prompts (Keep Mine / Load Disk / Decide Later) instead of overwriting (AV-002); clean tabs follow external edits within a second; close and quit ask about unsaved changes.
 - Autosave journal: modified buffers written to `.coeus/journal/` every 5 s on a background thread; unsaved work offered for recovery when the vault reopens.
 - Tests `test_editor`, `test_journal`, `test_conflict_prompt`; sanitizer build documented in BUILD.md.
@@ -30,6 +31,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- D-014 amended: reading mode uses `HtmlRenderer`, not md4c-html, which is no longer a dependency. The attachment-extension rule moves into `parser/` so the parser does not depend on `index/`.
 - SPEC §Autosave journal: journal entries older than their note are offered too, flagged, rather than hidden; new §Editing.
 - libgit2 is now a build dependency (for `.gitignore` rules), ahead of Phase 3's Git features.
 - SPEC §Linked roots gains name, path, id, absent-root, removed-root and ignore rules; new §File watching.

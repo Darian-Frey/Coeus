@@ -12,7 +12,6 @@
 #include <QFileSystemModel>
 #include <QMessageBox>
 #include <QPushButton>
-#include <QPlainTextEdit>
 #include <QToolButton>
 #include <QTreeView>
 #include <QSettings>
@@ -137,7 +136,7 @@ private slots:
         window.openNote(repo.filePath(QStringLiteral("README.md")));
         QCOMPARE(window.tabs()->count(), 1);
         QCOMPARE(window.tabs()->tabToolTip(0), QStringLiteral("repo/README.md"));
-        QCOMPARE(qobject_cast<QPlainTextEdit*>(window.tabs()->widget(0))->toPlainText(), QStringLiteral("# Repo\n"));
+        QCOMPARE(window.editorAt(0)->toPlainText(), QStringLiteral("# Repo\n"));
 
         // Anything outside every root is refused.
         QTemporaryDir outside;

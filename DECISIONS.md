@@ -316,6 +316,8 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 
 **Reversal conditions.** Revisit if offset-based line mapping proves unreliable for constructs md4c rewrites (entities, tabs), in which case Option B for positions with our own extension pass is the fallback.
 
+**Amended 2026-10-13.** Reading mode does not use md4c-html. It offers no extension points: wikilinks come out as `<x-wikilink>` elements QTextBrowser ignores, embeds, tags, callouts, highlights and block IDs are left as text, and patching its HTML afterwards would also rewrite those constructs inside code. `parser/HtmlRenderer` writes the HTML from md4c's own callbacks instead, the same parser the index uses, so both agree on what is code. `libmd4c-html0-dev` is no longer a dependency.
+
 ### D-015 YAML frontmatter with yaml-cpp
 **Decided:** 2026-10-12
 **Recorded:** 2026-10-12

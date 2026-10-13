@@ -32,7 +32,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Editor source mode with syntax highlighting and save through `AtomicWriter` (`src/ui/Editor.cpp`)
 - [x] Autosave journal with recovery on startup (SPEC.md §Autosave journal)
 - [x] Conflict prompt when a note with unsaved changes is modified on disk (`tests/ui/test_conflict_prompt.cpp`; F-011, AV-002)
-- [ ] Reading mode: rendered Markdown, switchable per tab (F-003)
+- [x] Reading mode: rendered Markdown, switchable per tab (`src/parser/HtmlRenderer.cpp`, `src/ui/NoteView.cpp`; F-003)
 - [ ] Wikilink completer, backlinks panel with unlinked mentions, outline panel, tag pane, search panel
 - [ ] Properties panel with typed validation
 - [ ] Daily notes and templates
