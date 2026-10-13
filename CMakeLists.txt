@@ -44,11 +44,13 @@ add_library(coeus_core STATIC
     src/parser/NoteParser.cpp
     src/registers/Vocabulary.cpp
     src/vault/AtomicWriter.cpp
+    src/vault/DailyNotes.cpp
     src/vault/GitIgnore.cpp
     src/vault/GitIgnoreOffer.cpp
     src/vault/Journal.cpp
     src/vault/Roots.cpp
     src/vault/TempSweeper.cpp
+    src/vault/Templates.cpp
     src/vault/Vault.cpp
     src/vault/VaultConfig.cpp
     src/vault/VaultLogging.cpp

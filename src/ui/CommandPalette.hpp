@@ -24,6 +24,7 @@ public:
     // Number of rows currently shown; for tests.
     int visibleCount() const;
     void setFilterText(const QString& text);
+    void setPlaceholder(const QString& text);
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

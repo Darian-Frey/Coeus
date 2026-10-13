@@ -46,6 +46,12 @@ public:
     void openVault(const Vault& vault);
     // Opens a note in an editor tab, or focuses the tab if it is already open.
     void openNote(const QString& absolutePath);
+    // Opens today's daily note, creating it first if needed (F-009).
+    void openTodaysNote();
+    // Offers the templates folder's notes; the chosen one goes in at the cursor (F-010).
+    void chooseTemplate();
+    void insertTemplate(const QString& templatePath);
+    CommandPalette* templatePicker() const { return m_templatePicker; }
     // Opens a note with the cursor on `line` (1-based), e.g. from a backlink.
     void openNoteAt(const QString& absolutePath, int line);
     BacklinksPanel* backlinks() const { return m_backlinks; }
@@ -170,6 +176,8 @@ private:
     QAction* m_gitignoreAction = nullptr;
     QAction* m_save = nullptr;
     QAction* m_toggleReading = nullptr;
+    CommandPalette* m_templatePicker = nullptr;
+    QObject* m_templateActions = nullptr; // parent of the picker's per-template actions
     NoteCatalogue* m_catalogue = nullptr; // notes and aliases for [[ completion
     QTimer* m_journalTimer = nullptr;
     QThreadPool* m_journalPool = nullptr; // one thread: journal writes stay in order

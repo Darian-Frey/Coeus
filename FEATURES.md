@@ -83,14 +83,14 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Acceptance:**
 - `Ctrl+D` opens or creates today's note at a configurable path pattern using ISO 8601 date
 - Optional template applied on creation
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-10-13)
 
 ### F-010 Templates
 **Priority:** Should
 **Acceptance:**
 - Templates folder; insert via command palette
 - Variables: `{{date}}`, `{{time}}`, `{{title}}`, `{{next:F}}` (see F-015)
-**Status:** Not started (Phase 2)
+**Status:** In progress: the templates folder, insertion and `{{date}}`, `{{time}}`, `{{title}}` are complete (2026-10-13); `{{next:F}}` waits for the register model (F-015, Phase 3)
 
 ### F-011 File watcher
 **Priority:** Must

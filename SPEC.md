@@ -446,6 +446,14 @@ In source mode a collapsible "Properties (N)" card sits above the editor (F-008)
 - **Editing** changes the editor's buffer, not the file, as one undo step; the note is then saved like any other edit. Only the key's own lines change (D-015): its line and any continuation lines (indented lines or block-list items) become one `key: value` line, keeping the key exactly as written; every other line, comment and the key order stay as they were. A new key is added just before the closing delimiter, with frontmatter created at the top if there was none; an enum key starts at its first allowed value, any other key at `""`. Removing a key removes its lines. Text is written plain when YAML reads it back as the same text, otherwise double-quoted (so `2026` typed into a text field stays text); lists are written in flow style, quoting items that hold `,`, `[`, `]`, `{` or `}`.
 - **Invalid YAML** makes the card read-only and shows the parser's message.
 
+## Daily notes and templates
+
+**Daily notes** (F-009). `Ctrl+D`, or File › Open Today's Note, opens today's note at `<vault>/<folder>/<date>.md`, where the date is formatted with the Qt date format `format` (ISO 8601 by default; `/` in it makes subfolders, e.g. `yyyy/MM/yyyy-MM-dd`). If the note does not exist it is created first, an explicit user command through `Vault::writeNote` and `AtomicWriter`, its folders made as needed; an existing note is never rewritten. A new note gets the rendered template if one is configured, otherwise `# <file name>`. Settings that would put the note outside the vault, give it no name, or name a template that cannot be read are reported and nothing is created.
+
+**Templates** (F-010). Every `.md` file under the templates folder (inside the vault) is a template. File › Insert Template… lists them in a palette with the fuzzy filter; the chosen one is rendered and inserted into the current buffer as one undo step, then saved like any edit. Into an empty note it goes whole. Otherwise its body goes in at the cursor and its frontmatter keys are added to the note's frontmatter where the note lacks them, with existing keys untouched (§Properties panel editing rules); the cursor ends after the inserted body.
+
+**Variables**, in templates for both: `{{date}}` (`yyyy-MM-dd`), `{{time}}` (`HH:mm`), `{{title}}` (the note's file name without extension), and `{{date:FORMAT}}` / `{{time:FORMAT}}` with any Qt date or time format. Anything else in braces, including `{{next:F}}`, is left as written and named in the status bar; `{{next:KIND}}` will allocate register IDs once F-015 lands in Phase 3.
+
 ## Reading mode
 
 Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.
@@ -500,3 +508,7 @@ A save, Load Disk Version or Discard removes the note's entry. On opening a vaul
 | `write_undo_s` | 10 | config.toml `[mcp]` |
 | `sidecar_compact_days` | 7 | config.toml `[semantic]` |
 | `gitignore_offer` | unset; `"declined"` after Don't Ask Again | config.toml `[vault]` |
+| `folder` | `daily` | config.toml `[daily]` |
+| `format` | `yyyy-MM-dd` | config.toml `[daily]` |
+| `template` | none | config.toml `[daily]` |
+| `folder` | `templates` | config.toml `[templates]` |

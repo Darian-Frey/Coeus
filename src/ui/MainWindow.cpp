@@ -12,10 +12,12 @@
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "ui/TagPanel.hpp"
+#include "vault/DailyNotes.hpp"
 #include "vault/GitIgnoreOffer.hpp"
 #include "vault/Journal.hpp"
 #include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
+#include "vault/Templates.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -163,6 +165,15 @@ void MainWindow::createActions()
     m_save->setShortcut(QKeySequence::Save);
     connect(m_save, &QAction::triggered, this, &MainWindow::saveCurrent);
 
+    auto* today = new QAction(QIcon::fromTheme(QStringLiteral("view-calendar-day")), tr("Open &Today's Note"), this);
+    today->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+    connect(today, &QAction::triggered, this, &MainWindow::openTodaysNote);
+
+    auto* insertTemplateAction = new QAction(tr("Insert &Template…"), this);
+    connect(insertTemplateAction, &QAction::triggered, this, &MainWindow::chooseTemplate);
+    m_templatePicker = new CommandPalette(this);
+    m_templatePicker->setPlaceholder(tr("Choose a template…"));
+
     m_toggleReading = new QAction(tr("Toggle &Reading Mode"), this);
     m_toggleReading->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_E));
     connect(m_toggleReading, &QAction::triggered, this, &MainWindow::toggleReadingMode);
@@ -214,6 +225,8 @@ void MainWindow::createActions()
 
     QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(openVault);
+    fileMenu->addAction(today);
+    fileMenu->addAction(insertTemplateAction);
     fileMenu->addAction(m_save);
     fileMenu->addAction(closeTab);
     fileMenu->addSeparator();
@@ -261,7 +274,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
+    for (QAction* action : {openVault, today, insertTemplateAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -499,6 +512,96 @@ void MainWindow::sweepTempFiles(const QString& root)
 void MainWindow::openNote(const QString& absolutePath)
 {
     openEditor(absolutePath, false);
+}
+
+void MainWindow::openTodaysNote()
+{
+    if (!m_vault) {
+        statusBar()->showMessage(tr("Open a vault first"), kStatusTimeoutMs);
+        return;
+    }
+    // Creating it is an explicit command: through Vault::writeNote and AtomicWriter.
+    const auto opened = DailyNotes::openOrCreate(*m_vault, QDateTime::currentDateTime());
+    if (!opened) {
+        statusBar()->showMessage(opened.error(), kStatusTimeoutMs * 2);
+        return;
+    }
+    openNote(opened->path);
+    if (!opened->unsupported.isEmpty())
+        statusBar()->showMessage(tr("Left as written: %1 (register IDs arrive in Phase 3)")
+                                     .arg(opened->unsupported.join(QStringLiteral(", "))),
+                                 kStatusTimeoutMs * 2);
+    else if (opened->created)
+        statusBar()->showMessage(tr("Created %1").arg(displayPath(opened->path)), kStatusTimeoutMs);
+}
+
+void MainWindow::chooseTemplate()
+{
+    if (!m_vault || !currentEditor()) {
+        statusBar()->showMessage(tr("Open a note to insert a template into"), kStatusTimeoutMs);
+        return;
+    }
+    const QStringList templates = Templates::list(m_vault->rootPath());
+    if (templates.isEmpty()) {
+        statusBar()->showMessage(tr("No templates: add .md files to %1/ (or set [templates] folder in config.toml)")
+                                     .arg(Templates::folder(m_vault->rootPath())),
+                                 kStatusTimeoutMs * 2);
+        return;
+    }
+    delete m_templateActions; // the previous list's actions
+    m_templateActions = new QObject(this);
+    QList<QAction*> actions;
+    const QString base = QDir::cleanPath(m_vault->rootPath() + QLatin1Char('/') + Templates::folder(m_vault->rootPath()));
+    for (const QString& path : templates) {
+        QString name = QDir(base).relativeFilePath(path);
+        name.chop(3);
+        auto* action = new QAction(name, m_templateActions);
+        connect(action, &QAction::triggered, this, [this, path] { insertTemplate(path); });
+        actions.append(action);
+    }
+    m_templatePicker->setActions(actions);
+    m_templatePicker->popup();
+}
+
+void MainWindow::insertTemplate(const QString& templatePath)
+{
+    Editor* editor = currentEditor();
+    if (!editor || !m_vault)
+        return;
+    const auto source = m_vault->readNote(templatePath);
+    if (!source) {
+        statusBar()->showMessage(source.error(), kStatusTimeoutMs);
+        return;
+    }
+    const Templates::Rendered rendered =
+        Templates::render(*source, QDateTime::currentDateTime(), QFileInfo(editor->path()).completeBaseName());
+    const QString before = editor->toPlainText();
+    int caret = 0;
+    const QString after = Templates::insert(before, editor->textCursor().position(), rendered.text, &caret);
+
+    // Replace only the span that changed, as one undo step.
+    int prefix = 0;
+    while (prefix < before.size() && prefix < after.size() && before[prefix] == after[prefix])
+        ++prefix;
+    int suffix = 0;
+    while (suffix < before.size() - prefix && suffix < after.size() - prefix
+           && before[before.size() - 1 - suffix] == after[after.size() - 1 - suffix])
+        ++suffix;
+    QTextCursor cursor(editor->document());
+    cursor.beginEditBlock();
+    cursor.setPosition(prefix);
+    cursor.setPosition(int(before.size()) - suffix, QTextCursor::KeepAnchor);
+    cursor.insertText(after.mid(prefix, after.size() - prefix - suffix));
+    cursor.endEditBlock();
+    cursor.setPosition(std::min(caret, int(editor->document()->characterCount()) - 1));
+    editor->setTextCursor(cursor);
+    if (NoteView* view = currentView())
+        view->setMode(NoteView::Mode::Source);
+    editor->setFocus();
+    if (!rendered.unsupported.isEmpty())
+        statusBar()->showMessage(tr("Left as written: %1 (register IDs arrive in Phase 3)")
+                                     .arg(rendered.unsupported.join(QStringLiteral(", "))),
+                                 kStatusTimeoutMs * 2);
 }
 
 void MainWindow::openNoteAtWords(const QString& absolutePath, const QStringList& words)

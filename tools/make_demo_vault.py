@@ -118,6 +118,15 @@ def build_vault(vault: Path, linked: Path) -> None:
         [[roots]]
         name = "aether"
         path = "/nonexistent/aether-on-another-machine"
+
+        # Daily notes (F-009) and templates (F-010).
+        [daily]
+        folder = "daily"
+        format = "yyyy-MM-dd"
+        template = "templates/Daily.md"
+
+        [templates]
+        folder = "templates"
         """)
 
     write(vault / "Start here.md", f"""
@@ -149,7 +158,7 @@ def build_vault(vault: Path, linked: Path) -> None:
         3. Close a tab with unsaved changes: Save / Discard / Cancel.
         4. Type something, wait five seconds, kill Coeus (`pkill coeus`), restart:
            it offers to recover the unsaved text.
-        5. Edit `daily/{TODAY}.md` outside Coeus while it is open in a clean tab:
+        5. Edit `daily/2026-10-11.md` outside Coeus while it is open in a clean tab:
            the tab follows within a second.
 
         ## Reading mode
@@ -177,6 +186,15 @@ def build_vault(vault: Path, linked: Path) -> None:
           `tag:project`, `path:ideas/`, `file:readme`, `re:/D-0\\d\\d/`, `idea -draft`.
         - **Properties**: open `ideas/theia.md` - `status: Done` is flagged, not
           changed; pick *Active*. `ideas/broken frontmatter.md` is read-only.
+
+        ## Daily notes and templates
+        - `Ctrl+D` opens today's note, creating it from `templates/Daily.md` if it
+          does not exist yet; press it again and the same note opens, untouched.
+        - In any note, **Insert Template…** (File menu or `Ctrl+P`) offers the
+          `templates/` folder. *Meeting* adds its `tags` to the note's frontmatter
+          without touching the keys already there, and its body at the cursor;
+          `Ctrl+Z` takes it all back in one step. `{{next:F}}` stays as written until
+          register IDs arrive in Phase 3.
 
         ## Index
         - File → **Verify Index**; File → **Rebuild Index**.
@@ -350,11 +368,12 @@ def build_vault(vault: Path, linked: Path) -> None:
     write(vault / "reference/Shared.md", "# Shared (reference)\n\nOne of two notes titled Shared.\n")
     write(vault / "archive/Shared.md", "# Shared (archive)\n\nThe other note titled Shared.\n")
 
-    write(vault / f"daily/{TODAY}.md", f"""
+    # Past days only: Ctrl+D then creates today's note from the template.
+    write(vault / "daily/2026-10-11.md", """
         ---
         tags: [daily]
         ---
-        # {TODAY}
+        # 2026-10-11
 
         Talked about Mnemosyne without linking it. The memory engine needs a model
         choice (D-008). Reviewed the vault cache decision. #daily
@@ -363,6 +382,30 @@ def build_vault(vault: Path, linked: Path) -> None:
         # 2026-10-12
 
         First run of the indexer on the project folders. #daily #Idea
+        """)
+
+    write(vault / "templates/Daily.md", """
+        ---
+        tags: [daily]
+        ---
+        # {{title}}
+
+        Started at {{time}} on {{date:dddd d MMMM yyyy}}.
+
+        ## Notes
+
+        ## Tomorrow
+        """)
+    write(vault / "templates/Meeting.md", """
+        ---
+        tags: [meeting]
+        attendees: []
+        ---
+        ## {{title}} meeting, {{date}}
+
+        - Agenda:
+        - Decisions: {{next:D}}
+        - Actions:
         """)
 
     write(vault / ".secret.md", "# Hidden\n\nNever listed or indexed.\n")

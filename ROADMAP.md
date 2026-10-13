@@ -18,7 +18,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 2 — Core vault
 **Goal:** Everything needed to use Coeus daily instead of Obsidian for plain notes.
-**Status:** In progress
+**Status:** In progress: every deliverable is built (2026-10-13); the acceptance week of daily use is the author's to run
 **Features delivered:** F-003 (source and reading modes), F-004, F-005, F-006, F-007, F-008, F-009, F-010, F-011, F-013, F-034
 **Deliverables:**
 - [x] `AtomicWriter`: temp write, fsync, rename, directory fsync, mode and ownership preserved, with a kill-during-write test (`src/vault/AtomicWriter.cpp`, `tests/vault/test_atomic_writer.cpp`; SPEC.md §Atomic write, AV-002)
@@ -39,7 +39,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Tag pane (`src/index/Tags.cpp`, `src/ui/TagPanel.cpp`; F-007)
 - [x] Search panel (`src/index/Search.cpp`, `src/ui/SearchPanel.cpp`; F-006)
 - [x] Properties panel with typed validation (`src/ui/PropertiesPanel.cpp`, `src/registers/Vocabulary.cpp`; F-008)
-- [ ] Daily notes and templates
+- [x] Daily notes and templates (`src/vault/DailyNotes.cpp`, `src/vault/Templates.cpp`; F-009, F-010 except `{{next:F}}`, which needs F-015)
 **Acceptance:** A real vault (the author's project repos) can be browsed, searched, edited and saved for a week without data loss or index drift (AV-001, AV-002).
 
 ## Phase 3 — Differentiators

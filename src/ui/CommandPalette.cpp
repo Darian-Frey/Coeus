@@ -90,6 +90,11 @@ void CommandPalette::setFilterText(const QString& text)
     m_input->setText(text);
 }
 
+void CommandPalette::setPlaceholder(const QString& text)
+{
+    m_input->setPlaceholderText(text);
+}
+
 bool CommandPalette::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched == m_input && event->type() == QEvent::KeyPress) {
