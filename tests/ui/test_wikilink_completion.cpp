@@ -10,7 +10,7 @@ namespace {
 NoteEntry note(const QString& root, const QString& path, const QStringList& aliases = {})
 {
     const QString file = path.section(QLatin1Char('/'), -1);
-    return {root, QStringLiteral("/r/") + root, path, file.chopped(3), aliases};
+    return {root, QStringLiteral("/r/") + root, path, file.chopped(3), aliases, {}};
 }
 
 QStringList labels(const QList<Completion>& completions)

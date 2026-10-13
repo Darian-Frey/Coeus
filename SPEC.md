@@ -155,11 +155,19 @@ Every field whose name is `Related` or begins `Related ` (`Related decisions`, `
 
 ### ID allocation
 
-`NextId(project, kind)` = `max(existing IDs of kind in project, unexpired reservations of kind in project) + 1`, zero-padded to at least three digits. IDs are never reused. If the register file does not exist, the first ID is `001` and the file is created from the standard's skeleton.
+`NextId(project, kind)` = `max(existing IDs of kind in project, unexpired reservations of kind in project, IDs in an open unsaved buffer of the register file) + 1`, zero-padded to at least three digits. IDs are never reused. "Existing" covers every register file of that kind in the project, nested ones included (`docs/DECISIONS.md`), but not those of nested projects. If the register file does not exist, the first ID is `001` and the file is created from the standard's skeleton.
 
-The GUI and the MCP server are separate processes sharing `index.db`. `NextId` runs inside a `BEGIN IMMEDIATE` transaction, so SQLite's write lock serialises allocation across both. Inside it, existing IDs are read by parsing the register file on disk, not from `registers`, because the index can lag the file by the watcher debounce. The chosen number is inserted into `reservations` with `expires = now + 60` and the transaction commits. Expired rows are deleted on each call. A reservation is removed when its entry is written.
+The GUI and the MCP server are separate processes sharing `index.db`. `NextId` runs inside a `BEGIN IMMEDIATE` transaction, so SQLite's write lock serialises allocation across both. Inside it, existing IDs are read by parsing the register file on disk, not from `registers`, because the index can lag the file by the watcher debounce. The chosen number is inserted into `reservations` with `expires = now + 60` and the transaction commits. Expired rows are deleted on each call; a reservation is not removed early when its entry is written, since by then the file holds the ID anyway. The GUI calls `NextId` on a worker thread (AV-005), passing the open buffer of the project's register file of that kind if there is one, so an entry inserted but not yet saved keeps its ID after the reservation lapses.
 
-Reservations are transient, not vault data, so losing them in an index rebuild loses nothing (AV-001). The last guard is at write time: `append_entry` and "Insert next ID" re-parse the register file immediately before the atomic write and fail if the ID already exists (AV-003).
+Reservations are transient, not vault data, so losing them in an index rebuild loses nothing (AV-001). The last guard is at write time. "Insert next ID" changes only the editor's buffer, so the save path's conflict check refuses to overwrite a register file changed on disk since it was loaded (§Editing, AV-002). `append_entry` (F-033) will re-parse the register file immediately before its atomic write and fail if the ID already exists (AV-003).
+
+### Register panel and commands
+
+**Register panel** (F-015). A Registers dock, tabbed with the Explorer, shows one project's entries: a project chooser, a kind filter, a status filter offering the statuses present for the chosen kind as written, and a fuzzy filter over ID and title. Entries are listed by kind then number, with ID, title and status. The project follows the current tab when the note is in a project, and otherwise stays put. Clicking an entry opens its register file at its line. The panel reads the `NoteCatalogue` snapshot and so updates whenever the index reports a change, never querying on the UI thread.
+
+**Insert Next ID…** (`Ctrl+Shift+I`, also in the palette) asks which register, listing the current register file's kind first. With a note in a project open, it allocates the ID, creates the register file from the skeleton if missing (an explicit user command, through `Vault::writeNote` and `AtomicWriter`), opens it, appends the kind's entry skeleton after a blank line, and selects the `Title` placeholder so typing replaces it. The register file is then saved like any edit. Outside a project the command explains why and does nothing.
+
+**ID completion.** In source mode, when the text before the cursor ends with `(F|C|D|AV|BUG|IMP)-\d*` not joined to a preceding word character or `-`, the completion popup (§Wikilink completion) lists the current project's entries of that kind whose number starts with the typed digits, with title and status. Choosing one inserts the ID alone, without `]]`. A note outside every project gets no ID completion.
 
 ### Lint rules
 
@@ -424,6 +432,7 @@ Typing in source mode opens a popup when the text before the cursor on its line 
 - **Inserted text** always resolves to the chosen note (§Wikilink resolution, AV-006): the bare title when no other note in the index has it; otherwise the root-relative path without `.md` from the same root, or `root:path` from another root. An alias inserts `link|Alias`.
 - **Headings**: after `[[Note#` the popup lists that note's headings (`[[#` lists the current note's), and inserts the heading text.
 - **Keys**: Up/Down move, Return or Tab inserts, Escape closes. If `]]` already follows the cursor it is reused, otherwise it is added; the cursor ends after it.
+- **Register IDs**: the same popup completes `D-`, `AV-0` and the like to the project's entries (§Register panel and commands).
 
 ## Backlinks
 
@@ -460,7 +469,7 @@ In source mode a collapsible "Properties (N)" card sits above the editor (F-008)
 
 **Templates** (F-010). Every `.md` file under the templates folder (inside the vault) is a template. File › Insert Template… lists them in a palette with the fuzzy filter; the chosen one is rendered and inserted into the current buffer as one undo step, then saved like any edit. Into an empty note it goes whole. Otherwise its body goes in at the cursor and its frontmatter keys are added to the note's frontmatter where the note lacks them, with existing keys untouched (§Properties panel editing rules); the cursor ends after the inserted body.
 
-**Variables**, in templates for both: `{{date}}` (`yyyy-MM-dd`), `{{time}}` (`HH:mm`), `{{title}}` (the note's file name without extension), and `{{date:FORMAT}}` / `{{time:FORMAT}}` with any Qt date or time format. Anything else in braces, including `{{next:F}}`, is left as written and named in the status bar; `{{next:KIND}}` will allocate register IDs once F-015 lands in Phase 3.
+**Variables**, in templates for both: `{{date}}` (`yyyy-MM-dd`), `{{time}}` (`HH:mm`), `{{title}}` (the note's file name without extension), and `{{date:FORMAT}}` / `{{time:FORMAT}}` with any Qt date or time format. `{{next:KIND}}` (KIND one of `F C D AV BUG IMP`), in a template inserted into a note inside a project, becomes that project's next ID of the kind, allocated by `NextId` on a worker thread before the template is inserted (§ID allocation); each kind is allocated once per insertion, so repeated `{{next:D}}` give the same ID. Outside a project, and in daily notes, it is left as written. Anything else in braces is left as written, and anything left is named in the status bar.
 
 ## Reading mode
 

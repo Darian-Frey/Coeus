@@ -9,6 +9,10 @@
 #include "ui/OutlinePanel.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
+#include "parser/RegisterParser.hpp"
+#include "registers/NextId.hpp"
+#include "registers/RegisterTemplates.hpp"
+#include "ui/RegisterPanel.hpp"
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "ui/TagPanel.hpp"
@@ -85,6 +89,8 @@ MainWindow::MainWindow(QWidget* parent)
         Editor* editor = currentEditor();
         m_backlinks->showNote(editor ? editor->path() : QString());
         m_outline->setView(currentView());
+        if (editor)
+            m_registers->followNote(editor->path());
     });
 
     createDocks();
@@ -128,6 +134,20 @@ void MainWindow::createDocks()
     addDockWidget(Qt::LeftDockWidgetArea, m_searchDock);
     tabifyDockWidget(m_explorerDock, m_searchDock);
     connect(m_search, &SearchPanel::openRequested, this, &MainWindow::openNoteAtWords);
+
+    // Registers: the scaffold standard's entries for the current project (F-015).
+    m_registers = new RegisterPanel(m_catalogue);
+    m_registersDock = new QDockWidget(tr("Registers"), this);
+    m_registersDock->setObjectName(QStringLiteral("registersDock"));
+    m_registersDock->setWidget(m_registers);
+    addDockWidget(Qt::LeftDockWidgetArea, m_registersDock);
+    tabifyDockWidget(m_explorerDock, m_registersDock);
+    connect(m_registers, &RegisterPanel::openRequested, this, &MainWindow::openNoteAt);
+    connect(m_catalogue, &NoteCatalogue::reloaded, m_registers, [this] {
+        m_registers->refresh();
+        if (Editor* editor = currentEditor())
+            m_registers->followNote(editor->path());
+    });
     m_explorerDock->raise();
     connect(m_tags, &TagPanel::tagActivated, this, &MainWindow::showTag);
     connect(m_tags, &TagPanel::reloaded, this, [this] {
@@ -168,6 +188,13 @@ void MainWindow::createActions()
     auto* today = new QAction(QIcon::fromTheme(QStringLiteral("view-calendar-day")), tr("Open &Today's Note"), this);
     today->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
     connect(today, &QAction::triggered, this, &MainWindow::openTodaysNote);
+
+    auto* insertNextIdAction = new QAction(tr("Insert &Next ID…"), this);
+    insertNextIdAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I));
+    connect(insertNextIdAction, &QAction::triggered, this, &MainWindow::chooseNextId);
+    m_nextIdPicker = new CommandPalette(this);
+    m_nextIdPicker->setPlaceholder(tr("Which register?"));
+    m_nextIdPicker->setKeepsOrder(true); // the current register's kind first
 
     auto* insertTemplateAction = new QAction(tr("Insert &Template…"), this);
     connect(insertTemplateAction, &QAction::triggered, this, &MainWindow::chooseTemplate);
@@ -227,6 +254,7 @@ void MainWindow::createActions()
     fileMenu->addAction(openVault);
     fileMenu->addAction(today);
     fileMenu->addAction(insertTemplateAction);
+    fileMenu->addAction(insertNextIdAction);
     fileMenu->addAction(m_save);
     fileMenu->addAction(closeTab);
     fileMenu->addSeparator();
@@ -274,7 +302,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, today, insertTemplateAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
+    for (QAction* action : {openVault, today, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -528,7 +556,7 @@ void MainWindow::openTodaysNote()
     }
     openNote(opened->path);
     if (!opened->unsupported.isEmpty())
-        statusBar()->showMessage(tr("Left as written: %1 (register IDs arrive in Phase 3)")
+        statusBar()->showMessage(tr("Left as written: %1 (daily notes take no register IDs)")
                                      .arg(opened->unsupported.join(QStringLiteral(", "))),
                                  kStatusTimeoutMs * 2);
     else if (opened->created)
@@ -573,8 +601,51 @@ void MainWindow::insertTemplate(const QString& templatePath)
         statusBar()->showMessage(source.error(), kStatusTimeoutMs);
         return;
     }
-    const Templates::Rendered rendered =
-        Templates::render(*source, QDateTime::currentDateTime(), QFileInfo(editor->path()).completeBaseName());
+    const QStringList kinds = Templates::nextKinds(*source);
+    const auto project = m_catalogue->projectOf(editor->path());
+    if (kinds.isEmpty() || !project) {
+        applyTemplate(editor, templatePath, *source, {});
+        return;
+    }
+
+    // {{next:KIND}} takes a real ID, reserved like Insert Next ID (F-010, F-015).
+    struct Allocated {
+        QHash<QString, QString> ids;
+        QString error;
+    };
+    QHash<QString, QString> unsaved;
+    for (const QString& kind : kinds)
+        unsaved.insert(kind, unsavedRegisterText(*project, kind));
+    QPointer<Editor> target(editor);
+    auto* watcher = new QFutureWatcher<Allocated>(this);
+    connect(watcher, &QFutureWatcher<Allocated>::finished, this, [this, watcher, target, templatePath, text = *source] {
+        const Allocated allocated = watcher->result();
+        watcher->deleteLater();
+        if (!target)
+            return;
+        if (!allocated.error.isEmpty())
+            statusBar()->showMessage(allocated.error, kStatusTimeoutMs * 2);
+        applyTemplate(target, templatePath, text, allocated.ids);
+    });
+    watcher->setFuture(QtConcurrent::run([index = IndexService::indexPath(m_vault->rootPath()), project = *project, kinds,
+                                          unsaved] {
+        Allocated allocated;
+        for (const QString& kind : kinds) {
+            const auto id = NextId::allocate({index, project.rootPath, project.path, kind, QStringLiteral("gui"), unsaved.value(kind)});
+            if (id)
+                allocated.ids.insert(kind, id->ident);
+            else
+                allocated.error = id.error();
+        }
+        return allocated;
+    }));
+}
+
+void MainWindow::applyTemplate(Editor* editor, const QString& templatePath, const QString& source,
+                               const QHash<QString, QString>& nextIds)
+{
+    const Templates::Rendered rendered = Templates::render(source, QDateTime::currentDateTime(),
+                                                           QFileInfo(editor->path()).completeBaseName(), nextIds);
     const QString before = editor->toPlainText();
     int caret = 0;
     const QString after = Templates::insert(before, editor->textCursor().position(), rendered.text, &caret);
@@ -599,9 +670,121 @@ void MainWindow::insertTemplate(const QString& templatePath)
         view->setMode(NoteView::Mode::Source);
     editor->setFocus();
     if (!rendered.unsupported.isEmpty())
-        statusBar()->showMessage(tr("Left as written: %1 (register IDs arrive in Phase 3)")
+        statusBar()->showMessage(tr("Left as written: %1 ({{next:…}} needs a note inside a project)")
                                      .arg(rendered.unsupported.join(QStringLiteral(", "))),
                                  kStatusTimeoutMs * 2);
+    else if (!nextIds.isEmpty())
+        statusBar()->showMessage(tr("Reserved %1 for %2 s; save to keep them")
+                                     .arg(QStringList(nextIds.values()).join(QStringLiteral(", ")))
+                                     .arg(NextId::kReservationSeconds),
+                                 kStatusTimeoutMs * 2);
+    emit templateInserted(templatePath);
+}
+
+QString MainWindow::unsavedRegisterText(const ProjectRef& project, const QString& kind) const
+{
+    const QString fileName = RegisterTemplates::fileName(kind);
+    QString text;
+    for (int i = 0; i < m_tabs->count(); ++i) {
+        Editor* editor = editorAt(i);
+        if (!editor || !editor->isModified() || QFileInfo(editor->path()).fileName() != fileName)
+            continue;
+        const auto owner = m_catalogue->projectOf(editor->path());
+        if (owner && owner->rootPath == project.rootPath && owner->path == project.path)
+            text += editor->toPlainText() + QLatin1Char('\n');
+    }
+    return text;
+}
+
+void MainWindow::chooseNextId()
+{
+    Editor* editor = currentEditor();
+    const auto project = editor ? m_catalogue->projectOf(editor->path()) : std::nullopt;
+    if (!project) {
+        statusBar()->showMessage(tr("Open a note inside a project (a folder whose README opens with the status header)"),
+                                 kStatusTimeoutMs * 2);
+        return;
+    }
+    delete m_nextIdActions;
+    m_nextIdActions = new QObject(this);
+    // The current register file's kind first.
+    QStringList kinds = RegisterTemplates::kinds();
+    const QString here = RegisterParser::kindOfFile(QFileInfo(editor->path()).fileName());
+    if (!here.isEmpty()) {
+        kinds.removeAll(here);
+        kinds.prepend(here);
+    }
+    QList<QAction*> actions;
+    for (const QString& kind : std::as_const(kinds)) {
+        auto* action = new QAction(QStringLiteral("%1 — %2").arg(kind, RegisterTemplates::displayName(kind)), m_nextIdActions);
+        connect(action, &QAction::triggered, this, [this, kind] { insertNextId(kind); });
+        actions.append(action);
+    }
+    m_nextIdPicker->setActions(actions);
+    m_nextIdPicker->popup();
+}
+
+void MainWindow::insertNextId(const QString& kind)
+{
+    Editor* editor = currentEditor();
+    const auto project = editor ? m_catalogue->projectOf(editor->path()) : std::nullopt;
+    if (!project || !m_vault)
+        return;
+    auto* watcher = new QFutureWatcher<std::expected<NextId::Allocation, QString>>(this);
+    connect(watcher, &QFutureWatcher<std::expected<NextId::Allocation, QString>>::finished, this, [this, watcher, kind] {
+        const auto allocation = watcher->result();
+        watcher->deleteLater();
+        if (!allocation) {
+            statusBar()->showMessage(allocation.error(), kStatusTimeoutMs * 2);
+            return;
+        }
+        // A missing register file is created from the standard's skeleton:
+        // an explicit command, through Vault::writeNote and AtomicWriter.
+        if (!QFileInfo::exists(allocation->registerFile)) {
+            const Vault* root = rootFor(QFileInfo(allocation->registerFile).absolutePath());
+            if (!root) {
+                statusBar()->showMessage(tr("Outside the vault and its linked roots: %1").arg(allocation->registerFile), kStatusTimeoutMs);
+                return;
+            }
+            if (auto written = root->writeNote(allocation->registerFile, RegisterTemplates::fileSkeleton(kind).toUtf8()); !written) {
+                statusBar()->showMessage(written.error(), kStatusTimeoutMs * 2);
+                return;
+            }
+        }
+        Editor* target = openEditor(allocation->registerFile, false);
+        if (!target)
+            return;
+        if (NoteView* view = currentView())
+            view->setMode(NoteView::Mode::Source);
+
+        // Append the entry, a blank line apart, and select its title to type over.
+        const QString text = target->toPlainText();
+        QString separator;
+        if (!text.isEmpty() && !text.endsWith(QStringLiteral("\n\n")))
+            separator = text.endsWith(QLatin1Char('\n')) ? QStringLiteral("\n") : QStringLiteral("\n\n");
+        const QString entry = RegisterTemplates::entry(kind, allocation->ident, QDate::currentDate());
+        QTextCursor cursor(target->document());
+        cursor.movePosition(QTextCursor::End);
+        cursor.beginEditBlock();
+        cursor.insertText(separator + entry);
+        cursor.endEditBlock();
+        const int titleAt = int(text.size() + separator.size() + entry.indexOf(QLatin1String(RegisterTemplates::kTitle)));
+        cursor.setPosition(titleAt);
+        cursor.setPosition(titleAt + int(qstrlen(RegisterTemplates::kTitle)), QTextCursor::KeepAnchor);
+        target->setTextCursor(cursor);
+        target->centerCursor();
+        target->setFocus();
+        statusBar()->showMessage(tr("%1 reserved for %2 s; save the register to keep it")
+                                     .arg(allocation->ident)
+                                     .arg(NextId::kReservationSeconds),
+                                 kStatusTimeoutMs * 2);
+        emit nextIdInserted(allocation->ident, allocation->registerFile);
+    });
+    watcher->setFuture(QtConcurrent::run([request = NextId::Request{IndexService::indexPath(m_vault->rootPath()), project->rootPath,
+                                                                    project->path, kind, QStringLiteral("gui"),
+                                                                    unsavedRegisterText(*project, kind)}] {
+        return NextId::allocate(request);
+    }));
 }
 
 void MainWindow::openNoteAtWords(const QString& absolutePath, const QStringList& words)

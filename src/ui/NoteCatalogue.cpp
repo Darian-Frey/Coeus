@@ -14,6 +14,8 @@ void NoteCatalogue::setIndexPath(const QString& indexPath)
 {
     m_indexPath = indexPath;
     m_notes.clear();
+    m_registers.clear();
+    m_projects.clear();
     ++m_generation;
 }
 
@@ -22,16 +24,26 @@ void NoteCatalogue::reload()
     if (m_indexPath.isEmpty())
         return;
     const int generation = ++m_generation;
-    auto* watcher = new QFutureWatcher<QList<NoteEntry>>(this);
-    connect(watcher, &QFutureWatcher<QList<NoteEntry>>::finished, this, [this, watcher, generation] {
+    struct Snapshot {
+        QList<NoteEntry> notes;
+        QList<RegisterRef> registers;
+        QList<ProjectRef> projects;
+    };
+    auto* watcher = new QFutureWatcher<Snapshot>(this);
+    connect(watcher, &QFutureWatcher<Snapshot>::finished, this, [this, watcher, generation] {
         watcher->deleteLater();
         if (generation != m_generation)
             return;
-        m_notes = watcher->result();
+        const Snapshot snapshot = watcher->result();
+        m_notes = snapshot.notes;
+        m_registers = snapshot.registers;
+        m_projects = snapshot.projects;
         emit reloaded();
     });
     watcher->setFuture(QtConcurrent::run([path = m_indexPath] {
-        return IndexQueries::allNotes(path).value_or(QList<NoteEntry>());
+        return Snapshot{IndexQueries::allNotes(path).value_or(QList<NoteEntry>()),
+                        IndexQueries::registers(path).value_or(QList<RegisterRef>()),
+                        IndexQueries::projects(path).value_or(QList<ProjectRef>())};
     }));
 }
 
@@ -68,6 +80,21 @@ const NoteEntry* NoteCatalogue::find(const QString& target, const QString& sourc
             byTitle = &note;
     }
     return byTitle;
+}
+
+std::optional<ProjectRef> NoteCatalogue::projectOf(const QString& absolutePath) const
+{
+    // The deepest project folder containing the path, in the right root.
+    std::optional<ProjectRef> best;
+    qsizetype bestLength = -1;
+    for (const ProjectRef& project : m_projects) {
+        const QString folder = project.path.isEmpty() ? project.rootPath : project.rootPath + QLatin1Char('/') + project.path;
+        if (absolutePath.startsWith(folder + QLatin1Char('/')) && folder.size() > bestLength) {
+            bestLength = folder.size();
+            best = project;
+        }
+    }
+    return best;
 }
 
 QStringList NoteCatalogue::headings(const QString& absolutePath) const

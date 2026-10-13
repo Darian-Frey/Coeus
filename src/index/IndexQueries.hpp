@@ -16,6 +16,30 @@ struct NoteEntry {
     QString path;      // root-relative, with .md
     QString title;     // filename without extension
     QStringList aliases;
+    QString project;   // root-relative folder of the note's project; empty if none
+};
+
+// One register entry, for the register panel and ID completion (F-015).
+struct RegisterRef {
+    QString rootName;
+    QString rootPath;
+    QString project;   // root-relative project folder
+    QString kind;
+    int number = 0;
+    QString ident;
+    QString title;
+    QString status;
+    QString notePath;  // absolute path of the register file
+    int line = 0;
+};
+
+// One project, from its README status header (SPEC.md §Status header).
+struct ProjectRef {
+    QString rootName;
+    QString rootPath;
+    QString path;      // root-relative folder; "" for a project at the root
+    QString status;
+    QString lastReviewed;
 };
 
 // Read-only questions the UI asks of the index (ARCHITECTURE.md: the UI
@@ -38,6 +62,9 @@ public:
 
     // Every indexed note with its aliases, for the [[ completer (F-004).
     static std::expected<QList<NoteEntry>, QString> allNotes(const QString& indexPath);
+    // Every register entry inside a project, by project then kind then number.
+    static std::expected<QList<RegisterRef>, QString> registers(const QString& indexPath);
+    static std::expected<QList<ProjectRef>, QString> projects(const QString& indexPath);
     // Heading texts of the note at `notePath`, in document order.
     static std::expected<QStringList, QString> headings(const QString& indexPath, const QString& notePath);
 };

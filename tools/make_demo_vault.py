@@ -193,8 +193,19 @@ def build_vault(vault: Path, linked: Path) -> None:
         - In any note, **Insert Template…** (File menu or `Ctrl+P`) offers the
           `templates/` folder. *Meeting* adds its `tags` to the note's frontmatter
           without touching the keys already there, and its body at the cursor;
-          `Ctrl+Z` takes it all back in one step. `{{next:F}}` stays as written until
-          register IDs arrive in Phase 3.
+          `Ctrl+Z` takes it all back in one step. Inserted into a note under
+          `projects/coeus/`, its `{{next:D}}` becomes D-020; elsewhere it stays as
+          written.
+
+        ## Registers
+        - The **Registers** tab (beside Explorer) lists a project's entries; open
+          `projects/coeus/README.md` and it switches to *projects/coeus*. Filter by
+          kind or status, and click an entry to jump to it.
+        - In `projects/coeus/README.md`, type `D-0`: the project's decisions are
+          offered, with titles.
+        - **Insert Next ID…** (`Ctrl+Shift+I`) in `projects/coeus/DECISIONS.md`
+          appends D-020 with *Title* selected. Choose *Bugs* instead and
+          `BUGS.md` is created for it.
 
         ## Index
         - File → **Verify Index**; File → **Rebuild Index**.

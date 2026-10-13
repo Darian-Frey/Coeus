@@ -45,7 +45,8 @@ std::expected<QList<NoteEntry>, QString> IndexQueries::allNotes(const QString& i
     auto query = db->prepare(
         "SELECT r.name, r.path, n.path, n.title, "
         "       (SELECT group_concat(p.value, char(31)) FROM props p "
-        "         WHERE p.note = n.id AND p.key IN ('aliases', 'alias')) "
+        "         WHERE p.note = n.id AND p.key IN ('aliases', 'alias')), "
+        "       (SELECT path FROM projects WHERE projects.id = n.project_id) "
         "FROM notes n JOIN roots r ON r.id = n.root_id ORDER BY n.root_id, n.path");
     if (!query)
         return std::unexpected(query.error());
@@ -56,10 +57,59 @@ std::expected<QList<NoteEntry>, QString> IndexQueries::allNotes(const QString& i
             return std::unexpected(row.error());
         if (!*row)
             return notes;
-        NoteEntry note{query->text(0), query->text(1), query->text(2), query->text(3), {}};
+        NoteEntry note{query->text(0), query->text(1), query->text(2), query->text(3), {}, {}};
         if (!query->isNull(4))
             note.aliases = query->text(4).split(QChar(31), Qt::SkipEmptyParts);
+        note.project = query->isNull(5) ? QString() : query->text(5);
         notes.append(note);
+    }
+}
+
+std::expected<QList<RegisterRef>, QString> IndexQueries::registers(const QString& indexPath)
+{
+    if (!QFileInfo::exists(indexPath))
+        return std::unexpected(QStringLiteral("The index is not built yet"));
+    auto db = Database::open(indexPath, Database::Mode::ReadOnly);
+    if (!db)
+        return std::unexpected(db.error());
+    auto query = db->prepare(
+        "SELECT r.name, r.path, p.path, g.kind, g.number, g.ident, g.title, g.status, r.path || '/' || n.path, g.line "
+        "FROM registers g JOIN projects p ON p.id = g.project_id JOIN notes n ON n.id = g.note "
+        "JOIN roots r ON r.id = n.root_id ORDER BY r.id, p.path, g.kind, g.number, n.path, g.line");
+    if (!query)
+        return std::unexpected(query.error());
+    QList<RegisterRef> refs;
+    for (;;) {
+        const auto row = query->step();
+        if (!row)
+            return std::unexpected(row.error());
+        if (!*row)
+            return refs;
+        refs.append({query->text(0), query->text(1), query->text(2), query->text(3), int(query->int64(4)),
+                     query->text(5), query->text(6), query->isNull(7) ? QString() : query->text(7), query->text(8),
+                     int(query->int64(9))});
+    }
+}
+
+std::expected<QList<ProjectRef>, QString> IndexQueries::projects(const QString& indexPath)
+{
+    if (!QFileInfo::exists(indexPath))
+        return std::unexpected(QStringLiteral("The index is not built yet"));
+    auto db = Database::open(indexPath, Database::Mode::ReadOnly);
+    if (!db)
+        return std::unexpected(db.error());
+    auto query = db->prepare("SELECT r.name, r.path, p.path, p.status, p.last_reviewed FROM projects p "
+                             "JOIN roots r ON r.id = p.root_id ORDER BY r.id, p.path");
+    if (!query)
+        return std::unexpected(query.error());
+    QList<ProjectRef> projects;
+    for (;;) {
+        const auto row = query->step();
+        if (!row)
+            return std::unexpected(row.error());
+        if (!*row)
+            return projects;
+        projects.append({query->text(0), query->text(1), query->text(2), query->text(3), query->text(4)});
     }
 }
 

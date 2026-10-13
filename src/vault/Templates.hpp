@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDateTime>
+#include <QHash>
 #include <QString>
 #include <QStringList>
 
@@ -14,13 +15,18 @@ public:
 
     struct Rendered {
         QString text;
-        QStringList unsupported; // variables left as written, e.g. {{next:F}} until Phase 3
+        QStringList unsupported; // variables left as written, e.g. {{next:F}} outside a project
     };
 
     // Replaces {{date}} (yyyy-MM-dd), {{time}} (HH:mm), {{title}}, and
-    // {{date:FORMAT}} / {{time:FORMAT}} with Qt date-time formats. Unknown
-    // variables are left as written and listed in `unsupported`.
-    static Rendered render(const QString& text, const QDateTime& now, const QString& title);
+    // {{date:FORMAT}} / {{time:FORMAT}} with Qt date-time formats, and
+    // {{next:KIND}} with the ID allocated for KIND in `nextIds` (one ID per
+    // kind per insertion). Unknown variables, and {{next:KIND}} with no ID,
+    // are left as written and listed in `unsupported`.
+    static Rendered render(const QString& text, const QDateTime& now, const QString& title,
+                           const QHash<QString, QString>& nextIds = {});
+    // The register kinds a template asks {{next:KIND}} for, each once.
+    static QStringList nextKinds(const QString& text);
 
     // The templates folder from config.toml [templates] folder, relative to the vault.
     static QString folder(const QString& vaultPath);

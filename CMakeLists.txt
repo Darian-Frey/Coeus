@@ -44,6 +44,8 @@ add_library(coeus_core STATIC
     src/parser/HtmlRenderer.cpp
     src/parser/NoteParser.cpp
     src/parser/RegisterParser.cpp
+    src/registers/NextId.cpp
+    src/registers/RegisterTemplates.cpp
     src/registers/Vocabulary.cpp
     src/vault/AtomicWriter.cpp
     src/vault/DailyNotes.cpp
@@ -68,6 +70,7 @@ add_library(coeus_core STATIC
     src/ui/NoteView.cpp
     src/ui/OutlinePanel.cpp
     src/ui/PropertiesPanel.cpp
+    src/ui/RegisterPanel.cpp
     src/ui/SearchPanel.cpp
     src/ui/SidebarPanel.cpp
     src/ui/TagPanel.cpp

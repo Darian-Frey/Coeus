@@ -128,10 +128,10 @@ void CommandPalette::refilter()
         if (const auto score = fuzzyScore(pattern, text))
             candidates.push_back({action, text, *score});
     }
-    std::stable_sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
+    std::stable_sort(candidates.begin(), candidates.end(), [this](const Candidate& a, const Candidate& b) {
         if (a.score != b.score)
             return a.score > b.score;
-        return a.text.localeAwareCompare(b.text) < 0;
+        return !m_keepsOrder && a.text.localeAwareCompare(b.text) < 0;
     });
 
     m_list->clear();

@@ -75,8 +75,38 @@ void WikilinkCompleter::refresh()
     const QString before = cursor.block().text().left(cursor.positionInBlock());
     static const QRegularExpression kOpenLink(QStringLiteral(R"(\[\[([^\[\]|\n]*)$)"));
     const auto open = kOpenLink.match(before);
-    if (!open.hasMatch() || cursor.hasSelection()) {
+    if (cursor.hasSelection()) {
         close();
+        return;
+    }
+    if (!open.hasMatch()) {
+        // F-015: "D-" (or "AV-0", …) offers the current project's entries of that kind.
+        static const QRegularExpression kIdent(QStringLiteral(R"((?<![\w-])(F|C|D|AV|BUG|IMP)-(\d*)$)"));
+        const auto ident = kIdent.match(before);
+        const auto project = ident.hasMatch() ? m_catalogue->projectOf(m_notePath) : std::nullopt;
+        QList<Completion> completions;
+        if (project) {
+            const QString kind = ident.captured(1);
+            const QString digits = ident.captured(2);
+            for (const RegisterRef& entry : m_catalogue->registers()) {
+                if (entry.rootPath != project->rootPath || entry.project != project->path || entry.kind != kind)
+                    continue;
+                if (!digits.isEmpty() && !entry.ident.mid(kind.size() + 1).startsWith(digits)
+                    && !QString::number(entry.number).startsWith(digits))
+                    continue;
+                if (!completions.isEmpty() && completions.back().insert == entry.ident)
+                    continue; // a duplicated ident shows once (AV-003 is the lint's business)
+                completions.append({entry.ident, entry.status.isEmpty() ? entry.title : entry.title + QStringLiteral(" · ") + entry.status,
+                                    entry.ident});
+            }
+        }
+        if (completions.isEmpty()) {
+            close();
+            return;
+        }
+        m_replaceFrom = cursor.position() - int(ident.capturedLength());
+        m_closesLink = false;
+        show(completions);
         return;
     }
 
@@ -106,7 +136,12 @@ void WikilinkCompleter::refresh()
         close();
         return;
     }
+    m_closesLink = true;
+    show(completions);
+}
 
+void WikilinkCompleter::show(const QList<Completion>& completions)
+{
     m_model->clear();
     for (const Completion& completion : std::as_const(completions)) {
         auto* item = new QStandardItem(completion.detail.isEmpty()
@@ -118,6 +153,7 @@ void WikilinkCompleter::refresh()
     }
     QAbstractItemView* view = m_completer->popup();
     view->setCurrentIndex(m_model->index(0, 0));
+    // (shared by link and ID completion)
     QRect rect = m_editor->cursorRect();
     rect.setWidth(std::max(320, view->sizeHintForColumn(0) + view->verticalScrollBar()->sizeHint().width()));
     m_completer->complete(rect);
@@ -132,12 +168,14 @@ void WikilinkCompleter::insert(const QModelIndex& index)
     cursor.beginEditBlock();
     cursor.setPosition(m_replaceFrom, QTextCursor::KeepAnchor);
     cursor.insertText(text);
-    // Close the link unless it already is.
-    const QString after = cursor.block().text().mid(cursor.positionInBlock(), 2);
-    if (after != QLatin1String("]]"))
-        cursor.insertText(QStringLiteral("]]"));
-    else
-        cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, 2);
+    if (m_closesLink) {
+        // Close the link unless it already is.
+        const QString after = cursor.block().text().mid(cursor.positionInBlock(), 2);
+        if (after != QLatin1String("]]"))
+            cursor.insertText(QStringLiteral("]]"));
+        else
+            cursor.movePosition(QTextCursor::Right, QTextCursor::MoveAnchor, 2);
+    }
     cursor.endEditBlock();
     m_editor->setTextCursor(cursor);
     close();

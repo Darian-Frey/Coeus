@@ -10,7 +10,20 @@
 
 namespace coeus {
 
-Templates::Rendered Templates::render(const QString& text, const QDateTime& now, const QString& title)
+QStringList Templates::nextKinds(const QString& text)
+{
+    static const QRegularExpression kNext(QStringLiteral(R"(\{\{\s*next:(F|C|D|AV|BUG|IMP)\s*\}\})"));
+    QStringList kinds;
+    for (auto it = kNext.globalMatch(text); it.hasNext();) {
+        const QString kind = it.next().captured(1);
+        if (!kinds.contains(kind))
+            kinds.append(kind);
+    }
+    return kinds;
+}
+
+Templates::Rendered Templates::render(const QString& text, const QDateTime& now, const QString& title,
+                                      const QHash<QString, QString>& nextIds)
 {
     static const QRegularExpression kVariable(QStringLiteral(R"(\{\{\s*([A-Za-z]+)(?::([^}]*))?\s*\}\})"));
     Rendered result;
@@ -27,8 +40,10 @@ Templates::Rendered Templates::render(const QString& text, const QDateTime& now,
             result.text += now.time().toString(format.isEmpty() ? QStringLiteral("HH:mm") : format);
         else if (name == QLatin1String("title") && format.isEmpty())
             result.text += title;
+        else if (name == QLatin1String("next") && nextIds.contains(format))
+            result.text += nextIds.value(format); // allocated by NextId (F-010, F-015)
         else {
-            result.text += m.captured(0); // left for the author, e.g. {{next:F}} until Phase 3
+            result.text += m.captured(0); // left for the author, e.g. {{next:F}} outside a project
             result.unsupported.append(m.captured(0));
         }
     }

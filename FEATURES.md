@@ -90,7 +90,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Acceptance:**
 - Templates folder; insert via command palette
 - Variables: `{{date}}`, `{{time}}`, `{{title}}`, `{{next:F}}` (see F-015)
-**Status:** In progress: the templates folder, insertion and `{{date}}`, `{{time}}`, `{{title}}` are complete (2026-10-13); `{{next:F}}` waits for the register model (F-015, Phase 3)
+**Status:** Complete (2026-10-13): the templates folder, insertion and `{{date}}`, `{{time}}`, `{{title}}` in Phase 2; `{{next:KIND}}` allocates real IDs through `NextId` in Phase 3
 
 ### F-011 File watcher
 **Priority:** Must
@@ -128,7 +128,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - A register panel lists entries per project with status filters and sort by ID
 - Typing `F-`, `D-`, `C-`, `AV-`, `BUG-`, `IMP-` in the editor offers completion over known IDs with their titles
 - Command "Insert next ID" appends the next free ID for the chosen register in the current project (append-only, AV-003)
-**Status:** In progress (Phase 3): entries, projects and citations are parsed and indexed; the register panel, ID completion and Insert next ID are next
+**Status:** Complete (Phase 3, 2026-10-13): entries, projects and citations are indexed; the register panel, ID completion and Insert Next ID are built (SPEC.md §Register panel and commands). Validation is F-016
 **Notes:** Nothing else in the tool depends on the scaffold; a vault with no register files behaves as a plain Obsidian-style vault.
 
 ### F-016 Register validation

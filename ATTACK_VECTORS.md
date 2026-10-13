@@ -23,9 +23,9 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-003 Register ID collision or renumbering
 **Severity:** Critical
 **Description.** Two entries in one project share an ID, or an existing ID changes number, breaking every outside reference (commits, other projects, papers). Causes: "Insert next ID" racing with an external edit; two machines allocating the same ID before sync; a well-meaning refactor.
-**Detection.** Partly implemented. The index has no `UNIQUE(project, kind, number)` constraint, so a duplicate is indexed rather than lost in a failed insert, and citations to a duplicated ident resolve deterministically (`tests/index/test_rebuild_equivalence.cpp` duplicates idents within and across files; resolving by row id makes it fail). Not implemented: the duplicate-ID lint rule and Problems-panel error (F-016), and `tests/registers/test_next_id.cpp`.
+**Detection.** Partly implemented. The index has no `UNIQUE(project, kind, number)` constraint, so a duplicate is indexed rather than lost in a failed insert, and citations to a duplicated ident resolve deterministically (`tests/index/test_rebuild_equivalence.cpp` duplicates idents within and across files; resolving by row id makes it fail). Allocation is covered by `tests/index/test_next_id.cpp`: eight threads allocating at once get distinct consecutive IDs (a deferred transaction makes it fail), and IDs on disk but not yet indexed, in an unsaved buffer, or reserved are never reissued; `tests/ui/test_register_commands.cpp` checks the window passes its unsaved buffer once the reservation has lapsed. Not implemented: the duplicate-ID lint rule and Problems-panel error (F-016).
 **Related decisions.** D-006.
-**History.** Identified during scaffolding 2026-09-25. Cross-process reservation and write-time re-check specified in SPEC.md §ID allocation, 2026-10-12 (BUG-004).
+**History.** Identified during scaffolding 2026-09-25. Cross-process reservation and write-time re-check specified in SPEC.md §ID allocation, 2026-10-12 (BUG-004). `NextId` built with its concurrency test, 2026-10-13.
 
 ### AV-004 Sync conflict clobbers a version
 **Severity:** Critical
@@ -85,7 +85,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-012 Register corruption through MCP writes
 **Severity:** Critical
 **Description.** An AI session calls `append_entry` or `write_note` and produces a duplicate ID, writes outside the vault, overwrites a note with unsaved editor changes, or inserts a vocabulary value the lint would reject. The same invariants that bind the UI must bind the MCP path.
-**Detection.** not implemented (would require `tests/mcp/test_write_tools.cpp`: concurrent `next_id` reservations never collide; `write_note` with `..` or absolute paths is refused; a write to a note open with unsaved changes is refused; invalid vocabulary is refused before the file is touched).
+**Detection.** Partly implemented. `NextId`, which the MCP write tools must share (CLAUDE.md invariants), serialises allocation with `BEGIN IMMEDIATE` across connections and is tested for concurrent callers in `tests/index/test_next_id.cpp`. Not implemented: `tests/mcp/test_write_tools.cpp` (concurrent GUI and MCP `next_id` reservations never collide; `write_note` with `..` or absolute paths is refused; a write to a note open with unsaved changes is refused; invalid vocabulary is refused before the file is touched).
 **Related decisions.** D-012.
 **History.** Identified 2026-10-12.
 

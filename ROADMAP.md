@@ -39,7 +39,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Tag pane (`src/index/Tags.cpp`, `src/ui/TagPanel.cpp`; F-007)
 - [x] Search panel (`src/index/Search.cpp`, `src/ui/SearchPanel.cpp`; F-006)
 - [x] Properties panel with typed validation (`src/ui/PropertiesPanel.cpp`, `src/registers/Vocabulary.cpp`; F-008)
-- [x] Daily notes and templates (`src/vault/DailyNotes.cpp`, `src/vault/Templates.cpp`; F-009, F-010 except `{{next:F}}`, which needs F-015)
+- [x] Daily notes and templates (`src/vault/DailyNotes.cpp`, `src/vault/Templates.cpp`; F-009, F-010; `{{next:KIND}}` completed in Phase 3)
 **Acceptance:** A real vault (the author's project repos) can be browsed, searched, edited and saved for a week without data loss or index drift (AV-001, AV-002).
 
 ## Phase 3 — Differentiators
@@ -48,7 +48,8 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 **Features delivered:** F-015, F-016, F-018, F-019, F-020, F-021, F-022, F-032, F-033, F-035
 **Deliverables:**
 - [x] Register parser and model over the scaffold document types (`src/parser/RegisterParser.cpp`, `src/index/ProjectResolver.cpp`; index schema 2)
-- [ ] Register panel, ID completion, "Insert next ID" command, Problems panel
+- [x] Register panel, ID completion, "Insert next ID" command and `{{next:KIND}}` (`src/ui/RegisterPanel.cpp`, `src/registers/NextId.cpp`, `src/registers/RegisterTemplates.cpp`; F-010, F-015)
+- [ ] Lint rules L1–L8 and the Problems panel (F-016)
 - [ ] Ideas register and project board with freshness, phase and Git ahead/behind columns (`src/ui/ProjectBoard.cpp`)
 - [ ] Mnemosyne embedding worker and `sqlite-vec` table (`src/search/Semantic.cpp`)
 - [ ] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`)

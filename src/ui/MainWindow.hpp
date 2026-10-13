@@ -25,6 +25,8 @@ namespace coeus {
 class BacklinksPanel;
 class OutlinePanel;
 class TagPanel;
+class RegisterPanel;
+struct ProjectRef;
 class SearchPanel;
 class CommandPalette;
 class Editor;
@@ -51,6 +53,12 @@ public:
     // Offers the templates folder's notes; the chosen one goes in at the cursor (F-010).
     void chooseTemplate();
     void insertTemplate(const QString& templatePath);
+    // Offers the register kinds; the next free ID of the chosen kind is
+    // appended to the current project's register file as a new entry (F-015).
+    void chooseNextId();
+    void insertNextId(const QString& kind);
+    CommandPalette* nextIdPicker() const { return m_nextIdPicker; }
+    RegisterPanel* registers() const { return m_registers; }
     CommandPalette* templatePicker() const { return m_templatePicker; }
     // Opens a note with the cursor on `line` (1-based), e.g. from a backlink.
     void openNoteAt(const QString& absolutePath, int line);
@@ -90,6 +98,10 @@ public:
     NoteCatalogue* catalogue() const { return m_catalogue; }
 
 signals:
+    // An ID was reserved and its entry appended to the register's buffer (F-015).
+    void nextIdInserted(const QString& ident, const QString& registerFile);
+    // A template was inserted into the current buffer (F-010).
+    void templateInserted(const QString& templatePath);
     // The stale temporary-file sweep started by openVault() has finished (IMP-002).
     void tempSweepFinished(int removed);
     // The index worker opened the vault's index and finished its first scan.
@@ -137,6 +149,10 @@ private:
     Editor* openEditor(const QString& absolutePath, bool allowMissing);
     void checkRecovery(const QString& vaultPath);
     void forgetJournal(const QString& notePath);
+    void applyTemplate(Editor* editor, const QString& templatePath, const QString& source,
+                       const QHash<QString, QString>& nextIds);
+    // Unsaved text of open buffers of `kind`'s register file in `project`.
+    QString unsavedRegisterText(const ProjectRef& project, const QString& kind) const;
     void showCommandPalette();
     void updateStatus();
     int tabIndexFor(const QString& absolutePath) const;
@@ -177,6 +193,10 @@ private:
     QAction* m_save = nullptr;
     QAction* m_toggleReading = nullptr;
     CommandPalette* m_templatePicker = nullptr;
+    CommandPalette* m_nextIdPicker = nullptr;
+    QObject* m_nextIdActions = nullptr;
+    RegisterPanel* m_registers = nullptr;
+    QDockWidget* m_registersDock = nullptr;
     QObject* m_templateActions = nullptr; // parent of the picker's per-template actions
     NoteCatalogue* m_catalogue = nullptr; // notes and aliases for [[ completion
     QTimer* m_journalTimer = nullptr;

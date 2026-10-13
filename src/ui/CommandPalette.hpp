@@ -25,6 +25,9 @@ public:
     int visibleCount() const;
     void setFilterText(const QString& text);
     void setPlaceholder(const QString& text);
+    // Equal scores (and an empty filter) keep setActions() order instead of
+    // sorting by name; for pickers whose first entry is the likely choice.
+    void setKeepsOrder(bool keeps) { m_keepsOrder = keeps; }
 
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -36,6 +39,7 @@ private:
     QLineEdit* m_input = nullptr;
     QTreeWidget* m_list = nullptr;
     QList<QPointer<QAction>> m_actions;
+    bool m_keepsOrder = false;
 };
 
 } // namespace coeus
