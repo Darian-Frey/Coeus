@@ -38,7 +38,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Outline panel (`src/ui/OutlinePanel.cpp`; F-013)
 - [x] Tag pane (`src/index/Tags.cpp`, `src/ui/TagPanel.cpp`; F-007)
 - [x] Search panel (`src/index/Search.cpp`, `src/ui/SearchPanel.cpp`; F-006)
-- [ ] Properties panel with typed validation
+- [x] Properties panel with typed validation (`src/ui/PropertiesPanel.cpp`, `src/registers/Vocabulary.cpp`; F-008)
 - [ ] Daily notes and templates
 **Acceptance:** A real vault (the author's project repos) can be browsed, searched, edited and saved for a week without data loss or index drift (AV-001, AV-002).
 

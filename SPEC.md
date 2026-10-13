@@ -437,6 +437,15 @@ The Tags dock shares the left area with the Explorer as a tab (`Ctrl+Shift+T` to
 
 Activating a tag, in the pane or as a `coeus-tag:` link in reading mode, filters the Explorer: its folder trees give way to a flat list of the notes tagged with it or beneath it (`#a` includes `#a/b`, not `#ab`), sorted by display path, under a "#tag · N notes" banner with Clear. The list follows index changes while shown. Clicking a note opens it; Clear, or opening another vault, restores the trees.
 
+## Properties panel
+
+In source mode a collapsible "Properties (N)" card sits above the editor (F-008); reading mode shows the properties table of §Reading mode instead. It lists the frontmatter's top-level keys in order, re-read from the buffer 300 ms after it changes.
+
+- **Types** are those of §Frontmatter property types, plus **enum** for keys with a fixed vocabulary: `status` takes the project statuses and `stage` the idea stages (§Vocabularies, §Ideas; `registers/Vocabulary`). Enums are drop-downs; everything else is a line edit, lists as comma-separated items.
+- **Validation.** An enum value outside its vocabulary (or a list where one value belongs) is shown as written, with an error listing the allowed values, and counted in the card's header; it is never rewritten until the author chooses a valid value. A number field accepts only a number and a date field only a valid `YYYY-MM-DD`; anything else is refused with nothing changed.
+- **Editing** changes the editor's buffer, not the file, as one undo step; the note is then saved like any other edit. Only the key's own lines change (D-015): its line and any continuation lines (indented lines or block-list items) become one `key: value` line, keeping the key exactly as written; every other line, comment and the key order stay as they were. A new key is added just before the closing delimiter, with frontmatter created at the top if there was none; an enum key starts at its first allowed value, any other key at `""`. Removing a key removes its lines. Text is written plain when YAML reads it back as the same text, otherwise double-quoted (so `2026` typed into a text field stays text); lists are written in flow style, quoting items that hold `,`, `[`, `]`, `{` or `}`.
+- **Invalid YAML** makes the card read-only and shows the parser's message.
+
 ## Reading mode
 
 Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.

@@ -76,7 +76,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - YAML frontmatter rendered as a properties panel above the note
 - Property types: text, number, date, list, enum; enum values validated against SPEC.md §Vocabularies
 - `status:` accepts only Active / Dormant / Complete / Archived / Superseded; invalid values shown as errors, never silently rewritten
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-10-13)
 
 ### F-009 Daily notes
 **Priority:** Should

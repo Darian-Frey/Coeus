@@ -42,6 +42,7 @@ add_library(coeus_core STATIC
     src/parser/Frontmatter.cpp
     src/parser/HtmlRenderer.cpp
     src/parser/NoteParser.cpp
+    src/registers/Vocabulary.cpp
     src/vault/AtomicWriter.cpp
     src/vault/GitIgnore.cpp
     src/vault/GitIgnoreOffer.cpp
@@ -62,6 +63,7 @@ add_library(coeus_core STATIC
     src/ui/NoteCatalogue.cpp
     src/ui/NoteView.cpp
     src/ui/OutlinePanel.cpp
+    src/ui/PropertiesPanel.cpp
     src/ui/SearchPanel.cpp
     src/ui/SidebarPanel.cpp
     src/ui/TagPanel.cpp

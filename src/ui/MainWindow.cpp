@@ -53,14 +53,6 @@ constexpr int kStatusTimeoutMs = 5000;
 
 const char* const kPathProperty = "coeusPath";
 
-QLabel* placeholder(const QString& text)
-{
-    auto* label = new QLabel(text);
-    label->setWordWrap(true);
-    label->setForegroundRole(QPalette::PlaceholderText);
-    return label;
-}
-
 } // namespace
 
 MainWindow::MainWindow(QWidget* parent)
@@ -113,7 +105,6 @@ void MainWindow::createDocks()
     connect(m_backlinks, &BacklinksPanel::openRequested, this, &MainWindow::openNoteAt);
     m_outline = new OutlinePanel;
     m_sidebar->addSection(tr("Outline"), m_outline);
-    m_sidebar->addSection(tr("Properties"), placeholder(tr("Properties arrive in Phase 2.")));
     m_sidebarDock = new QDockWidget(tr("Sidebar"), this);
     m_sidebarDock->setObjectName(QStringLiteral("sidebarDock"));
     m_sidebarDock->setWidget(m_sidebar);

@@ -2,6 +2,7 @@
 
 #include "parser/HtmlRenderer.hpp"
 #include "ui/Editor.hpp"
+#include "ui/PropertiesPanel.hpp"
 
 #include <QButtonGroup>
 #include <QDir>
@@ -83,6 +84,9 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(header);
+    // Properties above the note in source mode (F-008); reading mode renders its own table.
+    m_properties = new PropertiesPanel(m_editor, this);
+    layout->addWidget(m_properties);
     layout->addWidget(m_stack, 1);
 
     // The reading view follows the buffer while it is showing.
@@ -103,6 +107,7 @@ void NoteView::setMode(Mode mode)
     if (m_mode == mode)
         return;
     m_mode = mode;
+    m_properties->setVisible(mode == Mode::Source);
     if (mode == Mode::Reading) {
         render();
         m_stack->setCurrentWidget(m_reader);

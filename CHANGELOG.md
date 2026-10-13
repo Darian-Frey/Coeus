@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Properties panel (F-008): typed frontmatter fields above the source editor, with `status`/`stage` as vocabulary drop-downs; invalid values shown as errors and never rewritten; edits, additions and removals change only the key's lines in the buffer (D-015), one undo step each. `Frontmatter::setValue`/`removeKey`/`yamlScalar`/`yamlList`; `registers/Vocabulary`. Tests `test_frontmatter_edit`, `test_properties_panel`.
 - Search (F-006): a Search dock (`Ctrl+Shift+F`) with prefix words, phrases, exclusions, `tag:`, `path:`, `file:` and `re:/…/`, BM25 ranking with titles first, marked snippets; hits open with the match selected. Tests `test_search`, `test_search_panel`, and `test_search_speed` (10,000 notes, 29 ms worst case against a 100 ms budget).
 - Tag pane (F-007): a Tags dock tabbed with the Explorer listing every tag nested on `/` with note counts, case-insensitive; activating a tag (or a reading-mode tag link) filters the Explorer to its notes until cleared. Tests `test_tags`, `test_tag_panel`.
 - Outline panel (F-013): the current note's headings as a tree, parsed from the unsaved buffer off the UI thread; clicking goes to the heading in source or reading mode; the cursor's section is highlighted. Test `test_outline_panel`.
@@ -36,6 +37,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- The sidebar's Properties placeholder is gone: properties sit above the note, as F-008 and the mockup place them.
 - D-014 amended: reading mode uses `HtmlRenderer`, not md4c-html, which is no longer a dependency. The attachment-extension rule moves into `parser/` so the parser does not depend on `index/`.
 - SPEC §Autosave journal: journal entries older than their note are offered too, flagged, rather than hidden; new §Editing.
 - libgit2 is now a build dependency (for `.gitignore` rules), ahead of Phase 3's Git features.

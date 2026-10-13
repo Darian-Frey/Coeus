@@ -75,7 +75,154 @@ QStringList listOf(const YAML::Node& node, bool spaceSeparates)
     return items;
 }
 
+// Frontmatter lines of a note, with their character offsets.
+struct Lines {
+    QStringList lines;  // without terminators
+    QList<int> starts;  // offset of each line in the text
+    int open = -1;      // index of the opening "---", or -1 when there is no frontmatter
+    int close = -1;     // index of the closing delimiter
+};
+
+Lines frontmatterLines(const QString& text)
+{
+    Lines result;
+    int offset = 0;
+    for (const QString& line : text.split(QLatin1Char('\n'))) {
+        result.starts.append(offset);
+        result.lines.append(line.endsWith(QLatin1Char('\r')) ? line.chopped(1) : line);
+        offset += int(line.size()) + 1;
+    }
+    const QString first = result.lines.isEmpty() ? QString() : result.lines.front();
+    if (first == QLatin1String("---") || first == QStringLiteral("\uFEFF---")) {
+        for (qsizetype i = 1; i < result.lines.size(); ++i) {
+            if (result.lines[i] == QLatin1String("---") || result.lines[i] == QLatin1String("...")) {
+                result.open = 0;
+                result.close = int(i);
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+// The key a top-level line defines, or empty.
+QString keyOf(const QString& line)
+{
+    static const QRegularExpression kKey(QStringLiteral(R"(^([^\s#\-][^:]*?|"[^"]*"|'[^']*')\s*:(\s|$))"));
+    const auto match = kKey.match(line);
+    if (!match.hasMatch())
+        return {};
+    QString key = match.captured(1).trimmed();
+    if ((key.startsWith(QLatin1Char('"')) && key.endsWith(QLatin1Char('"'))) ||
+        (key.startsWith(QLatin1Char('\'')) && key.endsWith(QLatin1Char('\''))))
+        key = key.mid(1, key.size() - 2);
+    return key;
+}
+
+bool isContinuation(const QString& line)
+{
+    return !line.isEmpty() && (line.front().isSpace() || line.startsWith(QLatin1String("- ")) || line == QLatin1String("-"));
+}
+
+// [first, last] line indices of `key` and its continuation lines.
+std::optional<std::pair<int, int>> keyLines(const Lines& lines, const QString& key)
+{
+    for (int i = lines.open + 1; i < lines.close; ++i) {
+        if (keyOf(lines.lines[i]) != key)
+            continue;
+        int last = i;
+        while (last + 1 < lines.close && isContinuation(lines.lines[last + 1]))
+            ++last;
+        return std::pair(i, last);
+    }
+    return std::nullopt;
+}
+
 } // namespace
+
+Frontmatter::Edit Frontmatter::setValue(const QString& text, const QString& key, const QString& yamlValue)
+{
+    const Lines lines = frontmatterLines(text);
+    const QString line = yamlScalar(key) + QStringLiteral(": ") + yamlValue;
+    if (lines.open < 0)
+        return {0, 0, QStringLiteral("---\n") + line + QStringLiteral("\n---\n")};
+    if (const auto range = keyLines(lines, key)) {
+        // Keep the key exactly as written (quotes, spacing); replace what follows.
+        const QString& old = lines.lines[range->first];
+        const qsizetype colon = old.indexOf(QLatin1Char(':'), old.startsWith(QLatin1Char('"')) || old.startsWith(QLatin1Char('\''))
+                                                                  ? old.indexOf(old.front(), 1) + 1
+                                                                  : 0);
+        const int start = lines.starts[range->first];
+        const int end = lines.starts[range->second] + int(lines.lines[range->second].size());
+        return {start, end - start, old.left(colon + 1) + QLatin1Char(' ') + yamlValue};
+    }
+    // Absent: add it as the last key, just before the closing delimiter.
+    return {lines.starts[lines.close], 0, line + QLatin1Char('\n')};
+}
+
+std::optional<Frontmatter::Edit> Frontmatter::removeKey(const QString& text, const QString& key)
+{
+    const Lines lines = frontmatterLines(text);
+    if (lines.open < 0)
+        return std::nullopt;
+    const auto range = keyLines(lines, key);
+    if (!range)
+        return std::nullopt;
+    const int start = lines.starts[range->first];
+    const int end = lines.starts[range->second + 1]; // through the line break
+    return Edit{start, end - start, QString()};
+}
+
+QString Frontmatter::apply(const QString& text, const Edit& edit)
+{
+    QString result = text;
+    result.replace(edit.start, edit.length, edit.replacement);
+    return result;
+}
+
+QString Frontmatter::yamlScalar(const QString& value, PropertyType type)
+{
+    // Plain if YAML reads it back unchanged and, for text, as a plain
+    // scalar our inference would also call text.
+    bool plain = !value.isEmpty() && value == value.trimmed();
+    static const QRegularExpression kIndicator(QStringLiteral(R"(^[-?:,\[\]{}#&*!|>'"%@`])"));
+    static const QRegularExpression kSpecial(QStringLiteral(R"((: |:$| #|^(true|false|yes|no|on|off|null|~)$))"),
+                                             QRegularExpression::CaseInsensitiveOption);
+    if (plain && (kIndicator.match(value).hasMatch() || kSpecial.match(value).hasMatch() || value.contains(QLatin1Char('\n'))))
+        plain = false;
+    if (plain && type == PropertyType::Text) {
+        const QByteArray probe = "k: " + value.toUtf8();
+        ParsedNote note;
+        Frontmatter::Split split;
+        split.present = true;
+        split.yaml = probe;
+        split.yamlFirstLine = 1;
+        Frontmatter::parse(split, note);
+        plain = !note.frontmatterError && note.properties.size() == 1 && note.properties[0].type == PropertyType::Text
+                && note.properties[0].values == QStringList{value};
+    }
+    if (plain)
+        return value;
+    QString escaped = value;
+    escaped.replace(QLatin1Char('\\'), QLatin1String("\\\\")).replace(QLatin1Char('"'), QLatin1String("\\\""));
+    escaped.replace(QLatin1Char('\n'), QLatin1String("\\n"));
+    return QLatin1Char('"') + escaped + QLatin1Char('"');
+}
+
+QString Frontmatter::yamlList(const QStringList& values)
+{
+    QStringList items;
+    for (const QString& value : values) {
+        QString item = yamlScalar(value);
+        // Inside a flow list, commas and brackets also need quoting.
+        if (!item.startsWith(QLatin1Char('"')) && (item.contains(QLatin1Char(',')) || item.contains(QLatin1Char('['))
+                                                   || item.contains(QLatin1Char(']')) || item.contains(QLatin1Char('{'))
+                                                   || item.contains(QLatin1Char('}'))))
+            item = QLatin1Char('"') + item + QLatin1Char('"');
+        items.append(item);
+    }
+    return QLatin1Char('[') + items.join(QStringLiteral(", ")) + QLatin1Char(']');
+}
 
 Frontmatter::Split Frontmatter::split(QByteArrayView text)
 {

@@ -14,6 +14,7 @@ class QToolButton;
 namespace coeus {
 
 class Editor;
+class PropertiesPanel;
 
 // One open note: a breadcrumb header with the mode switch, and either the
 // source Editor or the rendered reading view (F-003). Both show the same
@@ -27,6 +28,7 @@ public:
     NoteView(const Vault& root, const QString& absolutePath, const QString& displayPath, QWidget* parent = nullptr);
 
     Editor* editor() const { return m_editor; }
+    PropertiesPanel* properties() const { return m_properties; }
     QTextBrowser* reader() const { return m_reader; }
     QString path() const { return m_path; }
 
@@ -58,6 +60,7 @@ private:
     QString m_path;
     Mode m_mode = Mode::Source;
     Editor* m_editor = nullptr;
+    PropertiesPanel* m_properties = nullptr;
     QTextBrowser* m_reader = nullptr;
     QStackedWidget* m_stack = nullptr;
     QToolButton* m_sourceButton = nullptr;
