@@ -27,6 +27,7 @@ target_compile_options(coeus_warnings INTERFACE -Wall -Wextra -Werror)
 
 # Everything except main() lives in a static library so tests can link it.
 add_library(coeus_core STATIC
+    src/index/Backlinks.cpp
     src/index/ContentHash.cpp
     src/index/Database.cpp
     src/index/Indexer.cpp
@@ -48,6 +49,7 @@ add_library(coeus_core STATIC
     src/vault/VaultConfig.cpp
     src/vault/VaultLogging.cpp
     src/vault/VaultWatcher.cpp
+    src/ui/BacklinksPanel.cpp
     src/ui/CommandPalette.cpp
     src/ui/Editor.cpp
     src/ui/ExplorerPanel.cpp

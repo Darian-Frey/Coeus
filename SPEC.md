@@ -415,6 +415,14 @@ Typing in source mode opens a popup when the text before the cursor on its line 
 - **Headings**: after `[[Note#` the popup lists that note's headings (`[[#` lists the current note's), and inserts the heading text.
 - **Keys**: Up/Down move, Return or Tab inserts, Escape closes. If `]]` already follows the cursor it is reused, otherwise it is added; the cursor ends after it.
 
+## Backlinks
+
+The sidebar's Backlinks section follows the current tab (F-005). `Backlinks::collect` runs on a background thread and a newer request discards an older result.
+
+- **Links**: every link the index resolved to the note (§Wikilink resolution), wiki or Markdown, from any root, excluding the note's links to itself. Grouped by source note in root order then path; each shows its line, trimmed and cut to about 160 characters, with `↪` for embeds. Unresolved and ambiguous links are not backlinks.
+- **Unlinked mentions**: the note's title and aliases of 3 characters or more, searched with FTS5 (`body : ("title" OR "alias")`, at most 100 notes) and confirmed line by line: a case-insensitive whole-word match (not joined to a letter, digit or `_`) outside wikilinks, Markdown links, code spans, fenced code and frontmatter. One entry per line.
+- Clicking a note or a line opens the source note with the cursor on that line. The section refreshes when the tab changes and whenever the index reports a change, so a link written elsewhere appears once that note is indexed.
+
 ## Reading mode
 
 Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.

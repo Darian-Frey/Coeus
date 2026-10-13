@@ -1,5 +1,6 @@
 #include "ui/MainWindow.hpp"
 
+#include "ui/BacklinksPanel.hpp"
 #include "ui/CommandPalette.hpp"
 #include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
@@ -34,6 +35,7 @@
 #include <QThread>
 #include <QThreadPool>
 #include <QTimer>
+#include <QTextBlock>
 #include <QToolBar>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -81,6 +83,10 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_journalTimer, &QTimer::timeout, this, &MainWindow::journalNow);
     m_journalTimer->start();
     connect(m_tabs, &QTabWidget::currentChanged, this, &MainWindow::updateStatus);
+    connect(m_tabs, &QTabWidget::currentChanged, this, [this] {
+        Editor* editor = currentEditor();
+        m_backlinks->showNote(editor ? editor->path() : QString());
+    });
 
     createDocks();
     createActions();
@@ -97,7 +103,9 @@ void MainWindow::createDocks()
     addDockWidget(Qt::LeftDockWidgetArea, m_explorerDock);
 
     m_sidebar = new SidebarPanel;
-    m_sidebar->addSection(tr("Backlinks"), placeholder(tr("Backlinks arrive in Phase 2.")));
+    m_backlinks = new BacklinksPanel;
+    m_sidebar->addSection(tr("Backlinks"), m_backlinks);
+    connect(m_backlinks, &BacklinksPanel::openRequested, this, &MainWindow::openNoteAt);
     m_sidebar->addSection(tr("Outline"), placeholder(tr("Outline arrives in Phase 2.")));
     m_sidebar->addSection(tr("Properties"), placeholder(tr("Properties arrive in Phase 2.")));
     m_sidebarDock = new QDockWidget(tr("Sidebar"), this);
@@ -345,6 +353,7 @@ void MainWindow::startIndex(const QString& vaultPath)
     m_index = new IndexService; // no parent: it moves to the worker thread
     m_index->moveToThread(m_indexThread);
     m_catalogue->setIndexPath(IndexService::indexPath(vaultPath));
+    m_backlinks->setIndexPath(IndexService::indexPath(vaultPath));
     connect(m_indexThread, &QThread::finished, m_index, &QObject::deleteLater);
 
     connect(m_index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
@@ -355,11 +364,13 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_verifyIndex->setEnabled(true);
         m_rebuildIndex->setEnabled(true);
         m_catalogue->reload();
+        m_backlinks->refresh();
         emit indexOpened(notes);
     });
     connect(m_index, &IndexService::indexChanged, this, [this](int notes) {
         setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), m_indexLabel->toolTip());
         m_catalogue->reload();
+        m_backlinks->refresh();
         emit indexUpdated(notes);
     });
     connect(m_index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
@@ -427,6 +438,20 @@ void MainWindow::sweepTempFiles(const QString& root)
 void MainWindow::openNote(const QString& absolutePath)
 {
     openEditor(absolutePath, false);
+}
+
+void MainWindow::openNoteAt(const QString& absolutePath, int line)
+{
+    Editor* editor = openEditor(absolutePath, false);
+    if (!editor || line < 1)
+        return;
+    const QTextBlock block = editor->document()->findBlockByNumber(line - 1);
+    if (!block.isValid())
+        return;
+    QTextCursor cursor(block);
+    editor->setTextCursor(cursor);
+    editor->centerCursor();
+    editor->setFocus();
 }
 
 Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)

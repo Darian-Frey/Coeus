@@ -54,7 +54,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Right sidebar lists every note linking to the current one, with context line
 - Unlinked mentions section lists plain-text occurrences of the note's title
 - Clicking a backlink opens the source note at the linking line
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-10-13)
 
 ### F-006 Full-text search
 **Priority:** Must

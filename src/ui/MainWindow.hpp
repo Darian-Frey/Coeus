@@ -22,6 +22,7 @@ class QUrl;
 
 namespace coeus {
 
+class BacklinksPanel;
 class CommandPalette;
 class Editor;
 class NoteCatalogue;
@@ -42,6 +43,9 @@ public:
     void openVault(const Vault& vault);
     // Opens a note in an editor tab, or focuses the tab if it is already open.
     void openNote(const QString& absolutePath);
+    // Opens a note with the cursor on `line` (1-based), e.g. from a backlink.
+    void openNoteAt(const QString& absolutePath, int line);
+    BacklinksPanel* backlinks() const { return m_backlinks; }
     // Saves the current tab's note; false if it was not saved.
     bool saveCurrent();
     // Closes the current tab, asking first if it has unsaved changes.
@@ -138,6 +142,7 @@ private:
     QDockWidget* m_sidebarDock = nullptr;
     ExplorerPanel* m_explorer = nullptr;
     SidebarPanel* m_sidebar = nullptr;
+    BacklinksPanel* m_backlinks = nullptr;
     CommandPalette* m_palette = nullptr;
     QLabel* m_noteLabel = nullptr;
     QLabel* m_vaultLabel = nullptr;
