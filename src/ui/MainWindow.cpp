@@ -10,6 +10,7 @@
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
 #include "ui/SidebarPanel.hpp"
+#include "ui/TagPanel.hpp"
 #include "vault/GitIgnoreOffer.hpp"
 #include "vault/Journal.hpp"
 #include "vault/Roots.hpp"
@@ -116,9 +117,37 @@ void MainWindow::createDocks()
     m_sidebarDock->setWidget(m_sidebar);
     addDockWidget(Qt::RightDockWidgetArea, m_sidebarDock);
 
+    // Tags share the left area with the explorer, as tabs (mockup's tag icon).
+    m_tags = new TagPanel;
+    m_tagsDock = new QDockWidget(tr("Tags"), this);
+    m_tagsDock->setObjectName(QStringLiteral("tagsDock"));
+    m_tagsDock->setWidget(m_tags);
+    addDockWidget(Qt::LeftDockWidgetArea, m_tagsDock);
+    tabifyDockWidget(m_explorerDock, m_tagsDock);
+    m_explorerDock->raise();
+    connect(m_tags, &TagPanel::tagActivated, this, &MainWindow::showTag);
+    connect(m_tags, &TagPanel::reloaded, this, [this] {
+        if (!m_activeTag.isEmpty() && m_explorer->isFiltered())
+            showTag(m_activeTag); // keep the filtered list current
+    });
+
     resizeDocks({m_explorerDock, m_sidebarDock}, {260, 300}, Qt::Horizontal);
 
     connect(m_explorer, &ExplorerPanel::fileActivated, this, &MainWindow::openNote);
+    connect(m_explorer, &ExplorerPanel::filterCleared, this, [this] { m_activeTag.clear(); });
+}
+
+void MainWindow::showTag(const QString& tag)
+{
+    if (tag.isEmpty())
+        return;
+    QList<std::pair<QString, QString>> notes;
+    for (const Tags::Usage& usage : m_tags->notesFor(tag))
+        notes.append({usage.notePath, usage.noteDisplay});
+    m_activeTag = tag;
+    m_explorer->setFilter(QLatin1Char('#') + tag, notes);
+    m_explorerDock->show();
+    m_explorerDock->raise();
 }
 
 void MainWindow::createActions()
@@ -205,6 +234,14 @@ void MainWindow::createActions()
     strip->setIconSize(QSize(18, 18));
     strip->setToolButtonStyle(Qt::ToolButtonIconOnly);
     strip->addAction(toggleExplorer);
+    QAction* toggleTags = m_tagsDock->toggleViewAction();
+    toggleTags->setText(tr("Toggle &Tags"));
+    toggleTags->setIcon(QIcon::fromTheme(QStringLiteral("tag"), QIcon::fromTheme(QStringLiteral("bookmarks"))));
+    toggleTags->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
+    strip->addAction(toggleTags);
+    viewMenu->addAction(toggleTags);
+    addAction(toggleTags);
+    registerAction(toggleTags);
     strip->addAction(palette);
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
@@ -357,6 +394,7 @@ void MainWindow::startIndex(const QString& vaultPath)
     m_index->moveToThread(m_indexThread);
     m_catalogue->setIndexPath(IndexService::indexPath(vaultPath));
     m_backlinks->setIndexPath(IndexService::indexPath(vaultPath));
+    m_tags->setIndexPath(IndexService::indexPath(vaultPath));
     connect(m_indexThread, &QThread::finished, m_index, &QObject::deleteLater);
 
     connect(m_index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
@@ -368,12 +406,14 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_rebuildIndex->setEnabled(true);
         m_catalogue->reload();
         m_backlinks->refresh();
+        m_tags->reload();
         emit indexOpened(notes);
     });
     connect(m_index, &IndexService::indexChanged, this, [this](int notes) {
         setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), m_indexLabel->toolTip());
         m_catalogue->reload();
         m_backlinks->refresh();
+        m_tags->reload();
         emit indexUpdated(notes);
     });
     connect(m_index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
@@ -552,7 +592,7 @@ void MainWindow::followLink(NoteView* view, const QUrl& url)
 {
     const QString scheme = url.scheme();
     if (scheme == QLatin1String("coeus-tag")) {
-        statusBar()->showMessage(tr("Tag #%1: the tag pane arrives later in Phase 2").arg(url.path()), kStatusTimeoutMs);
+        showTag(url.path());
         return;
     }
     if (scheme == QLatin1String("coeus-file")) {

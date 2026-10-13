@@ -4,9 +4,13 @@
 #include <QString>
 #include <QWidget>
 
+#include <utility>
+
 class QFileSystemModel;
 class QModelIndex;
 class QTreeView;
+class QTreeWidget;
+class QLabel;
 class QToolButton;
 class QVBoxLayout;
 
@@ -41,8 +45,18 @@ public:
     QFileSystemModel* model(int section = 0) const { return m_sections.value(section).model; }
     QTreeView* view(int section = 0) const { return m_sections.value(section).view; }
 
+    // Shows only `notes` (absolute path, display path), under a banner naming
+    // the filter, in place of the folder trees; clearFilter() restores them.
+    // Used by the tag pane (F-007).
+    void setFilter(const QString& label, const QList<std::pair<QString, QString>>& notes);
+    void clearFilter();
+    bool isFiltered() const { return m_filtered; }
+    QString filterLabel() const { return m_filterLabelText; }
+    QTreeWidget* filterList() const { return m_filterList; }
+
 signals:
     void fileActivated(const QString& absolutePath);
+    void filterCleared();
     // Emitted once the vault folder's listing has been loaded by its model.
     void rootLoaded();
 
@@ -59,6 +73,11 @@ private:
 
     QVBoxLayout* m_layout = nullptr;
     QList<Section> m_sections;
+    QWidget* m_filterBanner = nullptr;
+    QLabel* m_filterLabel = nullptr;
+    QTreeWidget* m_filterList = nullptr;
+    QString m_filterLabelText;
+    bool m_filtered = false;
 };
 
 } // namespace coeus

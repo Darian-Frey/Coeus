@@ -429,6 +429,12 @@ The sidebar's Outline section shows the current tab's headings (F-013). It is bu
 
 Clicking a heading in source mode puts the cursor on its line and scrolls it to the top; in reading mode it scrolls the rendered heading to the top, matched by text and occurrence (for repeated headings), falling back to position. Moving the cursor highlights the section it is in: the last heading at or above its line.
 
+## Tag pane
+
+The Tags dock shares the left area with the Explorer as a tab (`Ctrl+Shift+T` toggles it) (F-007). It lists every tag in the index, inline and frontmatter alike (§Markdown dialect), nested on `/`, with the number of distinct notes carrying the tag or any tag beneath it. Tags compare without regard to case, as in Obsidian; a group shows the spelling met first in root and path order. The list reloads off the UI thread whenever the index changes, and a filter box narrows it with the palette's fuzzy match, keeping parents of matches.
+
+Activating a tag, in the pane or as a `coeus-tag:` link in reading mode, filters the Explorer: its folder trees give way to a flat list of the notes tagged with it or beneath it (`#a` includes `#a/b`, not `#ab`), sorted by display path, under a "#tag · N notes" banner with Clear. The list follows index changes while shown. Clicking a note opens it; Clear, or opening another vault, restores the trees.
+
 ## Reading mode
 
 Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.

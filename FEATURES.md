@@ -68,7 +68,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Acceptance:**
 - Inline `#tag` and frontmatter `tags:` both indexed; nested `#a/b` supported
 - Tag pane shows counts and filters the explorer
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-10-13)
 
 ### F-008 Typed properties (frontmatter)
 **Priority:** Must

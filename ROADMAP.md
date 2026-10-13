@@ -36,7 +36,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Wikilink completer over titles, aliases and headings (`src/ui/WikilinkCompleter.cpp`, `src/ui/NoteCatalogue.cpp`; F-004)
 - [x] Backlinks panel with unlinked mentions (`src/index/Backlinks.cpp`, `src/ui/BacklinksPanel.cpp`; F-005)
 - [x] Outline panel (`src/ui/OutlinePanel.cpp`; F-013)
-- [ ] Tag pane (F-007)
+- [x] Tag pane (`src/index/Tags.cpp`, `src/ui/TagPanel.cpp`; F-007)
 - [ ] Search panel (F-006)
 - [ ] Properties panel with typed validation
 - [ ] Daily notes and templates

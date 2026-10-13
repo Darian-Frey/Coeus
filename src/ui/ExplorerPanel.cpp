@@ -3,6 +3,9 @@
 #include "vault/Vault.hpp"
 
 #include <QFileSystemModel>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QTreeWidget>
 #include <QToolButton>
 #include <QTreeView>
 #include <QVBoxLayout>
@@ -15,6 +18,66 @@ ExplorerPanel::ExplorerPanel(QWidget* parent)
 {
     m_layout->setContentsMargins(0, 0, 0, 0);
     m_layout->setSpacing(0);
+
+    // The filter view: a banner with Clear, and a flat list of notes.
+    m_filterBanner = new QWidget(this);
+    auto* banner = new QHBoxLayout(m_filterBanner);
+    banner->setContentsMargins(6, 4, 4, 4);
+    m_filterLabel = new QLabel(m_filterBanner);
+    QFont bold = m_filterLabel->font();
+    bold.setBold(true);
+    m_filterLabel->setFont(bold);
+    auto* clear = new QToolButton(m_filterBanner);
+    clear->setText(tr("Clear"));
+    clear->setObjectName(QStringLiteral("clearFilter"));
+    clear->setAutoRaise(true);
+    banner->addWidget(m_filterLabel, 1);
+    banner->addWidget(clear);
+    connect(clear, &QToolButton::clicked, this, &ExplorerPanel::clearFilter);
+
+    m_filterList = new QTreeWidget(this);
+    m_filterList->setHeaderHidden(true);
+    m_filterList->setRootIsDecorated(false);
+    m_filterList->setFrameShape(QFrame::NoFrame);
+    auto open = [this](QTreeWidgetItem* item) { emit fileActivated(item->data(0, Qt::UserRole).toString()); };
+    connect(m_filterList, &QTreeWidget::itemClicked, this, open);
+    connect(m_filterList, &QTreeWidget::itemActivated, this, open);
+
+    m_layout->addWidget(m_filterBanner);
+    m_layout->addWidget(m_filterList, 1);
+    m_filterBanner->hide();
+    m_filterList->hide();
+}
+
+void ExplorerPanel::setFilter(const QString& label, const QList<std::pair<QString, QString>>& notes)
+{
+    m_filtered = true;
+    m_filterLabelText = label;
+    m_filterLabel->setText(tr("%1 · %n note(s)", nullptr, int(notes.size())).arg(label));
+    m_filterList->clear();
+    for (const auto& [path, display] : notes) {
+        auto* item = new QTreeWidgetItem(m_filterList, {display});
+        item->setData(0, Qt::UserRole, path);
+        item->setToolTip(0, path);
+    }
+    for (const Section& section : std::as_const(m_sections))
+        section.widget->hide();
+    m_filterBanner->show();
+    m_filterList->show();
+}
+
+void ExplorerPanel::clearFilter()
+{
+    if (!m_filtered)
+        return;
+    m_filtered = false;
+    m_filterLabelText.clear();
+    m_filterBanner->hide();
+    m_filterList->hide();
+    m_filterList->clear();
+    for (const Section& section : std::as_const(m_sections))
+        section.widget->show();
+    emit filterCleared();
 }
 
 void ExplorerPanel::setRootPath(const QString& path)
@@ -29,6 +92,7 @@ QString ExplorerPanel::rootPath() const
 
 void ExplorerPanel::setRoots(const QList<ExplorerRoot>& roots)
 {
+    clearFilter();
     for (const Section& section : std::as_const(m_sections))
         section.widget->deleteLater();
     m_sections.clear();
