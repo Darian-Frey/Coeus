@@ -56,6 +56,11 @@ public:
     // The header, if the first four lines are one, in order.
     static std::optional<StatusHeader> statusHeader(QStringView text);
 
+    // Every ident with three or more digits in `text`, outside fenced code,
+    // canonical, with its 1-based line, in order (duplicates kept). The same
+    // tokens an entry's mentions are made of, for any note (coeus --lint --mentions).
+    static QList<QPair<QString, int>> mentionsIn(QStringView text);
+
     // "D-5" or "D-0005" -> "D-005"; empty if `text` is not an ident.
     static QString canonical(const QString& text);
 };

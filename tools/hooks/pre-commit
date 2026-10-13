@@ -1,6 +1,15 @@
 #!/bin/sh
 # Coeus pre-commit hook. Enable once per clone:
 #   git config core.hooksPath tools/hooks
-# Blocks the commit on broken or duplicate F-/C-/D-/AV-/BUG-/IMP- IDs and
-# lists one-way references without blocking (IMP-001, Maintenance Rule 6).
-exec python3 "$(git rev-parse --show-toplevel)/tools/check_xrefs.py"
+# Lints Coeus's own registers and documents with the app (F-016, IMP-004):
+# errors block the commit (broken, duplicate or undefined F-/C-/D-/AV-/BUG-/
+# IMP- IDs, vocabulary, required fields); warnings such as one-way references
+# (Maintenance Rule 6) are listed without blocking. Needs a built binary:
+# build/coeus, or the one COEUS_BIN names. `git commit --no-verify` skips it.
+top=$(git rev-parse --show-toplevel)
+coeus=${COEUS_BIN:-$top/build/coeus}
+if [ ! -x "$coeus" ]; then
+    echo "pre-commit: $coeus is not built; build Coeus (BUILD.md) or set COEUS_BIN" >&2
+    exit 1
+fi
+exec "$coeus" --lint --mentions "$top"

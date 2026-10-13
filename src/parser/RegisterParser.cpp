@@ -70,6 +70,29 @@ std::optional<StatusHeader> RegisterParser::statusHeader(QStringView text)
     return StatusHeader{values[0], values[1], values[2], values[3]};
 }
 
+QList<QPair<QString, int>> RegisterParser::mentionsIn(QStringView text)
+{
+    static const QRegularExpression kMention(QStringLiteral(R"((?<![\w-])(F|C|D|AV|BUG|IMP)-(\d{3,})(?!\w))"));
+    static const QRegularExpression kFence(QStringLiteral(R"(^\s{0,3}(`{3,}|~{3,}))"));
+    QList<QPair<QString, int>> mentions;
+    bool inFence = false;
+    const QStringList lines = text.toString().split(QLatin1Char('\n'));
+    for (qsizetype i = 0; i < lines.size(); ++i) {
+        if (kFence.match(lines[i]).hasMatch()) {
+            inFence = !inFence;
+            continue;
+        }
+        if (inFence)
+            continue;
+        for (auto it = kMention.globalMatch(lines[i]); it.hasNext();) {
+            const auto m = it.next();
+            mentions.append({QStringLiteral("%1-%2").arg(m.captured(1)).arg(m.captured(2).toInt(), 3, 10, QLatin1Char('0')),
+                             int(i + 1)});
+        }
+    }
+    return mentions;
+}
+
 QList<RegisterEntry> RegisterParser::parse(QStringView text)
 {
     static const QRegularExpression kEntry(QStringLiteral(R"(^### (F|C|D|AV|BUG|IMP)-(\d{3,})(:)? (.+)$)"));

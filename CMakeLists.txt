@@ -46,6 +46,7 @@ add_library(coeus_core STATIC
     src/parser/NoteParser.cpp
     src/parser/RegisterParser.cpp
     src/registers/Lint.cpp
+    src/registers/LintCommand.cpp
     src/registers/NextId.cpp
     src/registers/RegisterTemplates.cpp
     src/registers/Vocabulary.cpp

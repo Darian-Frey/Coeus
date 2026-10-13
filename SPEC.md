@@ -187,7 +187,7 @@ Reservations are transient, not vault data, so losing them in an index rebuild l
 
 **Vocabulary terms.** Values are case-sensitive. A field passes L3 when its first line is a term, or a term followed by a character that cannot continue a word and then anything: the standard's registers qualify their statuses as `fixed (2026-10-05)`, `Complete (Phase 2, 2026-10-13): …` or `applied 2026-09-23`. `Superseded by D-NNN` is matched as `Superseded by D-` and digits. `Completed`, `Medium` and `Done` fail.
 
-L4 is the rule `tools/check_xrefs.py` applies, and gives the same findings on Coeus's own registers.
+**From a terminal.** `coeus --lint [--strict] [--quiet] [--mentions] <folder>` indexes the folder alone (its Git ignore rules honoured, linked roots not followed) into a temporary index, never the vault's own, and prints each problem as `path:line: level: message (rule)`, then a count on stderr. It exits 0 when there are no errors, 1 on errors, on warnings with `--strict`, or when the folder holds no project, and 2 when it cannot index the folder. `--quiet` prints errors only. `--mentions` adds an error for every ID, outside fenced code, mentioned in a project's note (any note, not only registers) that no entry of that project defines, unless the same line already reports it as L1: the check `tools/check_xrefs.py` made, which it replaces (IMP-004). It is for repositories whose prose should name only their own IDs; vaults that mention other projects' IDs leave it off. Coeus's pre-commit hook and the `lint_coeus_docs` ctest entry run it on Coeus itself.
 
 ### Problems panel
 

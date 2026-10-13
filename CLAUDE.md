@@ -5,7 +5,7 @@ Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt
 
 ## Current state
 - Phase 1 shell builds and passes its tests (see BUILD.md): `src/app/main.cpp`, `src/vault/{Vault,AtomicWriter,TempSweeper}`, `src/parser/{NoteParser,Frontmatter,HtmlRenderer,RegisterParser}`, `src/registers/{Vocabulary,NextId,RegisterTemplates,Lint}`, `src/index/{Database,Schema,IndexStore,ProjectResolver,LintResolver,IndexQueries,Backlinks,Tags,Search,SearchQuery,LinkResolver,Indexer,IndexService,ContentHash}`, `src/vault/{Roots,GitIgnore,GitIgnoreOffer,VaultConfig,VaultWatcher,Journal,DailyNotes,Templates}`, `src/ui/{MainWindow,NoteView,Editor,PropertiesPanel,BacklinksPanel,OutlinePanel,TagPanel,SearchPanel,WikilinkCompleter,WikilinkCompletion,NoteCatalogue,RegisterPanel,ProblemsPanel,MarkdownHighlighter,ExplorerPanel,SidebarPanel,CommandPalette,FuzzyMatch}`; tests under `tests/{vault,parser,index,ui,perf}`.
-- Remaining `src/` module folders are empty placeholders. `tools/` holds `check_xrefs.py` (Maintenance Rule 6), the pre-commit hook, and `make_demo_vault.py`, which builds a vault exercising every feature (BUILD.md §Demo vault).
+- Remaining `src/` module folders are empty placeholders. `tools/` holds the pre-commit hook (`coeus --lint`, Maintenance Rule 6) and `make_demo_vault.py`, which builds a vault exercising every feature (BUILD.md §Demo vault).
 - UI mockup of the target main window: `docs/design/main-window.png`.
 - `BUILD.md`: written 2026-10-12 from the first successful build.
 - `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.
@@ -56,7 +56,7 @@ Verified 2026-10-12; details and dependencies in BUILD.md. New sources are liste
 - Qt destroys a widget's C++ members before its child widgets. A child's `destroyed()` handler that touches the parent's members is a use-after-free during the parent's destructor; track children with `QPointer` instead. Found by AddressSanitizer: run the sanitizer build (BUILD.md) after UI changes.
 - `QPlainTextEdit::setPlainText` clears the document's modified flag. Tests that simulate typing must insert text, or the buffer counts as clean.
 - Never rebuild or delete a widget inside a slot of that widget's own signal (Qt calls it undefined behaviour); queue the work (`QMetaObject::invokeMethod(…, Qt::QueuedConnection)`) and remove widgets with `deleteLater()`, as `PropertiesPanel` does.
-- Run `python3 tools/check_xrefs.py` after editing any register entry. Broken IDs are errors; one-way references are reported but not yet all resolved, so cross-references may still be stale (Maintenance Rule 6).
+- Run `./build/coeus --lint --mentions .` after editing any register entry (the `lint_coeus_docs` ctest entry does too). Broken IDs are errors; one-way references are warnings, not yet all resolved, so cross-references may still be stale (Maintenance Rule 6).
 
 ## Out of scope
 - Do not add a plugin system, mobile build, or Publish feature.

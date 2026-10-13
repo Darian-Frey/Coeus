@@ -48,7 +48,7 @@ coeus/
 │   ├── sync/         # SyncProvider interface and implementations
 │   └── mcp/          # `coeus --mcp` server: read and write tools
 ├── tests/            # Qt Test / Catch2 suites
-├── tools/            # check_xrefs.py and other repo tooling
+├── tools/            # pre-commit hook, demo vault generator
 └── docs/             # domain documentation beyond the scaffold set
     └── design/       # UI mockups (main-window.png)
 ```

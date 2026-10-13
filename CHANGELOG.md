@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- `coeus --lint [--strict] [--quiet] [--mentions] <folder>` (IMP-004): the register lint from a terminal, without a display, into a temporary index; `--mentions` also reports IDs mentioned in a project's notes that it does not define. The pre-commit hook and the new `lint_coeus_docs` ctest entry use it. Test `test_lint_command`.
 - Register validation (F-016): lint rules L1–L9 (unresolved, stale and one-way citations, vocabulary, required fields, stale review, duplicate IDs) run after every index change and are stored in index schema 3; L8 is evaluated when read. A Problems dock (`Ctrl+Shift+M`) lists them by file for the current project or all, filtered by level; the status bar counts the current project's; the editor underlines each with a wavy line and shows it on hover. Vocabulary terms may carry qualifiers (`fixed (2026-10-05)`). L4 follows the standard's back-reference pairs over mentions anywhere in an entry and matches `tools/check_xrefs.py` on Coeus. Fixed BUG-006 (hyphenated field names such as `Trade-offs`) and BUG-007 (a root whose own README is a project failed to index). Tests `test_lint`, `test_problems_panel`. Across `~/Projects`: 381 problems in 12 ms.
 - Registers, step 2 (F-015, F-010 complete): a Registers dock lists a project's entries with kind, status and text filters, following the current note and opening entries at their line; typing `D-` (or any kind) completes the project's IDs; Insert Next ID… (`Ctrl+Shift+I`) allocates through `NextId` (`BEGIN IMMEDIATE`, register files read from disk, unsaved buffer and 60 s reservations counted), creates a missing register file from its skeleton and appends the entry with its title selected; `{{next:KIND}}` in templates takes a real ID. The command palette can keep its given order. Tests `test_next_id` (including eight concurrent allocators) and `test_register_commands`.
 - Registers, step 1 (F-015): `RegisterParser` reads entries, fields, citations and README status headers; `ProjectResolver` derives projects, nested membership and citation targets after every index change. Index schema 2 (`status_headers`, `registers`, `register_fields`, `register_refs`, `lint`, `reservations`); older indexes rebuild. Tests `test_register_parser`, `test_projects`; rebuild equivalence now covers projects and registers. Across `~/Projects`: 9 projects, 508 entries.
@@ -60,3 +61,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - SPEC §Vault layout shows `ideas/`, `.coeus/journal/`, `.coeus-shared/`.
 - F-017 review-freshness dashboard withdrawn, absorbed into F-032.
 - ROADMAP Phase 2 gains F-034; Phase 3 gains F-032, F-033, F-035; Phase 5 acceptance covers two-machine convergence.
+
+### Removed
+- `tools/check_xrefs.py` and its tests, replaced by `coeus --lint --mentions` (IMP-004).

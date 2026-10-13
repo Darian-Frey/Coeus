@@ -39,6 +39,8 @@ coeus_add_test(test_tags index/test_tags.cpp)
 coeus_add_test(test_projects index/test_projects.cpp)
 coeus_add_test(test_next_id index/test_next_id.cpp)
 coeus_add_test(test_lint index/test_lint.cpp)
+coeus_add_test(test_lint_command index/test_lint_command.cpp)
+target_link_libraries(test_lint_command PRIVATE PkgConfig::libgit2)
 target_compile_definitions(test_lint PRIVATE COEUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(test_next_id PRIVATE Qt6::Concurrent)
 coeus_add_test(test_search index/test_search.cpp)
@@ -61,13 +63,12 @@ target_link_libraries(test_main_window PRIVATE PkgConfig::libgit2)
 coeus_add_test(test_open_large_vault perf/test_open_large_vault.cpp)
 coeus_add_test(test_search_speed perf/test_search_speed.cpp)
 
-# Documentation cross-references (IMP-001): broken or duplicate IDs fail.
+# Coeus's own registers and documents, linted by the app (F-016, IMP-004):
+# any error fails, including an ID mentioned in prose that no entry defines.
+add_test(NAME lint_coeus_docs COMMAND coeus --lint --mentions --quiet ${PROJECT_SOURCE_DIR})
+
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
-    add_test(NAME check_xrefs
-             COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/check_xrefs.py --quiet ${PROJECT_SOURCE_DIR})
-    add_test(NAME test_check_xrefs
-             COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/test_check_xrefs.py)
     add_test(NAME test_make_demo_vault
              COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/test_make_demo_vault.py)
 endif()

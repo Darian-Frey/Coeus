@@ -46,13 +46,15 @@ Tests set `QT_QPA_PLATFORM=offscreen` themselves, so they run without a display.
 ./build/tests/test_open_large_vault
 ```
 
-Documentation cross-references are checked by two ctest entries, `check_xrefs` and `test_check_xrefs` (Python 3, standard library only). To run the checker on its own, or to make it block commits with broken IDs:
+Coeus's own registers and documents are linted by the app itself: the `lint_coeus_docs` ctest entry runs `coeus --lint --mentions --quiet` on the repository and fails on any error (SPEC.md §Lint rules). To run it on its own, or to make it block commits with broken IDs:
 
 ```bash
-python3 tools/check_xrefs.py            # errors and one-way references
-python3 tools/check_xrefs.py --strict   # one-way references fail too
-git config core.hooksPath tools/hooks   # enable the pre-commit hook in this clone
+./build/coeus --lint --mentions .            # errors, warnings (one-way references) and info
+./build/coeus --lint --mentions --strict .   # warnings fail too
+git config core.hooksPath tools/hooks        # enable the pre-commit hook in this clone
 ```
+
+`--lint` opens no window and needs no display. The hook runs `build/coeus` (or `$COEUS_BIN`), so build before the first commit in a fresh clone; `git commit --no-verify` skips it.
 
 ## Sanitizers
 
