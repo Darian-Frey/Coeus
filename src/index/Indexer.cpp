@@ -2,6 +2,8 @@
 
 #include "index/ContentHash.hpp"
 #include "index/LinkResolver.hpp"
+#include "index/ProjectResolver.hpp"
+#include "parser/RegisterParser.hpp"
 #include "parser/NoteParser.hpp"
 #include "vault/Vault.hpp"
 
@@ -95,7 +97,13 @@ std::expected<Indexer::Outcome, QString> Indexer::indexFile(const RootInfo& root
             return std::unexpected(touched.error());
         return Outcome::Unchanged;
     }
-    if (auto put = m_store.putNote(record, NoteParser::parse(content)); !put)
+    ParsedNote parsed = NoteParser::parse(content);
+    const QString fileName = QFileInfo(relativePath).fileName();
+    if (fileName == QLatin1String("README.md"))
+        parsed.statusHeader = RegisterParser::statusHeader(QString::fromUtf8(content));
+    if (RegisterParser::isRegisterFile(fileName))
+        parsed.registers = RegisterParser::parse(QString::fromUtf8(content));
+    if (auto put = m_store.putNote(record, parsed); !put)
         return std::unexpected(put.error());
     return knownHash ? Outcome::Updated : Outcome::Added;
 }
@@ -135,6 +143,8 @@ std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root, 
 
     if (auto resolved = LinkResolver::resolveAll(m_store.database()); !resolved)
         return std::unexpected(resolved.error());
+    if (auto projects = ProjectResolver::resolveAll(m_store.database()); !projects)
+        return std::unexpected(projects.error());
     if (auto committed = transaction->commit(); !committed)
         return std::unexpected(committed.error());
     return report;
@@ -172,6 +182,8 @@ std::expected<void, QString> Indexer::update(const RootInfo& root, const QString
     if (changed) {
         if (auto resolved = LinkResolver::resolveAll(m_store.database()); !resolved)
             return std::unexpected(resolved.error());
+        if (auto projects = ProjectResolver::resolveAll(m_store.database()); !projects)
+            return std::unexpected(projects.error());
     }
     return transaction->commit();
 }

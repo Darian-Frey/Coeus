@@ -1,5 +1,7 @@
 #pragma once
 
+#include "parser/RegisterParser.hpp"
+
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -67,6 +69,11 @@ struct ParsedNote {
     QString plainText; // body text for full-text search, without frontmatter
     std::optional<FrontmatterError> frontmatterError;
     int bodyStartLine = 1; // first line after the frontmatter
+
+    // Filled by the indexer from the file name (F-015): a README.md's status
+    // header, and a register file's entries.
+    std::optional<StatusHeader> statusHeader;
+    QList<RegisterEntry> registers;
 };
 
 } // namespace coeus

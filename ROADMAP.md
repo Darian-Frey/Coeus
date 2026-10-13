@@ -44,10 +44,10 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 3 — Differentiators
 **Goal:** The three features that make Coeus more than an Obsidian clone.
-**Status:** Not started
+**Status:** In progress. Order agreed 2026-10-13: registers (F-015, F-016), native Git (F-020–F-022), the project board (F-032), the MCP server (F-033), then semantic search (F-018, F-019, F-035) once D-008 is decided
 **Features delivered:** F-015, F-016, F-018, F-019, F-020, F-021, F-022, F-032, F-033, F-035
 **Deliverables:**
-- [ ] Register parser and model over the scaffold document types (`src/registers/`)
+- [x] Register parser and model over the scaffold document types (`src/parser/RegisterParser.cpp`, `src/index/ProjectResolver.cpp`; index schema 2)
 - [ ] Register panel, ID completion, "Insert next ID" command, Problems panel
 - [ ] Ideas register and project board with freshness, phase and Git ahead/behind columns (`src/ui/ProjectBoard.cpp`)
 - [ ] Mnemosyne embedding worker and `sqlite-vec` table (`src/search/Semantic.cpp`)

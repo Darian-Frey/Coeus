@@ -275,6 +275,45 @@ std::expected<void, QString> IndexStore::putNote(const NoteRecord& record, const
         COEUS_TRY(block->bind(1, id).bind(2, b.id).bind(3, b.line).run());
     }
 
+    if (parsed.statusHeader) {
+        auto header = m_db.prepare("INSERT INTO status_headers(note, status, provenance, last_reviewed, why) VALUES (?, ?, ?, ?, ?)");
+        if (!header)
+            return std::unexpected(header.error());
+        COEUS_TRY(header->bind(1, id)
+                      .bind(2, parsed.statusHeader->status)
+                      .bind(3, parsed.statusHeader->provenance)
+                      .bind(4, parsed.statusHeader->lastReviewed)
+                      .bind(5, parsed.statusHeader->why)
+                      .run());
+    }
+
+    // Entries are stored per note; ProjectResolver attaches them to a project.
+    auto reg = m_db.prepare("INSERT INTO registers(note, kind, number, ident, title, status, line) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    auto field = m_db.prepare("INSERT INTO register_fields(reg, name, value) VALUES (?, ?, ?)");
+    auto ref = m_db.prepare("INSERT INTO register_refs(src, target_ident) VALUES (?, ?)");
+    if (!reg || !field || !ref)
+        return std::unexpected(QStringLiteral("Cannot prepare register statements"));
+    for (const RegisterEntry& entry : parsed.registers) {
+        reg->reset();
+        COEUS_TRY(reg->bind(1, id)
+                      .bind(2, entry.kind)
+                      .bind(3, entry.number)
+                      .bind(4, entry.ident)
+                      .bind(5, entry.title)
+                      .bind(6, entry.status.isEmpty() ? QString() : entry.status)
+                      .bind(7, entry.line)
+                      .run());
+        const std::int64_t regId = m_db.lastInsertRowId();
+        for (const auto& [name, value] : entry.fields) {
+            field->reset();
+            COEUS_TRY(field->bind(1, regId).bind(2, name).bind(3, value.isNull() ? QStringLiteral("") : value).run());
+        }
+        for (const QString& target : entry.references) {
+            ref->reset();
+            COEUS_TRY(ref->bind(1, regId).bind(2, target).run());
+        }
+    }
+
     auto fts = m_db.prepare("INSERT INTO fts(rowid, title, body, path) VALUES (?, ?, ?, ?)");
     if (!fts)
         return std::unexpected(fts.error());

@@ -147,9 +147,11 @@ An entry begins at a level-3 heading matching:
 ^### (F|C|D|AV|BUG|IMP)-(\d{3,})(:)? (.+)$
 ```
 
-and ends at the next level-2 or level-3 heading or end of file. Within an entry, fields are lines matching `^\*\*([A-Za-z ]+):\*\* (.*)$` (single-line fields) or `^\*\*([A-Za-z ]+)\.\*\* (.*)$` (paragraph fields, continuing until a blank line followed by another field or heading). Both forms are stored under the same field name; the trailing `:` or `.` is stripped.
+and ends at the next level-2 or level-3 heading or end of file. Headings inside fenced code are ignored. Within an entry, fields are lines matching `^\*\*([A-Za-z ]+):\*\*( (.*))?$` (single-line fields) or `^\*\*([A-Za-z ]+)\.\*\*( (.*))?$` (paragraph fields). A paragraph field continues over the following non-blank lines until a blank line, another field or a heading, so `**Options.**` followed by a list keeps the list. Both forms are stored under the same field name; the trailing `:` or `.` is stripped. An entry's status is the first line of its `Status` field, as written.
 
-The `Related` and `Related decisions` / `Related claims` fields are split on `,`; each token matching `(F|C|D|AV|BUG|IMP)-\d+` becomes a cross-reference edge.
+Every field whose name is `Related` or begins `Related ` (`Related decisions`, `Related claims`) is a citation list: each `(F|C|D|AV|BUG|IMP)-\d+` in it becomes a cross-reference edge, made canonical (three or more digits, so `D-5` is `D-005`), once per target, never to the entry itself.
+
+**Membership.** A register file is recognised by name anywhere under a project folder (`docs/BUGS.md` counts). A project is a folder whose `README.md` opens with the status header; a note belongs to the nearest such folder above it in its own root, so projects nest. Entries in register files outside every project are indexed with no project and take part in nothing else. `ProjectResolver` recomputes projects, note membership and citation targets after every index change, keeping existing project ids, and writes only rows that differ. A citation resolves to the entry with that ident in the citing entry's project; if the ident is duplicated (AV-003), to the first by note path and line, never by row id, so an incrementally updated index and a rebuilt one agree (AV-001).
 
 ### ID allocation
 
@@ -174,7 +176,7 @@ Reservations are transient, not vault data, so losing them in an index rebuild l
 
 ## Index schema
 
-SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 1 holds the Phase 2 tables plus `projects`; `ideas`, `reservations`, the register tables, `lint`, `chunks` and `vec` arrive with Phase 3 and a version bump.
+SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 2 (Phase 3) adds `status_headers`, the register tables, `lint` and `reservations` to version 1's Phase 2 tables; `ideas`, `chunks` and `vec` arrive later in Phase 3 with further bumps. Opening an index of an older version rebuilds it.
 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -251,13 +253,19 @@ CREATE TABLE blocks (
 CREATE TABLE registers (
   id INTEGER PRIMARY KEY,
   note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-  project_id INTEGER NOT NULL REFERENCES projects(id),
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL, -- NULL outside any project
   kind TEXT NOT NULL,                 -- F C D AV BUG IMP
   number INTEGER NOT NULL,
   ident TEXT NOT NULL,                -- e.g. 'AV-003'
   title TEXT NOT NULL,
-  status TEXT, line INTEGER NOT NULL,
-  UNIQUE(project_id, kind, number)
+  status TEXT, line INTEGER NOT NULL
+  -- No UNIQUE(project_id, kind, number): a duplicate would fail its insert and
+  -- vanish; it must surface as a lint error instead (AV-003).
+);
+
+CREATE TABLE status_headers (           -- a README.md opening with the status header
+  note INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+  status TEXT NOT NULL, provenance TEXT, last_reviewed TEXT, why TEXT
 );
 
 CREATE TABLE reservations (

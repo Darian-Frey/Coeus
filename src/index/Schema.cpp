@@ -4,8 +4,8 @@ namespace coeus {
 
 namespace {
 
-// Phase 2 tables. Registers, ideas, chunks and vectors arrive with Phase 3
-// and a version bump.
+// Version 2 adds the register tables (F-015). Ideas, chunks and vectors
+// arrive later in Phase 3 with another bump.
 constexpr const char* kSchemaSql = R"sql(
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
 
@@ -78,6 +78,59 @@ CREATE TABLE blocks (
   block_id TEXT NOT NULL, line INTEGER NOT NULL
 );
 CREATE INDEX blocks_note ON blocks(note);
+
+-- A README.md whose first four lines are the status header (SPEC §Status header).
+CREATE TABLE status_headers (
+  note INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+  status TEXT NOT NULL, provenance TEXT, last_reviewed TEXT, why TEXT
+);
+
+-- No UNIQUE(project_id, kind, number): a duplicated ID must surface as a lint
+-- error, not vanish in a failed insert (AV-003). project_id is NULL for a
+-- register file outside any project, and is set by ProjectResolver.
+CREATE TABLE registers (
+  id INTEGER PRIMARY KEY,
+  note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  kind TEXT NOT NULL,
+  number INTEGER NOT NULL,
+  ident TEXT NOT NULL,
+  title TEXT NOT NULL,
+  status TEXT,
+  line INTEGER NOT NULL
+);
+CREATE INDEX registers_note ON registers(note);
+CREATE INDEX registers_project ON registers(project_id, kind, number);
+
+CREATE TABLE register_fields (
+  reg INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, value TEXT NOT NULL
+);
+CREATE INDEX register_fields_reg ON register_fields(reg);
+
+CREATE TABLE register_refs (
+  src INTEGER NOT NULL REFERENCES registers(id) ON DELETE CASCADE,
+  target_ident TEXT NOT NULL,
+  target INTEGER REFERENCES registers(id) ON DELETE SET NULL
+);
+CREATE INDEX register_refs_src ON register_refs(src);
+
+CREATE TABLE lint (
+  note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  rule TEXT NOT NULL, level TEXT NOT NULL,
+  line INTEGER, message TEXT NOT NULL
+);
+CREATE INDEX lint_note ON lint(note);
+
+-- next_id reservations shared by the GUI and coeus --mcp (SPEC §ID allocation).
+CREATE TABLE reservations (
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
+  number INTEGER NOT NULL,
+  expires INTEGER NOT NULL,
+  holder TEXT NOT NULL,
+  PRIMARY KEY (project_id, kind, number)
+);
 
 CREATE VIRTUAL TABLE fts USING fts5(
   title, body, path UNINDEXED, tokenize='unicode61 remove_diacritics 2'

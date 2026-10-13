@@ -35,6 +35,7 @@ add_library(coeus_core STATIC
     src/index/IndexService.cpp
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
+    src/index/ProjectResolver.cpp
     src/index/Schema.cpp
     src/index/Search.cpp
     src/index/SearchQuery.cpp
@@ -42,6 +43,7 @@ add_library(coeus_core STATIC
     src/parser/Frontmatter.cpp
     src/parser/HtmlRenderer.cpp
     src/parser/NoteParser.cpp
+    src/parser/RegisterParser.cpp
     src/registers/Vocabulary.cpp
     src/vault/AtomicWriter.cpp
     src/vault/DailyNotes.cpp

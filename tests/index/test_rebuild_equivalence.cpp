@@ -36,6 +36,23 @@ QByteArray noteText(int n, QRandomGenerator& random)
     return text;
 }
 
+const QByteArray kHeader = "> **Status:** Active\n> **Provenance:** Fixture\n> **Last reviewed:** 2026-10-13\n"
+                           "> **Why this status:** Testing.\n\n# Project\n";
+
+// A register file: entries cite each other, sometimes duplicating an ident.
+QByteArray registerText(int seed, QRandomGenerator& random)
+{
+    QByteArray text = "# Register\n\n";
+    const int count = 2 + int(random.bounded(4));
+    for (int i = 1; i <= count; ++i) {
+        const int number = (i == count && seed % 2) ? 1 : i; // seed odd: a duplicate D-001
+        text += "### D-" + QByteArray::number(number).rightJustified(3, '0') + " Entry " + QByteArray::number(i) + "\n"
+                "**Status:** Accepted\n**Related:** D-" + QByteArray::number(1 + random.bounded(count)).rightJustified(3, '0')
+                + ", F-001\n\n**Context.** Seed " + QByteArray::number(seed) + ".\n\n";
+    }
+    return text;
+}
+
 } // namespace
 
 class TestRebuildEquivalence : public QObject {
@@ -88,6 +105,8 @@ private slots:
             writeFile(m_vault.filePath(QStringLiteral("%1n%2.md").arg(n % 3 ? QString() : QStringLiteral("folder/")).arg(n)),
                       noteText(n, random));
         writeFile(m_vault.filePath(QStringLiteral("Hub.md")), "# Hub\n[[n1]] [[n2]]\n");
+        writeFile(m_vault.filePath(QStringLiteral("folder/README.md")), kHeader);
+        writeFile(m_vault.filePath(QStringLiteral("folder/DECISIONS.md")), registerText(1, random));
         writeFile(m_linked.filePath(QStringLiteral("L0.md")), "# Linked\n[[Hub]]\n");
 
         auto store = IndexStore::open(QStringLiteral(":memory:"));
@@ -134,6 +153,13 @@ private slots:
         compare(*store, "linked root");
         edit(m_root0, QStringLiteral("broken.md"), "---\nbad: [\n---\n# Body survives #ok\n");
         compare(*store, "invalid frontmatter");
+        edit(m_root0, QStringLiteral("folder/README.md"), "# No header any more\n"); // project vanishes
+        compare(*store, "project removed");
+        edit(m_root0, QStringLiteral("folder/README.md"), kHeader); // and returns
+        compare(*store, "project restored");
+        edit(m_root0, QStringLiteral("folder/deep/README.md"), kHeader); // a nested project
+        edit(m_root0, QStringLiteral("folder/deep/FEATURES.md"), registerText(2, random));
+        compare(*store, "nested project");
 
         // Random: create, rewrite or delete notes in both roots.
         for (int step = 0; step < 150; ++step) {
@@ -146,6 +172,18 @@ private slots:
                 remove(root, path);
             else
                 edit(root, path, noteText(n, random));
+            if (step % 3 == 0) { // register files change too
+                // Two DECISIONS files in one project share idents, so which D-001 a
+                // citation lands on must not depend on the order rows were written.
+                static const QString kRegisterPaths[] = {QStringLiteral("folder/DECISIONS.md"),
+                                                         QStringLiteral("folder/old/DECISIONS.md"),
+                                                         QStringLiteral("folder/deep/FEATURES.md")};
+                const QString registerPath = kRegisterPaths[random.bounded(3)];
+                if (random.bounded(5) == 0)
+                    remove(m_root0, registerPath);
+                else
+                    edit(m_root0, registerPath, registerText(int(random.bounded(5)), random));
+            }
             if (step % 25 == 24)
                 compare(*store, qPrintable(QStringLiteral("random step %1").arg(step)));
         }

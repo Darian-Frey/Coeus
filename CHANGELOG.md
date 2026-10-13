@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Registers, step 1 (F-015): `RegisterParser` reads entries, fields, citations and README status headers; `ProjectResolver` derives projects, nested membership and citation targets after every index change. Index schema 2 (`status_headers`, `registers`, `register_fields`, `register_refs`, `lint`, `reservations`); older indexes rebuild. Tests `test_register_parser`, `test_projects`; rebuild equivalence now covers projects and registers. Across `~/Projects`: 9 projects, 508 entries.
 - Daily notes (F-009): `Ctrl+D` opens or creates today's note at `[daily] folder/format`, optionally from `[daily] template`, never overwriting. Templates (F-010): Insert Template… renders `{{date}}`, `{{time}}`, `{{title}}` and formatted variants into the buffer, merging frontmatter keys the note lacks. The demo vault gains templates and a daily template. Tests `test_daily_templates`, `test_daily_template_commands`.
 - `tools/make_demo_vault.py`: a demo vault with a linked and a missing root, attachments, every link form, tags, properties and a "Start here" checklist; `--bulk N` for performance; `--force` only ever deletes a demo it made. Test `test_make_demo_vault`.
 - Properties panel (F-008): typed frontmatter fields above the source editor, with `status`/`stage` as vocabulary drop-downs; invalid values shown as errors and never rewritten; edits, additions and removals change only the key's lines in the buffer (D-015), one undo step each. `Frontmatter::setValue`/`removeKey`/`yamlScalar`/`yamlList`; `registers/Vocabulary`. Tests `test_frontmatter_edit`, `test_properties_panel`.
@@ -39,6 +40,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
 ### Changed
+- `registers` drops SPEC's `UNIQUE(project_id, kind, number)` and allows a NULL project, so duplicate IDs are indexed for lint to report (AV-003) instead of failing silently.
 - The sidebar's Properties placeholder is gone: properties sit above the note, as F-008 and the mockup place them.
 - D-014 amended: reading mode uses `HtmlRenderer`, not md4c-html, which is no longer a dependency. The attachment-extension rule moves into `parser/` so the parser does not depend on `index/`.
 - SPEC §Autosave journal: journal entries older than their note are offered too, flagged, rather than hidden; new §Editing.

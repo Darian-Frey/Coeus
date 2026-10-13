@@ -27,6 +27,16 @@ inline QStringList dumpIndex(Database& db)
         "SELECT 'block', n.root_id || ':' || n.path, b.block_id, b.line FROM blocks b JOIN notes n ON n.id = b.note",
         "SELECT 'fts', n.root_id || ':' || n.path, f.title, f.body, f.path FROM fts f JOIN notes n ON n.id = f.rowid",
         "SELECT 'fts-orphans', count(*) FROM fts WHERE rowid NOT IN (SELECT id FROM notes)",
+        "SELECT 'project', root_id || ':' || path, status, provenance, last_reviewed, why FROM projects",
+        "SELECT 'note-project', n.root_id || ':' || n.path, p.root_id || ':' || p.path "
+        "FROM notes n LEFT JOIN projects p ON p.id = n.project_id",
+        "SELECT 'register', n.root_id || ':' || n.path, r.ident, r.title, r.status, r.line, p.path "
+        "FROM registers r JOIN notes n ON n.id = r.note LEFT JOIN projects p ON p.id = r.project_id",
+        "SELECT 'field', n.root_id || ':' || n.path, r.ident, f.name, f.value FROM register_fields f "
+        "JOIN registers r ON r.id = f.reg JOIN notes n ON n.id = r.note",
+        "SELECT 'ref', n.root_id || ':' || n.path, r.ident, x.target_ident, tn.root_id || ':' || tn.path, t.line "
+        "FROM register_refs x JOIN registers r ON r.id = x.src JOIN notes n ON n.id = r.note "
+        "LEFT JOIN registers t ON t.id = x.target LEFT JOIN notes tn ON tn.id = t.note",
     };
 
     QStringList rows;

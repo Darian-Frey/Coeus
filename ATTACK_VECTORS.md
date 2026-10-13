@@ -23,7 +23,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-003 Register ID collision or renumbering
 **Severity:** Critical
 **Description.** Two entries in one project share an ID, or an existing ID changes number, breaking every outside reference (commits, other projects, papers). Causes: "Insert next ID" racing with an external edit; two machines allocating the same ID before sync; a well-meaning refactor.
-**Detection.** not implemented (would require `tests/registers/test_next_id.cpp` and a lint rule flagging duplicate `(project, kind, number)` — the index `UNIQUE` constraint catches it at insert time but must surface as a Problems-panel error, not a silent skip).
+**Detection.** Partly implemented. The index has no `UNIQUE(project, kind, number)` constraint, so a duplicate is indexed rather than lost in a failed insert, and citations to a duplicated ident resolve deterministically (`tests/index/test_rebuild_equivalence.cpp` duplicates idents within and across files; resolving by row id makes it fail). Not implemented: the duplicate-ID lint rule and Problems-panel error (F-016), and `tests/registers/test_next_id.cpp`.
 **Related decisions.** D-006.
 **History.** Identified during scaffolding 2026-09-25. Cross-process reservation and write-time re-check specified in SPEC.md §ID allocation, 2026-10-12 (BUG-004).
 
@@ -62,7 +62,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-008 Register parser drift from the documentation standard
 **Severity:** Major
 **Description.** The standard evolves (new document types, field names, vocabularies) and Coeus silently stops recognising entries, or misclassifies fields, without reporting anything.
-**Detection.** not implemented (would require a fixture set of every skeleton from `development_documentation.md` under `tests/registers/fixtures/`, re-run whenever the standard's Last reviewed date changes; plus a lint counter that warns when a register file parses to zero entries).
+**Detection.** Partly implemented. `tests/parser/test_register_parser.cpp` parses Coeus's own DECISIONS.md and FEATURES.md and requires every `### D-` heading to become an entry with a status. Not implemented: the full skeleton fixture set from `development_documentation.md`, and the zero-entries warning.
 **Related decisions.** D-006.
 **History.** Identified during scaffolding 2026-09-25.
 

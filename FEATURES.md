@@ -128,7 +128,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - A register panel lists entries per project with status filters and sort by ID
 - Typing `F-`, `D-`, `C-`, `AV-`, `BUG-`, `IMP-` in the editor offers completion over known IDs with their titles
 - Command "Insert next ID" appends the next free ID for the chosen register in the current project (append-only, AV-003)
-**Status:** Not started (Phase 3)
+**Status:** In progress (Phase 3): entries, projects and citations are parsed and indexed; the register panel, ID completion and Insert next ID are next
 **Notes:** Nothing else in the tool depends on the scaffold; a vault with no register files behaves as a plain Obsidian-style vault.
 
 ### F-016 Register validation
