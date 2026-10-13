@@ -46,7 +46,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - `[[Note]]`, `[[Note|alias]]`, `[[Note#Heading]]`, `[[Note^block]]` all resolve
 - Typing `[[` opens a completer over note titles, aliases, and headings
 - Ambiguous names (two notes with the same title in different folders) are resolved by nearest-folder rule then flagged (AV-006)
-**Status:** Not started (Phase 2)
+**Status:** Complete (Phase 2, 2026-10-13)
 
 ### F-005 Backlinks and unlinked mentions
 **Priority:** Must

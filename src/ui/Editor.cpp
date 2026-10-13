@@ -2,10 +2,12 @@
 
 #include "index/ContentHash.hpp"
 #include "ui/MarkdownHighlighter.hpp"
+#include "ui/WikilinkCompleter.hpp"
 
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QKeyEvent>
 #include <QScrollBar>
 #include <QTextBlock>
 
@@ -21,6 +23,24 @@ Editor::Editor(const Vault& root, const QString& absolutePath, QWidget* parent)
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
     setTabChangesFocus(false);
     connect(document(), &QTextDocument::modificationChanged, this, &Editor::modificationChanged);
+}
+
+void Editor::setCatalogue(const NoteCatalogue* catalogue)
+{
+    delete m_completer;
+    m_completer = catalogue ? new WikilinkCompleter(this, catalogue, m_path) : nullptr;
+}
+
+void Editor::keyPressEvent(QKeyEvent* event)
+{
+    if (m_completer && m_completer->handleKeyPress(event))
+        return;
+    QPlainTextEdit::keyPressEvent(event);
+    // Only typing opens the popup; reloads and programmatic edits do not.
+    if (m_completer && !event->text().isEmpty())
+        m_completer->refresh();
+    else if (m_completer && (event->key() == Qt::Key_Left || event->key() == Qt::Key_Right))
+        m_completer->refresh();
 }
 
 bool Editor::isModified() const

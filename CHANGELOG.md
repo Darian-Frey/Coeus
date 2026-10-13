@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- Wikilink completer (F-004): `[[` offers notes and aliases ranked by fuzzy match and nearness, `[[Note#` offers headings; shared titles insert a path so the link resolves to the chosen note (AV-006). `NoteCatalogue` reloads off the UI thread. Tests `test_wikilink_completion`, `test_wikilink_completer`; 10,000 notes rank in 6 ms.
 - Reading mode (F-003): Source | Live | Reading switch per tab and `Ctrl+E`; `HtmlRenderer` renders properties, callouts, highlights, tags, task lists, tables and images from md4c; wikilinks open the note the index resolved, Markdown links their relative path. Tests `test_html_renderer`, `test_note_view`.
 - Editor (F-003 source mode, F-011): editable tabs with Markdown highlighting; `Ctrl+S` saves through `Vault::writeNote` and `AtomicWriter`; saving over an external change, or an external change to a modified buffer, prompts (Keep Mine / Load Disk / Decide Later) instead of overwriting (AV-002); clean tabs follow external edits within a second; close and quit ask about unsaved changes.
 - Autosave journal: modified buffers written to `.coeus/journal/` every 5 s on a background thread; unsaved work offered for recovery when the vault reopens.

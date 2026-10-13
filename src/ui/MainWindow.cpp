@@ -3,6 +3,7 @@
 #include "ui/CommandPalette.hpp"
 #include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
+#include "ui/NoteCatalogue.hpp"
 #include "ui/NoteView.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
@@ -70,6 +71,8 @@ MainWindow::MainWindow(QWidget* parent)
     setCentralWidget(m_tabs);
 
     connect(m_tabs, &QTabWidget::tabCloseRequested, this, [this](int index) { closeTab(index); });
+
+    m_catalogue = new NoteCatalogue(this);
 
     m_journalPool = new QThreadPool(this);
     m_journalPool->setMaxThreadCount(1);
@@ -341,6 +344,7 @@ void MainWindow::startIndex(const QString& vaultPath)
     m_indexThread->setObjectName(QStringLiteral("coeus-index"));
     m_index = new IndexService; // no parent: it moves to the worker thread
     m_index->moveToThread(m_indexThread);
+    m_catalogue->setIndexPath(IndexService::indexPath(vaultPath));
     connect(m_indexThread, &QThread::finished, m_index, &QObject::deleteLater);
 
     connect(m_index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
@@ -350,10 +354,12 @@ void MainWindow::startIndex(const QString& vaultPath)
             statusBar()->showMessage(problems.front(), kStatusTimeoutMs * 2);
         m_verifyIndex->setEnabled(true);
         m_rebuildIndex->setEnabled(true);
+        m_catalogue->reload();
         emit indexOpened(notes);
     });
     connect(m_index, &IndexService::indexChanged, this, [this](int notes) {
         setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), m_indexLabel->toolTip());
+        m_catalogue->reload();
         emit indexUpdated(notes);
     });
     connect(m_index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
@@ -466,6 +472,7 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
         }
     }
     view->setProperty(kPathProperty, absolutePath);
+    editor->setCatalogue(m_catalogue);
     connect(editor, &Editor::modificationChanged, this, [this, editor] { updateTabTitle(editor); });
     connect(editor, &Editor::conflictChanged, this, [this, editor] { updateTabTitle(editor); });
     connect(view, &NoteView::linkActivated, this, [this, view](const QUrl& url) { followLink(view, url); });

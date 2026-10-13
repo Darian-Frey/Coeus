@@ -48,7 +48,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-006 Wikilink resolution ambiguity
 **Severity:** Major
 **Description.** Two notes share a title in different folders (every project has a `README.md`, `DECISIONS.md`, and so on); a `[[README]]` link resolves to the wrong project's file, or resolution changes when a new note is added elsewhere in the vault.
-**Detection.** Implemented in `tests/index/test_indexer.cpp` (`wikilinkResolutionOrder`, `markdownLinkResolution`): each rule in SPEC.md §Wikilink resolution, including same-named READMEs in sibling projects, and an equal-distance case that is flagged `ambiguous` rather than guessed.
+**Detection.** Implemented in `tests/index/test_indexer.cpp` (`wikilinkResolutionOrder`, `markdownLinkResolution`): each rule in SPEC.md §Wikilink resolution, including same-named READMEs in sibling projects, and an equal-distance case that is flagged `ambiguous` rather than guessed. Prevention: the `[[` completer inserts a path whenever a title is shared, so links it writes resolve to the chosen note (`tests/ui/test_wikilink_completion.cpp`, `tests/ui/test_wikilink_completer.cpp`).
 **Related decisions.** D-005, D-010.
 **History.** Identified during scaffolding 2026-09-25. Especially likely in this vault because the scaffold standard mandates identical filenames across projects. Linked roots (D-010) add a root dimension to resolution, 2026-10-12.
 

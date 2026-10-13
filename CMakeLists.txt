@@ -54,8 +54,11 @@ add_library(coeus_core STATIC
     src/ui/FuzzyMatch.cpp
     src/ui/MainWindow.cpp
     src/ui/MarkdownHighlighter.cpp
+    src/ui/NoteCatalogue.cpp
     src/ui/NoteView.cpp
     src/ui/SidebarPanel.cpp
+    src/ui/WikilinkCompleter.cpp
+    src/ui/WikilinkCompletion.cpp
 )
 target_include_directories(coeus_core PUBLIC src)
 target_link_libraries(coeus_core

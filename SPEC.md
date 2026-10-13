@@ -405,6 +405,16 @@ The temporary file is created with `O_EXCL`. If the original existed, its mode i
 
 A crash between creating the temporary file and the rename leaves it behind; the original is intact. On vault open, `TempSweeper` walks the vault on a worker thread and deletes files that match all of: a regular file (not a symlink), named `^\..+\.coeus-tmp-[0-9a-f]+$`, last modified more than 60 s ago, and not inside `.git/`. The age limit spares a save in progress in another Coeus process. This is the only deletion Coeus makes without a user command (IMP-002).
 
+## Wikilink completion
+
+Typing in source mode opens a popup when the text before the cursor on its line matches `\[\[([^\[\]|\n]*)$` (F-004). Only typed keys open or narrow it; reloads and programmatic edits never do.
+
+- **Candidates** come from `NoteCatalogue`, a snapshot of every indexed note with its aliases, reloaded on a background thread each time the index reports a change. Notes not yet indexed do not appear until they are.
+- **Ranking** uses the command palette's fuzzy match over titles and aliases, up to 50 results. Equal scores prefer the source note's root, then the folder sharing the most leading segments with the source's, then the shorter label.
+- **Inserted text** always resolves to the chosen note (§Wikilink resolution, AV-006): the bare title when no other note in the index has it; otherwise the root-relative path without `.md` from the same root, or `root:path` from another root. An alias inserts `link|Alias`.
+- **Headings**: after `[[Note#` the popup lists that note's headings (`[[#` lists the current note's), and inserts the heading text.
+- **Keys**: Up/Down move, Return or Tab inserts, Escape closes. If `]]` already follows the cursor it is reused, otherwise it is added; the cursor ends after it.
+
 ## Reading mode
 
 Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.

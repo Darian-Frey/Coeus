@@ -11,6 +11,8 @@
 namespace coeus {
 
 class MarkdownHighlighter;
+class NoteCatalogue;
+class WikilinkCompleter;
 
 // A note open in a tab, in source mode (F-003). Remembers the content hash of
 // the version on disk it was loaded from or last saved as, so a save never
@@ -47,6 +49,13 @@ public:
     bool inConflict() const { return m_conflict; }
     MarkdownHighlighter* highlighter() const { return m_highlighter; }
 
+    // Turns on [[ completion over the catalogue's notes (F-004).
+    void setCatalogue(const NoteCatalogue* catalogue);
+    WikilinkCompleter* completer() const { return m_completer; }
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
+
 signals:
     void modificationChanged(bool modified);
     void conflictChanged(bool conflict);
@@ -62,6 +71,7 @@ private:
     QByteArray m_baseHash; // ContentHash of the disk version the buffer is based on; empty if none
     bool m_conflict = false;
     MarkdownHighlighter* m_highlighter = nullptr;
+    WikilinkCompleter* m_completer = nullptr;
 };
 
 } // namespace coeus

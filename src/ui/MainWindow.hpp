@@ -24,6 +24,7 @@ namespace coeus {
 
 class CommandPalette;
 class Editor;
+class NoteCatalogue;
 class NoteView;
 class ExplorerPanel;
 class IndexService;
@@ -66,6 +67,7 @@ public:
     ExplorerPanel* explorer() const { return m_explorer; }
     QTabWidget* tabs() const { return m_tabs; }
     CommandPalette* commandPalette() const { return m_palette; }
+    NoteCatalogue* catalogue() const { return m_catalogue; }
 
 signals:
     // The stale temporary-file sweep started by openVault() has finished (IMP-002).
@@ -147,6 +149,7 @@ private:
     QAction* m_gitignoreAction = nullptr;
     QAction* m_save = nullptr;
     QAction* m_toggleReading = nullptr;
+    NoteCatalogue* m_catalogue = nullptr; // notes and aliases for [[ completion
     QTimer* m_journalTimer = nullptr;
     QThreadPool* m_journalPool = nullptr; // one thread: journal writes stay in order
     QHash<Editor*, int> m_journalled;     // document revision last written to the journal
