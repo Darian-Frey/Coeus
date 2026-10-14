@@ -29,7 +29,9 @@ class TagPanel;
 class HistoryPanel;
 class ProblemsPanel;
 class ProjectBoard;
+class McpLink;
 class PromoteDialog;
+class WriteToast;
 struct IdeaRef;
 class CommitDialog;
 class DiffView;
@@ -79,6 +81,9 @@ public:
     void promoteIdea(const IdeaRef& idea);
     // Writes the new project and removes the idea; true on success.
     bool promote(const IdeaRef& idea, const QString& codename, const QString& targetFolder, const QString& rootName);
+    // F-033: the link `coeus --mcp` uses to ask about open notes and report writes.
+    McpLink* mcpLink() const { return m_mcpLink; }
+    QList<WriteToast*> toasts() const;
     QDockWidget* boardDock() const { return m_boardDock; }
     HistoryPanel* history() const { return m_history; }
     // Opens the note as it was in `commit`, read-only, in a tab (F-020).
@@ -153,6 +158,8 @@ signals:
     void pushFinished(bool ok, const QString& message);
     void headerRefreshed(const QString& readmePath);
     void promoted(const QString& readmePath);
+    void toastShown(coeus::WriteToast* toast);
+    void writeUndone(const QString& path, bool undone);
     // An ID was reserved and its entry appended to the register's buffer (F-015).
     void nextIdInserted(const QString& ident, const QString& registerFile);
     // A template was inserted into the current buffer (F-010).
@@ -175,6 +182,11 @@ signals:
 protected:
     void closeEvent(QCloseEvent* event) override;
     void changeEvent(QEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+    void showWriteToast(const QString& path, const std::optional<QByteArray>& before, const QByteArray& afterHash,
+                        const QString& summary);
+    void undoWrite(WriteToast* toast);
+    void layoutToasts();
     void requestBlame(Editor* editor);
     QString gitStatusPath() const;
     void commit(const QString& workdir, const QStringList& paths, const QString& message, bool push);
@@ -270,6 +282,8 @@ private:
     ProjectBoard* m_board = nullptr;
     QDockWidget* m_boardDock = nullptr;
     QTimer* m_boardTimer = nullptr;
+    McpLink* m_mcpLink = nullptr;
+    QList<QPointer<WriteToast>> m_toasts;
     QObject* m_templateActions = nullptr; // parent of the picker's per-template actions
     NoteCatalogue* m_catalogue = nullptr; // notes and aliases for [[ completion
     QTimer* m_journalTimer = nullptr;

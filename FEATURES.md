@@ -277,7 +277,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Write tools (`next_id`, `append_entry`, `write_note`) are disabled by default, enabled per vault in `config.toml`, and route through `AtomicWriter` and `NextId`
 - When the GUI is running, each write tool call shows a confirmation toast with an undo for 10 s
 - Claude Code in the Antigravity IDE and Claude chat can both be configured against it with a documented snippet in BUILD.md
-**Status:** In progress (Phase 3): the protocol and the read tools `search`, `get_note`, `list_registers`, `project_status`, `list_ideas`, working with Coeus closed, and the BUILD.md snippets (2026-10-14); the write tools with GUI confirmation are next. `related` waits for F-019. Claude Code is the client it is built for; a local model is optional (D-021)
+**Status:** Complete (Phase 3, 2026-10-14): read tools working with Coeus closed; write tools `next_id`, `append_entry`, `write_note`, off unless enabled, refusing notes open with unsaved changes, with a 10 s undo toast when the window is open; BUILD.md snippets. `related` waits for F-019. Claude Code is the client it is built for, and claude.ai in a browser cannot reach a local server (D-021)
 
 ### F-034 Linked project roots
 **Priority:** Must

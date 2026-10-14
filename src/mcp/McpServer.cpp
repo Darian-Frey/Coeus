@@ -2,7 +2,9 @@
 
 #include "index/IndexService.hpp"
 #include "mcp/McpTools.hpp"
+#include "vault/VaultConfig.hpp"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -50,6 +52,7 @@ const QStringList& McpServer::protocolVersions()
 McpServer::McpServer(const QString& vaultPath)
     : m_vaultPath(vaultPath)
     , m_indexPath(IndexService::indexPath(vaultPath))
+    , m_gui(vaultPath)
 {
 }
 
@@ -163,8 +166,14 @@ QJsonObject McpServer::callTool(const QJsonObject& params, QJsonObject* error)
         *error = {{QStringLiteral("code"), kInternalError}, {QStringLiteral("message"), QStringLiteral("The index is not usable: %1").arg(problem)}};
         return {};
     }
-    const McpTools::Context context{m_vaultPath, m_indexPath, m_roots};
+    McpTools::Context context{m_vaultPath, m_indexPath, m_roots};
+    // Read on every call, so turning writes on or off takes effect at once.
+    context.allowWrites = VaultConfig::boolean(m_vaultPath, "mcp", "allow_writes").value_or(false);
+    context.gui = &m_gui;
+    context.holder = QStringLiteral("mcp:%1").arg(QCoreApplication::applicationPid());
     const auto result = McpTools::call(context, name, arguments.toObject());
+    if (result && McpTools::isWriteTool(name))
+        m_sinceScan.invalidate(); // the next call indexes what was just written
     if (!result) {
         // A tool's own failure is a result the model can read and act on, not a protocol error.
         return {{QStringLiteral("content"), QJsonArray{QJsonObject{{QStringLiteral("type"), QStringLiteral("text")},

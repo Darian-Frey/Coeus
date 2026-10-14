@@ -459,7 +459,7 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 **Recorded:** 2026-10-14
 **Status:** Accepted
 **Authors:** Shane Hartley (with Claude discussion 2026-10-14)
-**Related:** F-033, D-012, D-003, D-008, SPEC.md §MCP surface
+**Related:** F-033, D-012, D-003, D-008, AV-012, SPEC.md §MCP surface
 
 **Context.** `coeus --mcp` (F-033) serves tools; the model that calls them lives in the client. The author has LM Studio 0.4.26, itself an MCP client, with Qwen3.5 9B Abliterated and Qwen2.5 7B Instruct (both marked for tool use), Qwen2.5 Coder 14B and Nomic Embed Text v1.5. D-012 named Claude chat and Claude Code as the clients. The author needs a client that works on any machine they use, whatever its hardware.
 

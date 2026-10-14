@@ -8,11 +8,13 @@
 #include "ui/ExplorerPanel.hpp"
 #include "ui/HistoryPanel.hpp"
 #include "ui/Icons.hpp"
+#include "ui/McpLink.hpp"
 #include "ui/NoteCatalogue.hpp"
 #include "ui/NoteView.hpp"
 #include "ui/OutlinePanel.hpp"
 #include "git/GitCommand.hpp"
 #include "git/GitRepository.hpp"
+#include "index/ContentHash.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
 #include "parser/RegisterParser.hpp"
@@ -28,6 +30,7 @@
 #include "ui/SidebarPanel.hpp"
 #include "ui/TagPanel.hpp"
 #include "ui/VersionView.hpp"
+#include "ui/WriteToast.hpp"
 #include "vault/DailyNotes.hpp"
 #include "vault/GitIgnoreOffer.hpp"
 #include "vault/Journal.hpp"
@@ -110,6 +113,21 @@ MainWindow::MainWindow(QWidget* parent)
         refreshGitStatus();
         emit pushFinished(ok, message);
     });
+    // MCP writes (F-033, AV-012): `coeus --mcp` asks before touching a note open
+    // here and reports each write, which this window offers to undo.
+    m_mcpLink = new McpLink(
+        [this](const QString& path) {
+            const Editor* editor = editorFor(path);
+            if (!editor)
+                editor = editorFor(QFileInfo(path).canonicalFilePath());
+            if (!editor)
+                return McpLink::Buffer{};
+            return McpLink::Buffer{true, editor->isModified(), editor->isModified() ? editor->toPlainText() : QString()};
+        },
+        [this](const QString& path, const std::optional<QByteArray>& before, const QByteArray& afterHash, const QString& summary) {
+            showWriteToast(path, before, afterHash, summary);
+        },
+        this);
     m_gitStatusTimer = new QTimer(this);
     m_gitStatusTimer->setSingleShot(true);
     m_gitStatusTimer->setInterval(kGitStatusDelayMs);
@@ -526,6 +544,8 @@ void MainWindow::openVault(const Vault& vault)
     }
     m_vault = vault;
     m_linkedRoots.clear();
+    if (!m_mcpLink->listen(vault.rootPath()))
+        statusBar()->showMessage(tr("Another Coeus window is serving this vault to MCP clients"), kStatusTimeoutMs * 2);
 
     // The explorer lists linked roots at once; the index reconciles them on its thread.
     QList<ExplorerRoot> roots{ExplorerRoot{vault.name(), vault.rootPath(), true}};
@@ -1975,6 +1995,78 @@ bool MainWindow::promote(const IdeaRef& idea, const QString& codename, const QSt
                              kStatusTimeoutMs * 2);
     emit promoted(readme);
     return true;
+}
+
+QList<WriteToast*> MainWindow::toasts() const
+{
+    QList<WriteToast*> live;
+    for (const QPointer<WriteToast>& toast : m_toasts) {
+        if (toast)
+            live.append(toast);
+    }
+    return live;
+}
+
+void MainWindow::showWriteToast(const QString& path, const std::optional<QByteArray>& before, const QByteArray& afterHash,
+                                const QString& summary)
+{
+    auto* toast = new WriteToast(path, before, afterHash, summary, this);
+    connect(toast, &WriteToast::undoRequested, this, &MainWindow::undoWrite);
+    connect(toast, &QObject::destroyed, this, [this] { QMetaObject::invokeMethod(this, &MainWindow::layoutToasts, Qt::QueuedConnection); });
+    m_toasts.append(toast);
+    toast->show();
+    layoutToasts();
+    emit toastShown(toast);
+}
+
+void MainWindow::undoWrite(WriteToast* toast)
+{
+    const QString path = toast->path();
+    QFile file(path);
+    const bool exists = file.exists();
+    QByteArray current;
+    if (exists && file.open(QIODevice::ReadOnly))
+        current = file.readAll();
+    file.close();
+    // Only what was written is put back: if anything changed it since, it stays.
+    if (!exists || ContentHash::of(current) != toast->afterHash()) {
+        toast->finish(tr("Not undone: %1 has changed since").arg(displayPath(path)));
+        emit writeUndone(path, false);
+        return;
+    }
+    bool undone = false;
+    if (toast->before()) {
+        const Vault* root = rootFor(path);
+        undone = root && root->writeNote(path, *toast->before()).has_value();
+    } else {
+        undone = QFile::remove(path); // it was created by the write: undoing removes it
+    }
+    toast->finish(undone ? tr("Undone: %1 is as it was").arg(displayPath(path)) : tr("Could not undo %1").arg(displayPath(path)));
+    emit writeUndone(path, undone);
+}
+
+void MainWindow::layoutToasts()
+{
+    // Stacked upwards from the bottom-right corner of the editor area.
+    const QRect area = centralWidget() ? QRect(centralWidget()->mapTo(this, QPoint(0, 0)), centralWidget()->size()) : rect();
+    int bottom = area.bottom() - 12;
+    for (const QPointer<WriteToast>& toast : std::as_const(m_toasts)) {
+        if (!toast || !toast->isVisible())
+            continue;
+        // Within the editor area, never over the docks beside it.
+        const int width = std::max(200, std::min(toast->maximumWidth(), area.width() - 24));
+        toast->setFixedWidth(width);
+        const QSize size(width, toast->heightForWidth(width) > 0 ? toast->heightForWidth(width) : toast->sizeHint().height());
+        toast->setGeometry(area.right() - 12 - size.width(), bottom - size.height(), size.width(), size.height());
+        toast->raise();
+        bottom -= size.height() + 8;
+    }
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event)
+{
+    QMainWindow::resizeEvent(event);
+    layoutToasts();
 }
 
 void MainWindow::changeEvent(QEvent* event)

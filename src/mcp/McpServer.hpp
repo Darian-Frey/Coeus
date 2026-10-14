@@ -3,6 +3,7 @@
 #include "index/IndexRoots.hpp"
 #include "index/IndexStore.hpp"
 #include "index/Indexer.hpp"
+#include "mcp/GuiLink.hpp"
 #include "vault/GitIgnore.hpp"
 
 #include <QByteArray>
@@ -54,6 +55,7 @@ private:
     QList<IndexRoots::Root> m_roots;
     QHash<int, std::shared_ptr<GitIgnore>> m_ignores;
     QElapsedTimer m_sinceScan;
+    GuiLink m_gui;
     bool m_alwaysRescan = false;
 };
 

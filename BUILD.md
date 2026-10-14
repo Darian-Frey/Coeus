@@ -131,6 +131,15 @@ Inside a session, `/mcp` lists the server and its tools.
 
 Claude in a web browser (claude.ai) cannot start a local program, so it cannot use a stdio server; it would need Coeus to serve MCP over HTTP, which it does not.
 
+**Writing.** The write tools (`next_id`, `append_entry`, `write_note`) refuse until the vault allows them, in `<vault>/.coeus/config.toml`:
+
+```toml
+[mcp]
+allow_writes = true
+```
+
+It is read on every call, so deleting it turns writing off at once. With the Coeus window open on the vault, a note or register open with unsaved changes is never written, and each write shows a toast with Undo for 10 seconds.
+
 To try the protocol by hand:
 
 ```bash

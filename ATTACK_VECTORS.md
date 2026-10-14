@@ -85,9 +85,9 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-012 Register corruption through MCP writes
 **Severity:** Critical
 **Description.** An AI session calls `append_entry` or `write_note` and produces a duplicate ID, writes outside the vault, overwrites a note with unsaved editor changes, or inserts a vocabulary value the lint would reject. The same invariants that bind the UI must bind the MCP path.
-**Detection.** Partly implemented. `NextId`, which the MCP write tools must share (CLAUDE.md invariants), serialises allocation with `BEGIN IMMEDIATE` across connections and is tested for concurrent callers in `tests/index/test_next_id.cpp`. Not implemented: `tests/mcp/test_write_tools.cpp` (concurrent GUI and MCP `next_id` reservations never collide; `write_note` with `..` or absolute paths is refused; a write to a note open with unsaved changes is refused; invalid vocabulary is refused before the file is touched).
-**Related decisions.** D-012.
-**History.** Identified 2026-10-12.
+**Detection.** Implemented. `NextId`, shared by the window and the MCP write tools, serialises allocation with `BEGIN IMMEDIATE` across connections (`tests/index/test_next_id.cpp`, eight concurrent allocators). `tests/mcp/test_mcp_server.cpp`: writes refused until `allow_writes`; `append_entry` refusing a missing required field, a value outside its vocabulary and a skipped ident without reserving anything, and creating a missing register; `write_note` refusing register files, hidden paths and `..`. `tests/index/test_entry_writer.cpp`: what `append_entry` writes parses back as meant and passes the lint. `tests/ui/test_mcp_window.cpp`, with the real `coeus --mcp` and a window: writes to a note or register open with unsaved changes are refused, `next_id` counts the unsaved IDs, and Undo restores a write or removes a created file but never touches a file changed since. Removing either the unsaved check or Undo's check fails those tests.
+**Related decisions.** D-012, D-021.
+**History.** Identified 2026-10-12. Write tools built with these guards 2026-10-14.
 
 ### AV-009 Plaintext leak through the sync provider
 **Severity:** Major

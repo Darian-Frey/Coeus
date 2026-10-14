@@ -57,6 +57,18 @@ std::optional<qint64> VaultConfig::integer(const QString& vaultPath, const char*
     return value ? std::optional<qint64>(*value) : std::nullopt;
 }
 
+std::optional<bool> VaultConfig::boolean(const QString& vaultPath, const char* table, const char* key)
+{
+    QFile file(Roots::configPath(vaultPath));
+    if (!file.open(QIODevice::ReadOnly))
+        return std::nullopt;
+    const QByteArray text = file.readAll();
+    const toml::parse_result result = toml::parse(std::string_view(text.constData(), size_t(text.size())));
+    if (!result)
+        return std::nullopt;
+    return result.table()[table][key].value<bool>();
+}
+
 std::expected<QByteArray, QString> VaultConfig::withString(const QByteArray& toml, const char* table, const char* key,
                                                            const QString& value)
 {

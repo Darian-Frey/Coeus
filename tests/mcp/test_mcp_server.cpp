@@ -5,7 +5,9 @@
 #include "../index/IndexDump.hpp"
 
 #include "mcp/McpServer.hpp"
+#include "parser/RegisterParser.hpp"
 
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -29,6 +31,12 @@ QJsonObject request(int id, const QString& method, const QJsonObject& params = {
     if (!params.isEmpty())
         message.insert(QStringLiteral("params"), params);
     return message;
+}
+
+QByteArray read(const QString& path)
+{
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
 }
 
 QByteArray line(const QJsonObject& message)
@@ -125,7 +133,8 @@ private slots:
             QVERIFY(tool.toObject().value(QStringLiteral("inputSchema")).toObject().value(QStringLiteral("type")).toString() == QLatin1String("object"));
         }
         QCOMPARE(names, (QStringList{QStringLiteral("search"), QStringLiteral("get_note"), QStringLiteral("list_registers"),
-                                     QStringLiteral("project_status"), QStringLiteral("list_ideas")}));
+                                     QStringLiteral("project_status"), QStringLiteral("list_ideas"), QStringLiteral("next_id"),
+                                     QStringLiteral("append_entry"), QStringLiteral("write_note")}));
     }
 
     void searchFindsNotesAndCatchesUp()
@@ -220,6 +229,131 @@ private slots:
         QCOMPARE(scoped.size(), 1);
         QCOMPARE(scoped[0].toObject().value(QStringLiteral("codename")).toString(), QStringLiteral("Theia"));
         QCOMPARE(scoped[0].toObject().value(QStringLiteral("path")).toString(), QStringLiteral("ideas/theia.md"));
+    }
+
+    void writesAreRefusedUntilTheVaultAllowsThem()
+    {
+        const QByteArray decisions = read(vault("projects/alpha/DECISIONS.md"));
+        bool ok = true;
+        const QString error = call(QStringLiteral("append_entry"), {{QStringLiteral("project"), QStringLiteral("projects/alpha")},
+                                                                    {QStringLiteral("kind"), QStringLiteral("D")},
+                                                                    {QStringLiteral("title"), QStringLiteral("Nope")}}, &ok)
+                                  .value(QStringLiteral("error")).toString();
+        QVERIFY(!ok);
+        QVERIFY(error.contains(QStringLiteral("allow_writes = true")));
+        call(QStringLiteral("write_note"), {{QStringLiteral("path"), QStringLiteral("x")}, {QStringLiteral("body"), QStringLiteral("x")},
+                                            {QStringLiteral("mode"), QStringLiteral("create")}}, &ok);
+        QVERIFY(!ok);
+        QVERIFY(!QFile::exists(vault("x.md")));
+        QCOMPARE(read(vault("projects/alpha/DECISIONS.md")), decisions);
+        writeFile(vault(".coeus/config.toml"), "[mcp]\nallow_writes = true\n"); // read on every call: no restart
+    }
+
+    void appendEntryWritesTheNextIdToTheStandard()
+    {
+        bool ok = false;
+        QJsonObject added = call(QStringLiteral("append_entry"),
+                                 {{QStringLiteral("project"), QStringLiteral("projects/alpha")},
+                                  {QStringLiteral("kind"), QStringLiteral("d")},
+                                  {QStringLiteral("title"), QStringLiteral("Third decision")},
+                                  {QStringLiteral("fields"), QJsonObject{{QStringLiteral("Context"), QStringLiteral("Because.")},
+                                                                         {QStringLiteral("Reversal conditions"), QStringLiteral("Never.")},
+                                                                         {QStringLiteral("Related"), QStringLiteral("F-001")}}}},
+                                 &ok);
+        QVERIFY2(ok, qPrintable(added.value(QStringLiteral("error")).toString()));
+        QCOMPARE(added.value(QStringLiteral("ident")).toString(), QStringLiteral("D-003"));
+        QCOMPARE(added.value(QStringLiteral("path")).toString(), QStringLiteral("projects/alpha/DECISIONS.md"));
+        const QString decisions = QString::fromUtf8(read(vault("projects/alpha/DECISIONS.md")));
+        const auto entries = RegisterParser::parse(decisions);
+        QCOMPARE(entries.size(), 3);
+        QCOMPARE(entries.back().ident, QStringLiteral("D-003"));
+        QCOMPARE(entries.back().line, added.value(QStringLiteral("line")).toInt());
+        QCOMPARE(entries.back().status, QStringLiteral("Proposed"));
+        QVERIFY(decisions.startsWith(QStringLiteral("### D-001 First\n"))); // what was there is untouched
+        // The index has it at once.
+        const QJsonArray listed = call(QStringLiteral("list_registers"), {{QStringLiteral("project"), QStringLiteral("projects/alpha")},
+                                                                          {QStringLiteral("kind"), QStringLiteral("D")}})
+                                      .value(QStringLiteral("entries")).toArray();
+        QCOMPARE(listed.last().toObject().value(QStringLiteral("ident")).toString(), QStringLiteral("D-003"));
+
+        // Refusals reserve nothing, so the next ID follows on.
+        QVERIFY(call(QStringLiteral("append_entry"), {{QStringLiteral("project"), QStringLiteral("projects/alpha")},
+                                                      {QStringLiteral("kind"), QStringLiteral("D")},
+                                                      {QStringLiteral("title"), QStringLiteral("No reversal")}}, &ok)
+                    .value(QStringLiteral("error")).toString().contains(QStringLiteral("Reversal conditions")));
+        QVERIFY(!ok);
+        QVERIFY(call(QStringLiteral("append_entry"), {{QStringLiteral("project"), QStringLiteral("projects/alpha")},
+                                                      {QStringLiteral("kind"), QStringLiteral("F")},
+                                                      {QStringLiteral("title"), QStringLiteral("Bad status")},
+                                                      {QStringLiteral("fields"), QJsonObject{{QStringLiteral("Status"), QStringLiteral("Done")}}}}, &ok)
+                    .value(QStringLiteral("error")).toString().contains(QStringLiteral("Not started")));
+        QVERIFY(call(QStringLiteral("append_entry"), {{QStringLiteral("project"), QStringLiteral("projects/alpha")},
+                                                      {QStringLiteral("kind"), QStringLiteral("D")},
+                                                      {QStringLiteral("ident"), QStringLiteral("D-009")},
+                                                      {QStringLiteral("title"), QStringLiteral("Skipping ahead")},
+                                                      {QStringLiteral("fields"), QJsonObject{{QStringLiteral("Reversal conditions"), QStringLiteral("x")}}}}, &ok)
+                    .value(QStringLiteral("error")).toString().contains(QStringLiteral("that is D-004")));
+        // next_id reserves: what it handed out is not handed out again.
+        QCOMPARE(call(QStringLiteral("next_id"), {{QStringLiteral("project"), QStringLiteral("projects/alpha")}, {QStringLiteral("kind"), QStringLiteral("D")}})
+                     .value(QStringLiteral("ident")).toString(), QStringLiteral("D-005"));
+        QCOMPARE(call(QStringLiteral("next_id"), {{QStringLiteral("project"), QStringLiteral("projects/alpha")}, {QStringLiteral("kind"), QStringLiteral("D")}})
+                     .value(QStringLiteral("ident")).toString(), QStringLiteral("D-006"));
+    }
+
+    void appendEntryCreatesAMissingRegister()
+    {
+        bool ok = false;
+        const QJsonObject added = call(QStringLiteral("append_entry"), {{QStringLiteral("project"), QStringLiteral("beta")},
+                                                                        {QStringLiteral("kind"), QStringLiteral("BUG")},
+                                                                        {QStringLiteral("title"), QStringLiteral("Something broke")},
+                                                                        {QStringLiteral("fields"), QJsonObject{{QStringLiteral("Severity"), QStringLiteral("high")}}}}, &ok);
+        QVERIFY2(ok, qPrintable(added.value(QStringLiteral("error")).toString()));
+        QCOMPARE(added.value(QStringLiteral("ident")).toString(), QStringLiteral("BUG-001"));
+        QVERIFY(added.value(QStringLiteral("created_file")).toBool());
+        const QString bugs = QString::fromUtf8(read(vault("projects/beta/BUGS.md")));
+        QVERIFY(bugs.startsWith(QStringLiteral("# Bugs\n")));
+        QVERIFY(bugs.contains(QStringLiteral("## Open\n\n### BUG-001: Something broke\n**Status:** open\n**Severity:** high\n")));
+    }
+
+    void writeNoteCreatesReplacesAndAppends()
+    {
+        bool ok = false;
+        call(QStringLiteral("write_note"), {{QStringLiteral("path"), QStringLiteral("notes/new/meeting")},
+                                            {QStringLiteral("body"), QStringLiteral("# Meeting\n\nAgreed.")},
+                                            {QStringLiteral("frontmatter"), QJsonObject{{QStringLiteral("tags"), QJsonArray{QStringLiteral("meeting")}},
+                                                                                        {QStringLiteral("attendees"), 3},
+                                                                                        {QStringLiteral("title"), QStringLiteral("Q4: plan")}}},
+                                            {QStringLiteral("mode"), QStringLiteral("create")}}, &ok);
+        QVERIFY(ok);
+        const QByteArray created = read(vault("notes/new/meeting.md"));
+        QCOMPARE(created, QByteArray("---\nattendees: 3\ntags: [meeting]\ntitle: \"Q4: plan\"\n---\n# Meeting\n\nAgreed.\n"));
+        QCOMPARE(call(QStringLiteral("get_note"), {{QStringLiteral("path"), QStringLiteral("notes/new/meeting")}})
+                     .value(QStringLiteral("frontmatter")).toObject().value(QStringLiteral("title")).toString(), QStringLiteral("Q4: plan"));
+
+        call(QStringLiteral("write_note"), {{QStringLiteral("path"), QStringLiteral("notes/new/meeting.md")}, {QStringLiteral("body"), QStringLiteral("Rewritten.")},
+                                            {QStringLiteral("mode"), QStringLiteral("replace")}}, &ok);
+        QVERIFY(ok);
+        QCOMPARE(read(vault("notes/new/meeting.md")), QByteArray("---\nattendees: 3\ntags: [meeting]\ntitle: \"Q4: plan\"\n---\nRewritten.\n")); // frontmatter kept
+        call(QStringLiteral("write_note"), {{QStringLiteral("path"), QStringLiteral("notes/new/meeting")}, {QStringLiteral("body"), QStringLiteral("Addendum.")},
+                                            {QStringLiteral("mode"), QStringLiteral("append")}}, &ok);
+        QVERIFY(ok);
+        QVERIFY(read(vault("notes/new/meeting.md")).endsWith("Rewritten.\n\nAddendum.\n"));
+
+        const auto refused = [&](const QJsonObject& arguments, const char* why) {
+            const QString error = call(QStringLiteral("write_note"), arguments, &ok).value(QStringLiteral("error")).toString();
+            return !ok && error.contains(QLatin1String(why));
+        };
+        QVERIFY(refused({{QStringLiteral("path"), QStringLiteral("notes/new/meeting")}, {QStringLiteral("body"), QStringLiteral("x")},
+                         {QStringLiteral("mode"), QStringLiteral("create")}}, "already exists"));
+        QVERIFY(refused({{QStringLiteral("path"), QStringLiteral("nothing")}, {QStringLiteral("body"), QStringLiteral("x")},
+                         {QStringLiteral("mode"), QStringLiteral("append")}}, "use create"));
+        QVERIFY(refused({{QStringLiteral("path"), QStringLiteral("projects/alpha/DECISIONS.md")}, {QStringLiteral("body"), QStringLiteral("x")},
+                         {QStringLiteral("mode"), QStringLiteral("replace")}}, "append_entry"));
+        QVERIFY(refused({{QStringLiteral("path"), QStringLiteral(".coeus/sneaky")}, {QStringLiteral("body"), QStringLiteral("x")},
+                         {QStringLiteral("mode"), QStringLiteral("create")}}, "visible path"));
+        QVERIFY(refused({{QStringLiteral("path"), QStringLiteral("../escape")}, {QStringLiteral("body"), QStringLiteral("x")},
+                         {QStringLiteral("mode"), QStringLiteral("create")}}, "visible path"));
+        QVERIFY(!QFile::exists(m_dir.filePath(QStringLiteral("escape.md"))));
     }
 
     void theBinaryOverStdioWithoutADisplay()

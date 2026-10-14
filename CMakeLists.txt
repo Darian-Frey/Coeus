@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(COEUS_BUILD_TESTS "Build the Coeus test suite" OFF)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Concurrent Gui Widgets)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Concurrent Gui Network Widgets)
 find_package(md4c REQUIRED)        # D-014
 find_package(yaml-cpp REQUIRED)    # D-015
 find_package(SQLite3 3.40 REQUIRED) # D-018
@@ -40,6 +40,7 @@ add_library(coeus_core STATIC
     src/git/GitCommand.cpp
     src/git/GitRepository.cpp
     src/index/LintResolver.cpp
+    src/mcp/GuiLink.cpp
     src/mcp/McpServer.cpp
     src/mcp/McpTools.cpp
     src/index/Schema.cpp
@@ -50,6 +51,7 @@ add_library(coeus_core STATIC
     src/parser/HtmlRenderer.cpp
     src/parser/NoteParser.cpp
     src/parser/RegisterParser.cpp
+    src/registers/EntryWriter.cpp
     src/registers/Lint.cpp
     src/registers/LintCommand.cpp
     src/registers/NextId.cpp
@@ -79,6 +81,7 @@ add_library(coeus_core STATIC
     src/ui/FuzzyMatch.cpp
     src/ui/MainWindow.cpp
     src/ui/MarkdownHighlighter.cpp
+    src/ui/McpLink.cpp
     src/ui/NoteCatalogue.cpp
     src/ui/NoteView.cpp
     src/ui/OutlinePanel.cpp
@@ -94,6 +97,7 @@ add_library(coeus_core STATIC
     src/ui/TagPanel.cpp
     src/ui/VersionView.cpp
     src/ui/WikilinkCompleter.cpp
+    src/ui/WriteToast.cpp
     src/ui/WikilinkCompletion.cpp
 )
 target_include_directories(coeus_core PUBLIC src)
@@ -102,7 +106,7 @@ qt_add_resources(coeus_core "icons" PREFIX "/icons" BASE resources/icons
     FILES resources/icons/explorer.svg resources/icons/search.svg resources/icons/board.svg
           resources/icons/tags.svg resources/icons/palette.svg resources/icons/sidebar.svg)
 target_link_libraries(coeus_core
-    PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Widgets
+    PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Network Qt6::Widgets
     PRIVATE md4c::md4c yaml-cpp::yaml-cpp SQLite::SQLite3 PkgConfig::sodium PkgConfig::libgit2 coeus_warnings)
 
 qt_add_executable(coeus src/app/main.cpp)

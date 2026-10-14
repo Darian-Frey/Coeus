@@ -16,6 +16,8 @@ public:
     static std::optional<QString> string(const QString& vaultPath, const char* table, const char* key);
     // The integer at [table] key, if present and an integer.
     static std::optional<qint64> integer(const QString& vaultPath, const char* table, const char* key);
+    // The boolean at [table] key, if present and a boolean.
+    static std::optional<bool> boolean(const QString& vaultPath, const char* table, const char* key);
 
     // Sets [table] key = "value": replaces the key's line, or adds it under
     // the table's header, or appends the table. Written through AtomicWriter.
