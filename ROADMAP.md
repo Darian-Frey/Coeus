@@ -55,7 +55,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Embedding model running in Coeus: bge-small-en-v1.5 through llama.cpp, fetched by `tools/fetch_model.py` (`src/search/Embedder.cpp`; D-008)
 - [x] Chunking, embedding worker and vector storage (`src/search/Chunker.cpp`, `src/search/EmbeddingService.cpp`, `src/search/VectorStore.cpp`; index schema 5; F-018)
 - [x] Semantic and hybrid query modes in the search pane and MCP (F-018)
-- [ ] Related-notes sidebar and MCP `related` (F-019)
+- [x] Related-notes sidebar and MCP `related` (`src/ui/RelatedPanel.cpp`, `SemanticSearch::related`; F-019)
 - [ ] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`; F-035)
 - [x] libgit2 wrapper, step 1: repository discovery, per-note history following renames, a file at a commit (`src/git/GitRepository.cpp`; F-020)
 - [x] History sidebar section and read-only versions (`src/ui/HistoryPanel.cpp`, `src/ui/VersionView.cpp`; F-020)

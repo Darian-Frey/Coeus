@@ -133,7 +133,7 @@ private slots:
             names.append(tool.toObject().value(QStringLiteral("name")).toString());
             QVERIFY(tool.toObject().value(QStringLiteral("inputSchema")).toObject().value(QStringLiteral("type")).toString() == QLatin1String("object"));
         }
-        QCOMPARE(names, (QStringList{QStringLiteral("search"), QStringLiteral("get_note"), QStringLiteral("list_registers"),
+        QCOMPARE(names, (QStringList{QStringLiteral("search"), QStringLiteral("get_note"), QStringLiteral("related"), QStringLiteral("list_registers"),
                                      QStringLiteral("project_status"), QStringLiteral("list_ideas"), QStringLiteral("next_id"),
                                      QStringLiteral("append_entry"), QStringLiteral("write_note")}));
     }
@@ -191,6 +191,25 @@ private slots:
         }
         leaders.sort();
         QCOMPARE(leaders, (QStringList{QStringLiteral("notes/later.md"), QStringLiteral("notes/plan.md")}));
+
+        // Related to plan.md: never plan.md itself, nor DECISIONS.md, which it links to; best first.
+        // (other.md, which links to plan.md, may well lead: links into a note do not exclude it.)
+        const QJsonObject related = call(QStringLiteral("related"), {{QStringLiteral("path"), QStringLiteral("notes/plan")}, {QStringLiteral("limit"), 3}}, &ok);
+        QVERIFY2(ok, qPrintable(related.value(QStringLiteral("error")).toString()));
+        QStringList paths;
+        for (const QJsonValue& note : related.value(QStringLiteral("related")).toArray())
+            paths.append(note.toObject().value(QStringLiteral("path")).toString());
+        QCOMPARE(paths.size(), 3);
+        double previous = 2.0;
+        for (const QJsonValue& note : related.value(QStringLiteral("related")).toArray()) {
+            const double score = note.toObject().value(QStringLiteral("score")).toDouble();
+            QVERIFY(score <= previous);
+            previous = score;
+        }
+        QVERIFY(!paths.contains(QStringLiteral("notes/plan.md")));
+        QVERIFY(!paths.contains(QStringLiteral("projects/alpha/DECISIONS.md")));
+        call(QStringLiteral("related"), {{QStringLiteral("path"), QStringLiteral("notes/nowhere")}}, &ok);
+        QVERIFY(!ok);
     }
 
     void getNoteReadsFrontmatterBodyAndLinks()

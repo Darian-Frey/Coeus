@@ -122,6 +122,7 @@ add_library(coeus_core STATIC
     src/ui/PromoteDialog.cpp
     src/ui/ProjectBoard.cpp
     src/ui/RegisterPanel.cpp
+    src/ui/RelatedPanel.cpp
     src/ui/SearchPanel.cpp
     src/ui/SidebarPanel.cpp
     src/ui/TagPanel.cpp

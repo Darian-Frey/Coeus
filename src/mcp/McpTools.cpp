@@ -207,6 +207,16 @@ QJsonArray McpTools::definitions()
                      {QStringLiteral("path"), stringProperty(QStringLiteral("Path within the root, e.g. projects/coeus/DECISIONS.md; .md "
                                                                             "may be left off."))}},
                     {QStringLiteral("path")})),
+        tool(QStringLiteral("related"), QStringLiteral("Related notes"),
+             QStringLiteral("The notes nearest in meaning to a note, leaving out the notes it already links to, each with the "
+                            "passage that matched (heading, line) and a score, relative only (boilerplate shared across "
+                            "projects is discounted, so it is not a cosine): notes it could link to and does not."),
+             schema({{QStringLiteral("root"), stringProperty(QStringLiteral("\"vault\" (default) or a linked root's name."))},
+                     {QStringLiteral("path"), stringProperty(QStringLiteral("Path within the root; .md may be left off."))},
+                     {QStringLiteral("limit"), QJsonObject{{QStringLiteral("type"), QStringLiteral("integer")}, {QStringLiteral("minimum"), 1},
+                                                           {QStringLiteral("maximum"), 20},
+                                                           {QStringLiteral("description"), QStringLiteral("At most this many notes (default 5).")}}}},
+                    {QStringLiteral("path")})),
         tool(QStringLiteral("list_registers"), QStringLiteral("List register entries"),
              QStringLiteral("A project's F-, C-, D-, AV-, BUG- and IMP- entries from its register files, with every field, by kind "
                             "then number."),
@@ -278,6 +288,8 @@ std::expected<QJsonObject, QString> McpTools::call(const Context& context, const
         return search(context, arguments);
     if (name == QLatin1String("get_note"))
         return getNote(context, arguments);
+    if (name == QLatin1String("related"))
+        return related(context, arguments);
     if (name == QLatin1String("list_registers"))
         return listRegisters(context, arguments);
     if (name == QLatin1String("project_status"))
@@ -450,6 +462,50 @@ std::expected<QJsonObject, QString> McpTools::getNote(const Context& context, co
                        {QStringLiteral("body"), QString::fromUtf8(split.present ? split.body : bytes)},
                        {QStringLiteral("links"), links},
                        {QStringLiteral("backlinks"), backlinks}};
+}
+
+std::expected<QJsonObject, QString> McpTools::related(const Context& context, const QJsonObject& arguments)
+{
+    const auto root = text(arguments, "root", false);
+    const auto path = text(arguments, "path", true);
+    if (!root)
+        return std::unexpected(root.error());
+    if (!path)
+        return std::unexpected(path.error());
+    int count = SemanticSearch::kRelated;
+    if (const QJsonValue value = arguments.value(QStringLiteral("limit")); !value.isUndefined() && !value.isNull()) {
+        if (!value.isDouble() || value.toInt() < 1 || value.toInt() > 20)
+            return std::unexpected(QStringLiteral("`limit` is a whole number from 1 to 20"));
+        count = value.toInt();
+    }
+    const auto absolute = notePath(context, *root, *path);
+    if (!absolute)
+        return std::unexpected(absolute.error());
+    // A note just written may have no vectors yet: embed what is missing first, briefly.
+    QString why;
+    if (Embedder* embedder = context.embedder ? context.embedder(&why) : nullptr) {
+        if (auto db = Database::open(context.indexPath)) {
+            if (VectorStore::adopt(*db, *embedder))
+                VectorStore::catchUp(*db, *embedder, QDeadlineTimer(kCatchUpMs));
+        }
+    }
+    const auto found = SemanticSearch::related(context.indexPath, *absolute, count);
+    if (!found)
+        return std::unexpected(found.error());
+    if (found->ownEmbedded == 0)
+        return std::unexpected(found->ownPassages == 0 ? QStringLiteral("The note has no text to compare")
+                                                       : QStringLiteral("The note has no vectors yet: %1")
+                                                             .arg(why.isEmpty() ? QStringLiteral("try again in a moment") : why));
+    QJsonArray results;
+    for (const SemanticSearch::Hit& hit : found->notes) {
+        const auto [noteRoot, notePathInRoot] = locate(context, hit.notePath);
+        results.append(QJsonObject{{QStringLiteral("root"), noteRoot}, {QStringLiteral("path"), notePathInRoot},
+                                   {QStringLiteral("title"), hit.title}, {QStringLiteral("heading"), hit.heading},
+                                   {QStringLiteral("line"), hit.startLine}, {QStringLiteral("snippet"), hit.snippet},
+                                   {QStringLiteral("score"), double(qRound(hit.score * 1000)) / 1000}});
+    }
+    const auto [rootName, relative] = locate(context, *absolute);
+    return QJsonObject{{QStringLiteral("root"), rootName}, {QStringLiteral("path"), relative}, {QStringLiteral("related"), results}};
 }
 
 std::expected<QJsonObject, QString> McpTools::listRegisters(const Context& context, const QJsonObject& arguments)

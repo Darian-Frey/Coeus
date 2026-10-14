@@ -116,6 +116,22 @@ private slots:
         QCOMPARE(hits->front().startLine, 1);
         QVERIFY(hits->front().snippet.startsWith(QStringLiteral("# Saving notes Every save")));
 
+        // Related to tags.md: the nearest other notes, never itself.
+        const auto related = SemanticSearch::related(index, vault.filePath(QStringLiteral("tags.md")), 1);
+        QVERIFY(related);
+        QCOMPARE(related->ownPassages, 1);
+        QCOMPARE(related->ownEmbedded, 1);
+        QCOMPARE(related->notes.size(), 1);
+        QVERIFY(related->notes.front().notePath != vault.filePath(QStringLiteral("tags.md")));
+        // A link takes a note off the list.
+        writeFile(vault.filePath(QStringLiteral("blame.md")), "# Blame\n\nBlame shows the commit that last changed each line. See [[atomic]].\n");
+        QVERIFY(indexer.update(root, QStringLiteral("blame.md")));
+        VectorStore::embedPending(db, *m_embedder, 10);
+        const auto fromBlame = SemanticSearch::related(index, vault.filePath(QStringLiteral("blame.md")), 5);
+        QCOMPARE(fromBlame->notes.size(), 1); // tags.md only: atomic.md is linked, blame.md is itself
+        QCOMPARE(fromBlame->notes.front().notePath, vault.filePath(QStringLiteral("tags.md")));
+        VectorStore::prune(db);
+
         // An edit re-embeds only the passage it changed.
         writeFile(vault.filePath(QStringLiteral("tags.md")), "# Tags\n\nThe tag pane lists tags, nested on slashes.\n");
         QVERIFY(indexer.update(root, QStringLiteral("tags.md")));
@@ -129,6 +145,51 @@ private slots:
         QVERIFY(db.exec("UPDATE meta SET value = 'some-other-model' WHERE key = 'embed_model'"));
         QVERIFY(VectorStore::adopt(db, *m_embedder));
         QCOMPARE(VectorStore::coverage(db)->embedded, 0);
+    }
+
+    void boilerplateDoesNotMakeNotesRelated()
+    {
+        if (!m_embedder)
+            QSKIP("No embedding model: run tools/fetch_model.py");
+        // Every project's ARCHITECTURE.md opens with the same scaffold
+        // preamble; only crash-safety.md shares this one's subject.
+        QTemporaryDir vault;
+        const QByteArray preamble = "# Architecture\n\nDescriptive only. Rationale lives in DECISIONS.md.\n\n";
+        const QList<QByteArray> subjects{"Sourdough needs a starter fed with flour and water every day.",
+                                         "Tomatoes want full sun and deep watering twice a week.",
+                                         "Jupiter's moons were first seen through a telescope in 1610.",
+                                         "A chess opening trades a pawn for faster development.",
+                                         "Watercolour paper must be stretched before painting wet on wet.",
+                                         "The marathon distance was fixed at 42.195 km in 1921.",
+                                         "Bees communicate where flowers are with a waggle dance.",
+                                         "A violin bow is strung with horsehair and rosin.",
+                                         "Granite forms when magma cools slowly underground.",
+                                         "Origami cranes are folded from a single square sheet."};
+        for (qsizetype i = 0; i < subjects.size(); ++i)
+            writeFile(vault.filePath(QStringLiteral("p%1/ARCHITECTURE.md").arg(i)), preamble + "## Topic\n\n" + subjects[i] + "\n");
+        writeFile(vault.filePath(QStringLiteral("coeus/ARCHITECTURE.md")),
+                  preamble + "## Saving\n\nEvery save writes a temporary file, fsyncs it and renames it over the note, so a crash "
+                             "never leaves half a note on disk.\n");
+        writeFile(vault.filePath(QStringLiteral("crash-safety.md")),
+                  "# Crash safety\n\nWrites go to a temp file that is flushed and atomically renamed, so power loss cannot "
+                  "truncate a document.\n");
+        const QString index = vault.filePath(QStringLiteral("index.db"));
+        auto store = IndexStore::open(index);
+        const RootInfo root{0, QStringLiteral("vault"), vault.path()};
+        QVERIFY(store->putRoot(root));
+        Indexer indexer(*store);
+        QVERIFY(indexer.scan(root));
+        QVERIFY(VectorStore::adopt(store->database(), *m_embedder));
+        QVERIFY(VectorStore::catchUp(store->database(), *m_embedder, QDeadlineTimer(60'000)));
+        QVERIFY(VectorStore::coverage(store->database())->complete());
+
+        // The preamble is near-identical in eleven notes, so on raw similarity
+        // every other ARCHITECTURE.md would outrank crash-safety.md.
+        const auto related = SemanticSearch::related(index, vault.filePath(QStringLiteral("coeus/ARCHITECTURE.md")), 3);
+        QVERIFY(related);
+        QCOMPARE(related->notes.size(), 3);
+        QCOMPARE(related->notes.front().notePath, vault.filePath(QStringLiteral("crash-safety.md")));
+        QVERIFY(related->notes[0].score > related->notes[1].score);
     }
 
     void newChunkingRulesRechunkOldNotes()

@@ -167,7 +167,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Right sidebar section shows the five nearest notes to the current note's content, excluding notes already linked from it
 - Updates on save, debounced, without blocking editing
 - Each entry offers "Link here" which inserts a wikilink at the cursor
-**Status:** In progress (Phase 3): the model, bge-small-en-v1.5 run by llama.cpp, is chosen and running (D-008, 2026-10-14)
+**Status:** Complete (Phase 3, 2026-10-14): a Related section between Backlinks and History, recomputed off the UI thread when the tab changes, after a save, and as embedding progresses (debounced 800 ms); Link here inserts the link the completer would; MCP `related`. Boilerplate shared across projects is discounted (SPEC.md §Embeddings)
 
 ### Native Git
 
@@ -277,7 +277,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Write tools (`next_id`, `append_entry`, `write_note`) are disabled by default, enabled per vault in `config.toml`, and route through `AtomicWriter` and `NextId`
 - When the GUI is running, each write tool call shows a confirmation toast with an undo for 10 s
 - Claude Code in the Antigravity IDE and Claude chat can both be configured against it with a documented snippet in BUILD.md
-**Status:** Complete (Phase 3, 2026-10-14): read tools working with Coeus closed; write tools `next_id`, `append_entry`, `write_note`, off unless enabled, refusing notes open with unsaved changes, with a 10 s undo toast when the window is open; BUILD.md snippets. `related` waits for F-019. Claude Code is the client it is built for, and claude.ai in a browser cannot reach a local server (D-021)
+**Status:** Complete (Phase 3, 2026-10-14): read tools working with Coeus closed; write tools `next_id`, `append_entry`, `write_note`, off unless enabled, refusing notes open with unsaved changes, with a 10 s undo toast when the window is open; BUILD.md snippets. `related` arrived with F-019. Claude Code is the client it is built for, and claude.ai in a browser cannot reach a local server (D-021)
 
 ### F-034 Linked project roots
 **Priority:** Must

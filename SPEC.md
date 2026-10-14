@@ -409,7 +409,7 @@ model_name() -> string
 dim() -> int
 ```
 
-`meta.embed_model` and `meta.embed_dim` are written when the first embedding lands. If either differs from the model in use, every vector is dropped before any is compared or added, and the vault is embedded again (AV-007). Nearest-neighbour uses cosine similarity; related-notes (F-019) takes the top 20 chunks for the current note's chunks, aggregates by note with max similarity, excludes the note itself and any note it links to, and returns the top 5.
+`meta.embed_model` and `meta.embed_dim` are written when the first embedding lands. If either differs from the model in use, every vector is dropped before any is compared or added, and the vault is embedded again (AV-007). Nearest-neighbour uses cosine similarity; related notes (F-019) score every other note by its best pair of passages with the current note, each pair's cosine less the *typicality* of the current note's passage: its mean cosine with its 10 nearest passages in other notes (a one-sided form of cross-domain similarity local scaling). Scaffold boilerplate, such as a register's preamble or a README's status block, is near its copy in every project, so it is discounted by about as much as it matches and ranks nothing; on the author's projects, raw maximum similarity put five other projects' DECISIONS.md at 1.00 for Coeus's own, where this ranks its ROADMAP, SPEC and BUGS first. The score is relative (typically 0–0.3), not a cosine. The note itself and every note it links to are left out, and the top 5 are shown. Only stored vectors are used: a note's passages not yet embedded take no part, and the sidebar says so.
 
 **Model** (D-008): BAAI's bge-small-en-v1.5, 384 dimensions, at most 512 tokens per passage (longer ones are cut, keeping the closing separator; chunking stays under it), pooled on its [CLS] token and normalised to unit length, so cosine similarity is a dot product. A search query, but not a passage, is prefixed with `Represent this sentence for searching relevant passages: `, as BAAI specifies. `search/Embedder` runs it on the CPU through llama.cpp, eight passages a pass, on half the machine's threads. The model file is `$XDG_DATA_HOME/coeus/models/bge-small-en-v1.5-f16.gguf` (by default `~/.local/share/…`), or `[semantic] model` in `config.toml` (absolute, `~/…`, or relative to the vault); `tools/fetch_model.py` downloads it and checks its SHA-256. Without it Coeus runs and searches text as before, and the semantic features say how to fetch it.
 
@@ -458,12 +458,12 @@ Encryption, when enabled, is age-style: a vault key derived from a passphrase wi
 
 **Results.** A tool's result is its JSON object as `structuredContent` and the same JSON as one text content item. A tool that cannot do what was asked (a missing note, an unknown project, bad arguments) returns `isError: true` with a sentence saying why and, where useful, what would work (the roots, the projects). A project is named as `project_status` names it (`projects/coeus`, `pontus`, `pontus/sub`), case aside, or by its folder's name when only one project has it. Paths are root-relative; `.md` may be left off; a path that escapes its root is refused.
 
-Implemented: the read tools `search` (modes `text`, `semantic` and `hybrid`; by meaning, results carry `heading`, `line` and `score`, or `found_by`, and the answer carries `coverage`), `get_note`, `list_registers`, `project_status` and `list_ideas`, and the write tools `next_id`, `append_entry` and `write_note`. `related` arrives with F-019 and is not listed until then. Tools, with JSON argument shapes:
+Implemented: the read tools `search` (modes `text`, `semantic` and `hybrid`; by meaning, results carry `heading`, `line` and `score`, or `found_by`, and the answer carries `coverage`), `related`, `get_note`, `list_registers`, `project_status` and `list_ideas`, and the write tools `next_id`, `append_entry` and `write_note`. Tools, with JSON argument shapes:
 
 | Tool | Arguments | Returns | Writes |
 |------|-----------|---------|--------|
 | `search` | `{query, mode: "text"\|"semantic"\|"hybrid", limit}` | `{results: [{root, path, title, snippet, heading?, line?, score?, found_by?}], coverage?}` | no |
-| `related` | `{root, path, limit}` | `[{root, path, title, score}]` | no |
+| `related` | `{root, path, limit}` | `{root, path, related: [{root, path, title, heading, line, snippet, score}]}` | no |
 | `get_note` | `{root, path}` | `{frontmatter, body, links, backlinks}` | no |
 | `list_registers` | `{project, kind?, status?}` | `[{ident, title, status, fields}]` | no |
 | `project_status` | `{project?}` | `[{name, status, last_reviewed, phase, unreleased, git: {branch, ahead, behind, dirty}}]` | no |

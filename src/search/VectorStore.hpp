@@ -52,11 +52,28 @@ public:
         int startLine = 0;
         int endLine = 0;
         QString snippet;  // the start of the passage
-        float score = 0;  // cosine similarity, -1…1
+        float score = 0;  // nearest: cosine similarity, -1…1; related: relative (see related())
     };
 
     // The `limit` notes whose best passage is nearest `query` (a unit vector), best first.
     static std::expected<QList<Hit>, QString> nearest(const QString& indexPath, const QVector<float>& query, int limit);
+
+    static constexpr int kRelated = 5;
+    static constexpr int kHubNeighbours = 10;
+
+    struct Related {
+        QList<Hit> notes;     // best first; Hit's passage is the other note's closest one
+        int ownPassages = 0;  // the note's passages
+        int ownEmbedded = 0;  // of them, with vectors: fewer means results may still change
+    };
+    // The notes nearest in meaning to the note at `notePath` (F-019, SPEC.md
+    // §Embeddings): each other note scores its best passage pair with this
+    // note, each pair's similarity less how similar this note's passage is to
+    // its kHubNeighbours nearest passages elsewhere, so boilerplate shared by
+    // every project ranks nothing. Hit::score is that difference: relative,
+    // not a cosine. The note itself and every note it already links to are
+    // left out. Uses stored vectors only: no model.
+    static std::expected<Related, QString> related(const QString& indexPath, const QString& notePath, int limit = kRelated);
 
     struct Blended {
         QString notePath;

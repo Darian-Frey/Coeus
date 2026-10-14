@@ -40,6 +40,7 @@ class GitCommand;
 class VersionView;
 struct GitCommit;
 class RegisterPanel;
+class RelatedPanel;
 struct ProjectRef;
 class SearchPanel;
 class CommandPalette;
@@ -87,6 +88,9 @@ public:
     QList<WriteToast*> toasts() const;
     QDockWidget* boardDock() const { return m_boardDock; }
     HistoryPanel* history() const { return m_history; }
+    RelatedPanel* related() const { return m_related; }
+    // F-019: a link to `absolutePath` at the cursor of the current note, resolving to it (AV-006).
+    void linkHere(const QString& absolutePath);
     // Opens the note as it was in `commit`, read-only, in a tab (F-020).
     void openVersion(const QString& notePath, const GitCommit& commit, const QString& workdir);
     // F-021: one side of a comparison. Nothing is an empty text; the working
@@ -280,6 +284,8 @@ private:
     QDockWidget* m_registersDock = nullptr;
     ProblemsPanel* m_problems = nullptr;
     HistoryPanel* m_history = nullptr;
+    RelatedPanel* m_related = nullptr;
+    QTimer* m_relatedTimer = nullptr;
     QThreadPool* m_gitPool = nullptr;
     QDockWidget* m_problemsDock = nullptr;
     ProjectBoard* m_board = nullptr;

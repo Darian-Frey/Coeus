@@ -2,9 +2,12 @@
 
 #include <QFileInfo>
 #include <QHash>
+#include <QSet>
 #include <QtEndian>
 
 #include <algorithm>
+#include <limits>
+#include <numeric>
 
 namespace coeus {
 
@@ -185,6 +188,129 @@ std::expected<QList<SemanticSearch::Hit>, QString> SemanticSearch::nearest(const
     if (hits.size() > limit)
         hits.resize(limit);
     return hits;
+}
+
+std::expected<SemanticSearch::Related, QString> SemanticSearch::related(const QString& indexPath, const QString& notePath, int limit)
+{
+    if (!QFileInfo::exists(indexPath))
+        return std::unexpected(QStringLiteral("The index is not built yet"));
+    auto db = Database::open(indexPath, Database::Mode::ReadOnly);
+    if (!db)
+        return std::unexpected(db.error());
+
+    // The note, by its absolute path.
+    std::int64_t noteId = 0;
+    {
+        auto find = db->prepare("SELECT n.id FROM notes n JOIN roots r ON r.id = n.root_id WHERE r.path || '/' || n.path = ?");
+        if (!find)
+            return std::unexpected(find.error());
+        find->bind(1, notePath);
+        if (!find->step().value_or(false))
+            return std::unexpected(QStringLiteral("The note is not indexed yet"));
+        noteId = find->int64(0);
+    }
+    Related result;
+    QList<QVector<float>> own;
+    {
+        auto passages = db->prepare("SELECT v.vec FROM chunks c LEFT JOIN vectors v ON v.hash = c.hash WHERE c.note = ?");
+        if (!passages)
+            return std::unexpected(passages.error());
+        passages->bind(1, noteId);
+        while (passages->step().value_or(false)) {
+            ++result.ownPassages;
+            if (!passages->isNull(0)) {
+                own.append(VectorStore::unpack(passages->blob(0)));
+                ++result.ownEmbedded;
+            }
+        }
+    }
+    if (own.isEmpty())
+        return result;
+    QSet<std::int64_t> skip{noteId}; // itself, and what it already links to
+    {
+        auto linked = db->prepare("SELECT DISTINCT target_note FROM links WHERE src = ? AND target_note IS NOT NULL");
+        if (!linked)
+            return std::unexpected(linked.error());
+        linked->bind(1, noteId);
+        while (linked->step().value_or(false))
+            skip.insert(linked->int64(0));
+    }
+    auto rows = db->prepare("SELECT n.id, r.path || '/' || n.path, n.title, c.heading, c.start_line, c.end_line, c.text, v.vec, r.name, n.path "
+                            "FROM chunks c JOIN vectors v ON v.hash = c.hash JOIN notes n ON n.id = c.note "
+                            "JOIN roots r ON r.id = n.root_id");
+    if (!rows)
+        return std::unexpected(rows.error());
+    // Every other note's passages, with their similarity to each of this
+    // note's. Notes it links to stay in until scoring: they still count
+    // towards how typical a passage of this note is.
+    struct Candidate {
+        std::int64_t note;
+        Hit hit;
+        QVector<float> similarity; // to own[i]
+    };
+    QList<Candidate> candidates;
+    const qsizetype dim = own.front().size();
+    while (rows->step().value_or(false)) {
+        const std::int64_t id = rows->int64(0);
+        if (id == noteId)
+            continue;
+        const QByteArray blob = rows->blob(7);
+        if (blob.size() != dim * qsizetype(sizeof(float)))
+            continue; // another model's vector (AV-007)
+        const QVector<float> vector = VectorStore::unpack(blob);
+        Candidate candidate{id,
+                            Hit{rows->text(1), rows->text(2), rows->text(3),
+                                rows->text(8) == QLatin1String("vault") ? rows->text(9) : rows->text(8) + QLatin1Char('/') + rows->text(9),
+                                int(rows->int64(4)), int(rows->int64(5)), rows->text(6), 0},
+                            QVector<float>(own.size())};
+        const float* theirs = vector.constData();
+        float* similarity = candidate.similarity.data();
+        for (qsizetype i = 0; i < own.size(); ++i) {
+            const float* mine = own.at(i).constData();
+            float dot = 0;
+            for (qsizetype d = 0; d < dim; ++d)
+                dot += mine[d] * theirs[d];
+            similarity[i] = dot;
+        }
+        candidates.append(std::move(candidate));
+    }
+    // How typical each of this note's passages is: its mean similarity to its
+    // kHubNeighbours nearest passages elsewhere. Scaffold boilerplate (a
+    // register's preamble, a README's status block) is near its copy in every
+    // project, so its matches are discounted by that much (one-sided CSLS).
+    QVector<float> typical(own.size(), 0);
+    for (qsizetype i = 0; i < own.size(); ++i) {
+        QVector<float> column;
+        column.reserve(candidates.size());
+        for (const Candidate& candidate : std::as_const(candidates))
+            column.append(candidate.similarity[i]);
+        const qsizetype k = std::min<qsizetype>(kHubNeighbours, column.size());
+        if (k == 0)
+            continue;
+        std::partial_sort(column.begin(), column.begin() + k, column.end(), std::greater<float>());
+        typical[i] = std::accumulate(column.begin(), column.begin() + k, 0.0f) / float(k);
+    }
+    QHash<std::int64_t, Hit> best;
+    for (Candidate& candidate : candidates) {
+        if (skip.contains(candidate.note))
+            continue;
+        float score = std::numeric_limits<float>::lowest();
+        for (qsizetype i = 0; i < own.size(); ++i)
+            score = std::max(score, candidate.similarity[i] - typical[i]);
+        auto it = best.find(candidate.note);
+        if (it == best.end() || score > it->score) {
+            candidate.hit.snippet = snippetOf(candidate.hit.snippet);
+            candidate.hit.score = score;
+            best.insert(candidate.note, candidate.hit);
+        }
+    }
+    result.notes = best.values();
+    std::sort(result.notes.begin(), result.notes.end(), [](const Hit& a, const Hit& b) {
+        return a.score != b.score ? a.score > b.score : a.notePath < b.notePath;
+    });
+    if (result.notes.size() > limit)
+        result.notes.resize(limit);
+    return result;
 }
 
 QList<SemanticSearch::Blended> SemanticSearch::blend(const QList<QPair<QString, QPair<QString, QString>>>& wordHits,

@@ -207,6 +207,9 @@ def build_vault(vault: Path, linked: Path) -> None:
           `is it safe to throw away the cache` finds D-005, whose words are
           about deleting the index.
           **Both** merges the two, notes found both ways first.
+        - **Related**, in the right sidebar under Backlinks, lists the notes nearest
+          in meaning to the open one that it does not link to yet; **Link here**
+          writes a link to one at the cursor.
         - **Properties**: open `ideas/theia.md` - `status: Done` is flagged, not
           changed; pick *Active*. `ideas/broken frontmatter.md` is read-only.
 

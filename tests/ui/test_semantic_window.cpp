@@ -8,6 +8,7 @@
 #include "ui/Editor.hpp"
 #include "ui/MainWindow.hpp"
 #include "ui/NoteCatalogue.hpp"
+#include "ui/RelatedPanel.hpp"
 #include "ui/SearchPanel.hpp"
 
 #include <QComboBox>
@@ -20,6 +21,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTextBlock>
+#include <QToolButton>
 #include <QTreeWidget>
 
 using namespace coeus;
@@ -108,6 +110,25 @@ private slots:
         QCOMPARE(titles().front(), QStringLiteral("garden.md")); // by its word and its meaning
         search(QStringLiteral("tomatoes"), SearchPanel::Mode::Words);
         QCOMPARE(titles(), QStringList{QStringLiteral("garden.md")});
+    }
+
+    void relatedNotesAndLinkHere()
+    {
+        RelatedPanel* related = m_window->related();
+        QSignalSpy updated(related, &RelatedPanel::updated);
+        m_window->openNote(vault("garden.md"));
+        QTRY_VERIFY_WITH_TIMEOUT(related->notePath() == vault("garden.md") && related->tree()->topLevelItemCount() == 2, kWaitMs);
+        // The two other notes; garden.md links to neither yet.
+        Editor* editor = m_window->currentEditor();
+        editor->moveCursor(QTextCursor::End);
+        related->linkButton(0)->click();
+        QVERIFY(editor->toPlainText().endsWith(QStringLiteral("]]")));
+        const QString inserted = editor->toPlainText().section(QStringLiteral("[["), -1).chopped(2);
+        QVERIFY(inserted == QStringLiteral("saving") || inserted == QStringLiteral("tags"));
+        QVERIFY(m_window->saveCurrent());
+        // Once indexed, the note it now links to drops off the list.
+        QTRY_VERIFY_WITH_TIMEOUT(related->tree()->topLevelItemCount() == 1, kWaitMs);
+        QVERIFY(!related->tree()->topLevelItem(0)->text(0).startsWith(inserted));
     }
 
     void anEditIsEmbeddedAgain()

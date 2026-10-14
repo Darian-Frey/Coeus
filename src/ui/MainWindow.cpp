@@ -27,6 +27,8 @@
 #include "ui/ProjectBoard.hpp"
 #include "ui/PromoteDialog.hpp"
 #include "ui/RegisterPanel.hpp"
+#include "ui/RelatedPanel.hpp"
+#include "ui/WikilinkCompletion.hpp"
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "ui/TagPanel.hpp"
@@ -76,6 +78,7 @@ constexpr int kLayoutVersion = 1;
 constexpr int kStatusTimeoutMs = 5000;
 constexpr int kGitStatusDelayMs = 400; // after saves and tab changes settle
 constexpr int kBoardDelayMs = 1000;    // after the index settles
+constexpr int kRelatedDelayMs = 800;   // after embedding progress settles
 
 const char* const kPathProperty = "coeusPath";
 const char* const kDiffProperty = "coeusDiff"; // identifies a DiffView tab
@@ -141,6 +144,7 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_tabs, &QTabWidget::currentChanged, this, [this] {
         Editor* editor = currentEditor();
         m_backlinks->showNote(editor ? editor->path() : QString());
+        m_related->showNote(editor ? editor->path() : QString());
         // A version or a diff keeps its note's history in view.
         QString historyOf = editor ? editor->path() : QString();
         if (const auto* version = qobject_cast<VersionView*>(m_tabs->currentWidget()))
@@ -176,6 +180,15 @@ void MainWindow::createDocks()
     m_backlinks = new BacklinksPanel;
     m_sidebar->addSection(tr("Backlinks"), m_backlinks);
     connect(m_backlinks, &BacklinksPanel::openRequested, this, &MainWindow::openNoteAt);
+    // Related notes (F-019), between Backlinks and History as in the mockup.
+    m_related = new RelatedPanel;
+    m_sidebar->addSection(tr("Related"), m_related);
+    connect(m_related, &RelatedPanel::openRequested, this, &MainWindow::openNoteAt);
+    connect(m_related, &RelatedPanel::linkRequested, this, &MainWindow::linkHere);
+    m_relatedTimer = new QTimer(this);
+    m_relatedTimer->setSingleShot(true);
+    m_relatedTimer->setInterval(kRelatedDelayMs);
+    connect(m_relatedTimer, &QTimer::timeout, m_related, &RelatedPanel::refresh);
     m_history = new HistoryPanel(m_gitPool);
     m_sidebar->addSection(tr("History"), m_history);
     connect(m_history, &HistoryPanel::versionRequested, this, &MainWindow::openVersion);
@@ -666,6 +679,7 @@ void MainWindow::startIndex(const QString& vaultPath)
     m_tags->setIndexPath(IndexService::indexPath(vaultPath));
     m_search->setIndexPath(IndexService::indexPath(vaultPath));
     m_search->setModelPath(Embedder::modelPath(vaultPath));
+    m_related->setIndexPath(IndexService::indexPath(vaultPath));
     connect(m_indexThread, &QThread::finished, m_index, &QObject::deleteLater);
 
     connect(m_index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
@@ -726,6 +740,7 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_semanticLabel->setVisible(total > 0);
         m_semanticLabel->setText(embedded >= total ? tr("meaning ✓") : tr("embedding %L1 of %L2").arg(embedded).arg(total));
         m_semanticLabel->setToolTip(tr("%L1 of %L2 passages have vectors for search by meaning (bge-small-en-v1.5)").arg(embedded).arg(total));
+        m_relatedTimer->start(); // the note's new vectors may have landed (a save is re-embedded)
         emit embeddingProgress(embedded, total);
     });
     connect(m_embedding, &EmbeddingService::unavailable, this, [this](const QString& why) {
@@ -2109,6 +2124,25 @@ void MainWindow::resizeEvent(QResizeEvent* event)
 {
     QMainWindow::resizeEvent(event);
     layoutToasts();
+}
+
+void MainWindow::linkHere(const QString& absolutePath)
+{
+    Editor* editor = currentEditor();
+    if (!editor)
+        return;
+    const NoteEntry* target = nullptr;
+    for (const NoteEntry& note : m_catalogue->notes()) {
+        if (note.rootPath + QLatin1Char('/') + note.path == absolutePath)
+            target = &note;
+    }
+    if (!target) {
+        statusBar()->showMessage(tr("%1 is not indexed yet").arg(displayPath(absolutePath)), kStatusTimeoutMs);
+        return;
+    }
+    const QString source = m_catalogue->locate(editor->path()).rootName;
+    editor->insertPlainText(QStringLiteral("[[") + WikilinkCompletion::linkText(*target, m_catalogue->notes(), source) + QStringLiteral("]]"));
+    editor->setFocus();
 }
 
 void MainWindow::changeEvent(QEvent* event)
