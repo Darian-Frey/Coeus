@@ -4,7 +4,11 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
+#include <QGuiApplication>
 #include <QLocale>
+#include <QMenu>
+#include <QPushButton>
+#include <QSignalBlocker>
 #include <QThreadPool>
 #include <QToolButton>
 #include <QTreeWidget>
@@ -27,6 +31,9 @@ HistoryPanel::HistoryPanel(QThreadPool* pool, QWidget* parent)
     , m_status(new QLabel(this))
     , m_refresh(new QToolButton(this))
     , m_tree(new QTreeWidget(this))
+    , m_diff(new QPushButton(tr("Diff vs HEAD"), this))
+    , m_blame(new QPushButton(tr("Blame"), this))
+    , m_menu(new QMenu(this))
 {
     m_branch->setForegroundRole(QPalette::PlaceholderText);
     m_status->setForegroundRole(QPalette::PlaceholderText);
@@ -45,13 +52,30 @@ HistoryPanel::HistoryPanel(QThreadPool* pool, QWidget* parent)
     m_tree->header()->setStretchLastSection(true);
     m_tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     m_tree->setMinimumHeight(80);
+    m_tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
     auto open = [this](QTreeWidgetItem* item) {
         const int index = item->data(0, kIndexRole).toInt();
         if (index >= 0 && index < m_commits.size())
             emit versionRequested(m_notePath, m_commits[index], m_workdir);
     };
-    connect(m_tree, &QTreeWidget::itemClicked, this, open);
+    connect(m_tree, &QTreeWidget::itemClicked, this, [open](QTreeWidgetItem* item) {
+        if (!(QGuiApplication::keyboardModifiers() & (Qt::ControlModifier | Qt::ShiftModifier)))
+            open(item); // Ctrl- and Shift-click only select, to compare two
+    });
     connect(m_tree, &QTreeWidget::itemActivated, this, open);
+    m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tree, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint& at) {
+        if (QTreeWidgetItem* item = m_tree->itemAt(at); item && !item->isSelected())
+            m_tree->setCurrentItem(item); // right-click outside the selection selects that row alone
+        if (QMenu* menu = commitMenu(); !menu->isEmpty())
+            menu->popup(m_tree->viewport()->mapToGlobal(at));
+    });
+
+    m_diff->setToolTip(tr("Compare the note as it is now, unsaved changes included, with HEAD"));
+    connect(m_diff, &QPushButton::clicked, this, [this] { emit diffWithHeadRequested(m_notePath); });
+    m_blame->setCheckable(true);
+    m_blame->setToolTip(tr("Show who last changed each line, beside the editor"));
+    connect(m_blame, &QPushButton::toggled, this, &HistoryPanel::blameToggled);
 
     auto* header = new QHBoxLayout;
     header->setContentsMargins(0, 0, 0, 0);
@@ -62,6 +86,11 @@ HistoryPanel::HistoryPanel(QThreadPool* pool, QWidget* parent)
     layout->addLayout(header);
     layout->addWidget(m_status);
     layout->addWidget(m_tree);
+    auto* buttons = new QHBoxLayout;
+    buttons->setContentsMargins(0, 0, 0, 0);
+    buttons->addWidget(m_diff);
+    buttons->addWidget(m_blame);
+    layout->addLayout(buttons);
     showNote(QString());
 }
 
@@ -75,8 +104,40 @@ QString HistoryPanel::status() const
     return m_status->text();
 }
 
+void HistoryPanel::setBlameChecked(bool checked)
+{
+    const QSignalBlocker blocker(m_blame);
+    m_blame->setChecked(checked);
+}
+
+QMenu* HistoryPanel::commitMenu()
+{
+    m_menu->clear();
+    QList<int> rows;
+    for (QTreeWidgetItem* item : m_tree->selectedItems())
+        rows.append(item->data(0, kIndexRole).toInt());
+    std::sort(rows.begin(), rows.end()); // newest first, as listed
+    if (rows.size() == 1) {
+        const int row = rows.front();
+        m_menu->addAction(tr("Open This Version"), this, [this, row] { emit versionRequested(m_notePath, m_commits[row], m_workdir); });
+        m_menu->addAction(tr("Compare with the Version Before"), this, [this, row] {
+            const std::optional<GitCommit> before = row + 1 < m_commits.size() ? std::optional(m_commits[row + 1]) : std::nullopt;
+            emit compareRequested(m_notePath, before, m_commits[row]);
+        });
+        m_menu->addAction(tr("Compare with the Working Copy"), this,
+                          [this, row] { emit compareRequested(m_notePath, m_commits[row], std::nullopt); });
+    } else if (rows.size() == 2) {
+        m_menu->addAction(tr("Compare These Two Versions"), this, [this, rows] {
+            emit compareRequested(m_notePath, m_commits[rows[1]], m_commits[rows[0]]);
+        });
+    }
+    return m_menu;
+}
+
 void HistoryPanel::showNote(const QString& absolutePath)
 {
+    if (absolutePath == m_notePath && m_generation > 0)
+        return; // the same note (e.g. its version or diff tab): keep the list and its selection
     m_notePath = absolutePath;
     refresh();
 }
@@ -126,6 +187,8 @@ void HistoryPanel::present(const Result& result)
     else
         m_status->setText(m_commits.size() == 1 ? tr("1 commit") : tr("%1 commits").arg(m_commits.size()));
     m_tree->setVisible(!m_commits.isEmpty());
+    m_diff->setEnabled(result.error.isEmpty() && !m_notePath.isEmpty());
+    m_blame->setEnabled(result.error.isEmpty() && !m_notePath.isEmpty());
 
     const QFont mono = QFont(QStringLiteral("monospace"));
     for (qsizetype i = 0; i < m_commits.size(); ++i) {

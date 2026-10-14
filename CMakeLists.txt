@@ -65,6 +65,7 @@ add_library(coeus_core STATIC
     src/vault/VaultWatcher.cpp
     src/ui/BacklinksPanel.cpp
     src/ui/CommandPalette.cpp
+    src/ui/DiffView.cpp
     src/ui/Editor.cpp
     src/ui/ExplorerPanel.cpp
     src/ui/FuzzyMatch.cpp

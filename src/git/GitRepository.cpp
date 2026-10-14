@@ -3,8 +3,11 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 
 #include <git2.h>
+
+#include <limits>
 
 namespace coeus {
 
@@ -36,6 +39,7 @@ using Diff = Owned<git_diff, git_diff_free>;
 using Object = Owned<git_object, git_object_free>;
 using Blob = Owned<git_blob, git_blob_free>;
 using Reference = Owned<git_reference, git_reference_free>;
+using Blame = Owned<git_blame, git_blame_free>;
 
 QString hex(const git_oid* oid)
 {
@@ -228,6 +232,100 @@ std::expected<QByteArray, QString> GitRepository::fileAt(const QString& commitId
     if (git_blob_lookup(blob.out(), m_repo.get(), &oid) != 0)
         return std::unexpected(lastError("Cannot read the file"));
     return QByteArray(static_cast<const char*>(git_blob_rawcontent(blob.get())), qsizetype(git_blob_rawsize(blob.get())));
+}
+
+std::expected<QList<BlameLine>, QString> GitRepository::blame(const QString& relativePath, const QByteArray& buffer) const
+{
+    // Lines of the buffer, as libgit2 counts them.
+    const int lineCount = int(buffer.count('\n')) + (buffer.isEmpty() || buffer.endsWith('\n') ? 0 : 1);
+    QList<BlameLine> lines(lineCount);
+
+    Blame committed;
+    git_blame_options options = GIT_BLAME_OPTIONS_INIT;
+    const int rc = git_blame_file(committed.out(), m_repo.get(), relativePath.toUtf8().constData(), &options);
+    if (rc == GIT_ENOTFOUND || git_repository_head_unborn(m_repo.get()) == 1)
+        return lines; // not in HEAD: nothing is committed yet
+    if (rc != 0)
+        return std::unexpected(lastError("Cannot blame the file"));
+    Blame current;
+    if (git_blame_buffer(current.out(), committed.get(), buffer.constData(), size_t(buffer.size())) != 0)
+        return std::unexpected(lastError("Cannot blame the buffer"));
+
+    QHash<QString, BlameLine> commits; // one lookup per commit
+    const uint32_t hunks = git_blame_get_hunk_count(current.get());
+    for (uint32_t i = 0; i < hunks; ++i) {
+        const git_blame_hunk* hunk = git_blame_get_hunk_byindex(current.get(), i);
+        if (git_oid_is_zero(&hunk->final_commit_id))
+            continue; // added in the buffer
+        const QString id = hex(&hunk->final_commit_id);
+        auto known = commits.find(id);
+        if (known == commits.end()) {
+            BlameLine line;
+            line.id = id;
+            line.shortId = id.left(7);
+            Commit commit;
+            if (git_commit_lookup(commit.out(), m_repo.get(), &hunk->final_commit_id) == 0) {
+                const GitCommit described = describe(commit.get(), relativePath);
+                line.summary = described.summary;
+                line.author = described.author;
+                line.time = described.time;
+            }
+            known = commits.insert(id, line);
+        }
+        const int first = int(hunk->final_start_line_number) - 1;
+        for (int l = first; l < first + int(hunk->lines_in_hunk) && l < lineCount; ++l) {
+            if (l >= 0)
+                lines[l] = *known;
+        }
+    }
+    return lines;
+}
+
+std::expected<QList<DiffLine>, QString> GitRepository::diff(const QByteArray& oldText, const QByteArray& newText)
+{
+    git_libgit2_init();
+    git_diff_options options = GIT_DIFF_OPTIONS_INIT;
+    options.context_lines = std::numeric_limits<uint32_t>::max() / 2; // the whole file as one hunk
+    options.flags = GIT_DIFF_FORCE_TEXT;
+    struct Collect {
+        QList<DiffLine> lines;
+        bool sawHunk = false;
+    } collect;
+    const auto onLine = [](const git_diff_delta*, const git_diff_hunk*, const git_diff_line* line, void* payload) -> int {
+        auto* out = static_cast<Collect*>(payload);
+        DiffLine diffLine;
+        switch (line->origin) {
+        case GIT_DIFF_LINE_CONTEXT: diffLine.kind = DiffLine::Kind::Context; break;
+        case GIT_DIFF_LINE_ADDITION: diffLine.kind = DiffLine::Kind::Added; break;
+        case GIT_DIFF_LINE_DELETION: diffLine.kind = DiffLine::Kind::Removed; break;
+        default: return 0; // "\ No newline at end of file" and file headers
+        }
+        diffLine.oldLine = std::max(0, line->old_lineno);
+        diffLine.newLine = std::max(0, line->new_lineno);
+        QByteArray text(line->content, qsizetype(line->content_len));
+        while (text.endsWith('\n') || text.endsWith('\r'))
+            text.chop(1);
+        diffLine.text = QString::fromUtf8(text);
+        out->lines.append(diffLine);
+        return 0;
+    };
+    const int rc = git_diff_buffers(oldText.constData(), size_t(oldText.size()), nullptr, newText.constData(),
+                                    size_t(newText.size()), nullptr, &options, nullptr, nullptr, nullptr, onLine, &collect);
+    const QString error = rc == 0 ? QString() : lastError("Cannot compare the texts");
+    git_libgit2_shutdown();
+    if (rc != 0)
+        return std::unexpected(error);
+    if (collect.lines.isEmpty() && !newText.isEmpty()) {
+        // Identical: libgit2 reports no hunk, so list the text unchanged.
+        int n = 0;
+        for (const QByteArray& line : newText.split('\n')) {
+            if (n == int(newText.count('\n')) && line.isEmpty())
+                break; // the empty piece after a final newline
+            ++n;
+            collect.lines.append({DiffLine::Kind::Context, n, n, QString::fromUtf8(line).remove(QLatin1Char('\r'))});
+        }
+    }
+    return collect.lines;
 }
 
 } // namespace coeus

@@ -117,6 +117,59 @@ private slots:
                  (QStringList{QStringLiteral("Side edits a@a.md"), QStringLiteral("Base@a.md")}));
     }
 
+    void blameNamesTheCommitOfEachLine()
+    {
+        QTemporaryDir dir;
+        GitFixture git(dir.path());
+        git.write(QStringLiteral("a.md"), "one\ntwo\nthree\n");
+        const QString first = git.commit(QStringLiteral("Three lines"), {QStringLiteral("a.md")}, kStart);
+        git.write(QStringLiteral("a.md"), "one\nTWO\nthree\n");
+        const QString second = git.commit(QStringLiteral("Shout two"), {QStringLiteral("a.md")}, kStart + kDay);
+
+        const auto repo = GitRepository::discover(dir.path());
+        // The buffer: line 2 as committed, and a new line 3.
+        const auto lines = repo->blame(QStringLiteral("a.md"), "one\nTWO\nunsaved\nthree\n");
+        QVERIFY2(lines, lines ? "" : qPrintable(lines.error()));
+        QCOMPARE(lines->size(), 4);
+        QCOMPARE(lines->at(0).id, first);
+        QCOMPARE(lines->at(0).summary, QStringLiteral("Three lines"));
+        QCOMPARE(lines->at(1).id, second);
+        QCOMPARE(lines->at(1).author, QStringLiteral("Ada Lovelace"));
+        QCOMPARE(lines->at(1).time.toSecsSinceEpoch(), kStart + kDay);
+        QVERIFY(lines->at(2).id.isEmpty()); // not committed
+        QCOMPARE(lines->at(3).id, first);
+        // Losing the final newline changes the last line, as git blame says too.
+        const auto unterminated = repo->blame(QStringLiteral("a.md"), "one\nTWO\nthree");
+        QCOMPARE(unterminated->size(), 3);
+        QVERIFY(unterminated->at(2).id.isEmpty());
+
+        // A file HEAD lacks: every line uncommitted.
+        const auto fresh = repo->blame(QStringLiteral("new.md"), "a\nb\n");
+        QVERIFY(fresh);
+        QCOMPARE(fresh->size(), 2);
+        QVERIFY(fresh->at(0).id.isEmpty() && fresh->at(1).id.isEmpty());
+    }
+
+    void diffListsTheWholeFile()
+    {
+        using K = DiffLine::Kind;
+        const auto lines = GitRepository::diff("one\ntwo\nthree\nfour\n", "one\n2\nthree\nfour\nfive");
+        QVERIFY(lines);
+        QStringList brief;
+        for (const DiffLine& line : *lines)
+            brief.append(QStringLiteral("%1%2:%3 %4").arg(line.kind == K::Added ? '+' : line.kind == K::Removed ? '-' : ' ')
+                             .arg(line.oldLine).arg(line.newLine).arg(line.text));
+        QCOMPARE(brief, (QStringList{QStringLiteral(" 1:1 one"), QStringLiteral("-2:0 two"), QStringLiteral("+0:2 2"),
+                                     QStringLiteral(" 3:3 three"), QStringLiteral(" 4:4 four"), QStringLiteral("+0:5 five")}));
+        const auto same = GitRepository::diff("a\nb\n", "a\nb\n");
+        QCOMPARE(same->size(), 2);
+        QVERIFY(same->at(1).kind == K::Context && same->at(1).newLine == 2);
+        const auto fromNothing = GitRepository::diff(QByteArray(), "new\n");
+        QCOMPARE(fromNothing->size(), 1);
+        QVERIFY(fromNothing->at(0).kind == K::Added);
+        QVERIFY(GitRepository::diff("x\n", QByteArray())->at(0).kind == K::Removed);
+    }
+
     void detachedHead()
     {
         QTemporaryDir dir;

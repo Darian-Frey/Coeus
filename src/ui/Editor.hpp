@@ -1,16 +1,19 @@
 #pragma once
 
+#include "git/GitRepository.hpp"
 #include "index/IndexQueries.hpp"
 #include "vault/Vault.hpp"
 
 #include <QByteArray>
 #include <QPlainTextEdit>
+#include <QTimer>
 #include <QString>
 
 #include <expected>
 
 namespace coeus {
 
+class BlameGutter;
 class MarkdownHighlighter;
 class NoteCatalogue;
 class WikilinkCompleter;
@@ -63,12 +66,31 @@ public:
     // The problem text under `position` in the document, or empty.
     QString problemAt(int position) const;
 
+    // The blame gutter (F-021). showBlame() opens it and asks for blame
+    // (blameRequested); setBlame() fills it, one entry per line of the text it
+    // was computed for. While it is open, an edit asks again once typing pauses.
+    void showBlame();
+    void hideBlame();
+    bool blameShown() const { return m_blameOn; }
+    void setBlame(const QList<BlameLine>& lines);
+    const QList<BlameLine>& blame() const { return m_blame; }
+    // What the gutter shows beside block `blockNumber`: "a41c9e2 2026-09-25"
+    // at the start of a run of lines from one commit, "" within it,
+    // "Not committed" for new lines; with `always`, within a run too.
+    QString blameLabel(int blockNumber, bool always = false) const;
+    QString blameToolTip(int blockNumber) const;
+    int blameGutterWidth() const;
+    void paintBlame(QPaintEvent* event);
+
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     bool viewportEvent(QEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 signals:
     void modificationChanged(bool modified);
+    void blameRequested();
+    void blameShownChanged(bool shown);
     void conflictChanged(bool conflict);
 
 private:
@@ -85,6 +107,10 @@ private:
     MarkdownHighlighter* m_highlighter = nullptr;
     WikilinkCompleter* m_completer = nullptr;
     QList<ProblemRef> m_problems;
+    bool m_blameOn = false;
+    QList<BlameLine> m_blame;
+    BlameGutter* m_blameGutter = nullptr;
+    QTimer* m_blameTimer = nullptr;
     QMetaObject::Connection m_catalogueReloaded;
 };
 

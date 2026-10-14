@@ -28,6 +28,7 @@ class OutlinePanel;
 class TagPanel;
 class HistoryPanel;
 class ProblemsPanel;
+class DiffView;
 class VersionView;
 struct GitCommit;
 class RegisterPanel;
@@ -68,6 +69,20 @@ public:
     HistoryPanel* history() const { return m_history; }
     // Opens the note as it was in `commit`, read-only, in a tab (F-020).
     void openVersion(const QString& notePath, const GitCommit& commit, const QString& workdir);
+    // F-021: one side of a comparison. Nothing is an empty text; the working
+    // copy is the open editor's buffer, or the file if the note is not open.
+    struct DiffSide {
+        enum class Kind { Nothing, Revision, WorkingCopy };
+        Kind kind = Kind::WorkingCopy;
+        QString revision; // a commit id or "HEAD"
+        QString path;     // workdir-relative path in that revision; "" for the note's current one
+        QString label;    // "HEAD", "a41c9e2", "working copy"
+    };
+    // Compares two sides of the note at `notePath` in a DiffView tab.
+    void openDiff(const QString& notePath, const DiffSide& older, const DiffSide& newer);
+    void diffWithHead(const QString& notePath);
+    // Opens or closes the blame gutter of the current editor.
+    void setBlameShown(bool shown);
     QDockWidget* problemsDock() const { return m_problemsDock; }
     QToolButton* problemsButton() const { return m_problemsButton; }
     CommandPalette* templatePicker() const { return m_templatePicker; }
@@ -110,6 +125,8 @@ public:
 
 signals:
     void versionOpened(coeus::VersionView* view);
+    void diffOpened(coeus::DiffView* view);
+    void blameApplied(coeus::Editor* editor);
     // An ID was reserved and its entry appended to the register's buffer (F-015).
     void nextIdInserted(const QString& ident, const QString& registerFile);
     // A template was inserted into the current buffer (F-010).
@@ -132,6 +149,7 @@ signals:
 protected:
     void closeEvent(QCloseEvent* event) override;
     void changeEvent(QEvent* event) override;
+    void requestBlame(Editor* editor);
 
 private:
     void createDocks();

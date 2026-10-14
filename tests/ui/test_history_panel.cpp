@@ -50,8 +50,10 @@ private:
     void showHistory(const QString& note)
     {
         QSignalSpy updated(m_window->history(), &HistoryPanel::updated);
+        const bool shown = m_window->history()->notePath() == note;
         m_window->openNote(note);
-        QTRY_VERIFY_WITH_TIMEOUT(!updated.isEmpty() && m_window->history()->notePath() == note, kWaitMs);
+        if (!shown) // the note already shown is not read again
+            QTRY_VERIFY_WITH_TIMEOUT(!updated.isEmpty() && m_window->history()->notePath() == note, kWaitMs);
     }
 
 private slots:

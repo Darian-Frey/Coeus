@@ -242,6 +242,11 @@ def build_vault(vault: Path, linked: Path) -> None:
           and two commits. Click the older one: the note as it was (60 Hz) opens
           read-only in its own tab. The vault itself has no commits yet, so its
           notes say so.
+        - Still in [[pontus:DECISIONS]], type a line, then **Diff vs HEAD**: the
+          unsaved line shows in green. Right-click the newer commit, **Compare
+          with the Version Before**: 60 Hz in red, 120 Hz in green.
+        - **Blame** (or `Ctrl+Alt+B`): each run of lines names its commit and
+          date beside the text; your new line is *Not committed*.
 
         ## Index
         - File → **Verify Index**; File → **Rebuild Index**.

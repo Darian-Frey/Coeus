@@ -2,6 +2,7 @@
 
 #include "ui/BacklinksPanel.hpp"
 #include "ui/CommandPalette.hpp"
+#include "ui/DiffView.hpp"
 #include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
 #include "ui/HistoryPanel.hpp"
@@ -65,6 +66,7 @@ constexpr int kLayoutVersion = 1;
 constexpr int kStatusTimeoutMs = 5000;
 
 const char* const kPathProperty = "coeusPath";
+const char* const kDiffProperty = "coeusDiff"; // identifies a DiffView tab
 const char* const kVersionProperty = "coeusVersion"; // "<absolute path>@<commit id>" on a VersionView tab
 
 } // namespace
@@ -99,8 +101,14 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_tabs, &QTabWidget::currentChanged, this, [this] {
         Editor* editor = currentEditor();
         m_backlinks->showNote(editor ? editor->path() : QString());
-        const auto* version = qobject_cast<VersionView*>(m_tabs->currentWidget());
-        m_history->showNote(editor ? editor->path() : version ? version->notePath() : QString());
+        // A version or a diff keeps its note's history in view.
+        QString historyOf = editor ? editor->path() : QString();
+        if (const auto* version = qobject_cast<VersionView*>(m_tabs->currentWidget()))
+            historyOf = version->notePath();
+        else if (const auto* diff = qobject_cast<DiffView*>(m_tabs->currentWidget()))
+            historyOf = diff->notePath();
+        m_history->showNote(historyOf);
+        m_history->setBlameChecked(editor && editor->blameShown());
         m_outline->setView(currentView());
         if (editor) {
             m_registers->followNote(editor->path());
@@ -130,6 +138,17 @@ void MainWindow::createDocks()
     m_history = new HistoryPanel(m_gitPool);
     m_sidebar->addSection(tr("History"), m_history);
     connect(m_history, &HistoryPanel::versionRequested, this, &MainWindow::openVersion);
+    connect(m_history, &HistoryPanel::diffWithHeadRequested, this, &MainWindow::diffWithHead);
+    connect(m_history, &HistoryPanel::blameToggled, this, &MainWindow::setBlameShown);
+    connect(m_history, &HistoryPanel::compareRequested, this,
+            [this](const QString& notePath, const std::optional<GitCommit>& older, const std::optional<GitCommit>& newer) {
+                const auto side = [](const std::optional<GitCommit>& commit, DiffSide::Kind absent, const QString& absentLabel) {
+                    return commit ? DiffSide{DiffSide::Kind::Revision, commit->id, commit->path, commit->shortId}
+                                  : DiffSide{absent, QString(), QString(), absentLabel};
+                };
+                openDiff(notePath, side(older, DiffSide::Kind::Nothing, tr("nothing")),
+                         side(newer, DiffSide::Kind::WorkingCopy, tr("working copy")));
+            });
     m_outline = new OutlinePanel;
     m_sidebar->addSection(tr("Outline"), m_outline);
     m_sidebarDock = new QDockWidget(tr("Sidebar"), this);
@@ -304,6 +323,27 @@ void MainWindow::createActions()
     viewMenu->addSeparator();
     viewMenu->addAction(toggleExplorer);
     viewMenu->addAction(toggleSidebar);
+
+    // Git (F-021): the current note against HEAD, and the blame gutter.
+    auto* diffHead = new QAction(tr("&Diff with HEAD"), this);
+    diffHead->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_D));
+    connect(diffHead, &QAction::triggered, this, [this] {
+        if (Editor* editor = currentEditor())
+            diffWithHead(editor->path());
+    });
+    auto* toggleBlame = new QAction(tr("Toggle &Blame"), this);
+    toggleBlame->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_B));
+    connect(toggleBlame, &QAction::triggered, this, [this] {
+        if (Editor* editor = currentEditor())
+            setBlameShown(!editor->blameShown());
+    });
+    QMenu* gitMenu = menuBar()->addMenu(tr("&Git"));
+    gitMenu->addAction(diffHead);
+    gitMenu->addAction(toggleBlame);
+    for (QAction* action : {diffHead, toggleBlame}) {
+        addAction(action);
+        registerAction(action);
+    }
 
     auto* strip = new QToolBar(tr("Tools"), this);
     strip->setObjectName(QStringLiteral("toolStrip"));
@@ -943,6 +983,11 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
     }
     view->setProperty(kPathProperty, absolutePath);
     editor->setCatalogue(m_catalogue);
+    connect(editor, &Editor::blameRequested, this, [this, editor] { requestBlame(editor); });
+    connect(editor, &Editor::blameShownChanged, this, [this, editor](bool shown) {
+        if (editor == currentEditor())
+            m_history->setBlameChecked(shown);
+    });
     connect(editor, &Editor::modificationChanged, this, [this, editor] { updateTabTitle(editor); });
     connect(editor, &Editor::conflictChanged, this, [this, editor] { updateTabTitle(editor); });
     connect(view, &NoteView::linkActivated, this, [this, view](const QUrl& url) { followLink(view, url); });
@@ -1379,6 +1424,10 @@ void MainWindow::updateStatus()
         m_noteLabel->setText(tr("%1 as of %2 (read-only)").arg(displayPath(version->notePath()), version->commit().shortId));
         return;
     }
+    if (const auto* diff = qobject_cast<DiffView*>(page)) {
+        m_noteLabel->setText(diff->summary());
+        return;
+    }
     m_noteLabel->setText(page ? displayPath(page->property(kPathProperty).toString()) : QString());
 }
 
@@ -1427,6 +1476,139 @@ void MainWindow::openVersion(const QString& notePath, const GitCommit& commit, c
         if (!repo)
             return std::unexpected(repo.error());
         return repo->fileAt(commit.id, commit.path);
+    }));
+}
+
+void MainWindow::diffWithHead(const QString& notePath)
+{
+    if (notePath.isEmpty())
+        return;
+    openDiff(notePath, {DiffSide::Kind::Revision, QStringLiteral("HEAD"), QString(), QStringLiteral("HEAD")},
+             {DiffSide::Kind::WorkingCopy, QString(), QString(), tr("working copy")});
+}
+
+void MainWindow::openDiff(const QString& notePath, const DiffSide& older, const DiffSide& newer)
+{
+    const auto keyOf = [](const DiffSide& side) {
+        return side.kind == DiffSide::Kind::Revision ? side.revision + QLatin1Char(':') + side.path
+                                                     : QString::number(int(side.kind));
+    };
+    const QString key = notePath + QLatin1Char('|') + keyOf(older) + QLatin1Char('|') + keyOf(newer);
+    const bool live = older.kind == DiffSide::Kind::WorkingCopy || newer.kind == DiffSide::Kind::WorkingCopy
+                      || older.revision == QLatin1String("HEAD");
+    int replace = -1;
+    for (int i = 0; i < m_tabs->count(); ++i) {
+        if (m_tabs->widget(i)->property(kDiffProperty).toString() != key)
+            continue;
+        if (!live) {
+            m_tabs->setCurrentIndex(i); // two commits never change
+            return;
+        }
+        replace = i; // the working copy may have: compare again in its place
+    }
+
+    // The working copy as the author sees it: the open buffer, unsaved changes included.
+    const Editor* editor = editorFor(notePath);
+    const bool fromBuffer = editor != nullptr;
+    const QByteArray buffer = editor ? editor->toPlainText().toUtf8() : QByteArray();
+    using Result = std::expected<QList<DiffLine>, QString>;
+    auto* watcher = new QFutureWatcher<Result>(this);
+    connect(watcher, &QFutureWatcher<Result>::finished, this, [this, watcher, notePath, older, newer, key, replace] {
+        watcher->deleteLater();
+        const Result lines = watcher->result();
+        if (!lines) {
+            statusBar()->showMessage(lines.error(), kStatusTimeoutMs * 2);
+            return;
+        }
+        auto* view = new DiffView(notePath, older.label, newer.label, *lines);
+        view->setProperty(kDiffProperty, key);
+        int index = -1;
+        if (replace >= 0 && replace < m_tabs->count() && m_tabs->widget(replace)->property(kDiffProperty).toString() == key) {
+            QWidget* old = m_tabs->widget(replace);
+            m_tabs->removeTab(replace);
+            old->deleteLater();
+            index = m_tabs->insertTab(replace, view, view->title());
+        } else {
+            index = m_tabs->addTab(view, view->title());
+        }
+        m_tabs->setTabToolTip(index, view->summary());
+        m_tabs->setCurrentIndex(index);
+        emit diffOpened(view);
+    });
+    watcher->setFuture(QtConcurrent::run(m_gitPool, [notePath, older, newer, fromBuffer, buffer]() -> Result {
+        const auto repo = GitRepository::discover(notePath);
+        if (!repo)
+            return std::unexpected(repo.error());
+        const auto text = [&](const DiffSide& side) -> std::expected<QByteArray, QString> {
+            switch (side.kind) {
+            case DiffSide::Kind::Nothing: return QByteArray();
+            case DiffSide::Kind::Revision: {
+                const QString path = side.path.isEmpty() ? repo->relativePath(notePath) : side.path;
+                const auto bytes = repo->fileAt(side.revision, path);
+                if (!bytes && side.revision == QLatin1String("HEAD"))
+                    return QByteArray(); // not in HEAD yet: all of it is new
+                return bytes;
+            }
+            case DiffSide::Kind::WorkingCopy: {
+                if (fromBuffer)
+                    return buffer;
+                QFile file(notePath);
+                if (!file.open(QIODevice::ReadOnly))
+                    return std::unexpected(QStringLiteral("Cannot read %1").arg(notePath));
+                return file.readAll();
+            }
+            }
+            return QByteArray();
+        };
+        const auto before = text(older);
+        if (!before)
+            return std::unexpected(before.error());
+        const auto after = text(newer);
+        if (!after)
+            return std::unexpected(after.error());
+        return GitRepository::diff(*before, *after);
+    }));
+}
+
+void MainWindow::setBlameShown(bool shown)
+{
+    Editor* editor = currentEditor();
+    if (!editor) {
+        m_history->setBlameChecked(false);
+        return;
+    }
+    if (shown)
+        editor->showBlame(); // asks for blame through blameRequested
+    else
+        editor->hideBlame();
+}
+
+void MainWindow::requestBlame(Editor* editor)
+{
+    // Newest request wins: a slower, older blame never overwrites a newer one.
+    const int generation = editor->property("coeusBlameGeneration").toInt() + 1;
+    editor->setProperty("coeusBlameGeneration", generation);
+    using Result = std::expected<QList<BlameLine>, QString>;
+    auto* watcher = new QFutureWatcher<Result>(this);
+    QPointer<Editor> target(editor);
+    connect(watcher, &QFutureWatcher<Result>::finished, this, [this, watcher, target, generation] {
+        watcher->deleteLater();
+        if (!target || target->property("coeusBlameGeneration").toInt() != generation || !target->blameShown())
+            return;
+        const Result lines = watcher->result();
+        if (!lines) {
+            target->hideBlame();
+            statusBar()->showMessage(lines.error(), kStatusTimeoutMs * 2);
+            return;
+        }
+        target->setBlame(*lines);
+        emit blameApplied(target);
+    });
+    watcher->setFuture(QtConcurrent::run(m_gitPool, [path = editor->path(), buffer = editor->toPlainText().toUtf8()]() -> Result {
+        const auto repo = GitRepository::discover(path);
+        if (!repo)
+            return std::unexpected(repo.error());
+        return repo->blame(repo->relativePath(path), buffer);
     }));
 }
 

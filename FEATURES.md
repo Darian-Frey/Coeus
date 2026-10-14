@@ -183,7 +183,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Acceptance:**
 - Diff any two versions of a note, or working copy against HEAD, inline in the editor
 - Gutter blame toggle shows commit and date per line
-**Status:** Not started (Phase 3)
+**Status:** Complete (Phase 3, 2026-10-14): inline diff tabs (working copy or HEAD or any commit against another) and a blame gutter of the live buffer (SPEC.md §Git)
 
 ### F-022 Commit from Coeus
 **Priority:** Should
