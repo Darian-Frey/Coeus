@@ -43,9 +43,21 @@ struct BlameLine {
     QDateTime time;
 };
 
-// A thin, read-only wrapper over a libgit2 repository (ARCHITECTURE.md
-// git/). Not thread-safe: open one per worker task; every call blocks, so
-// none may run on the UI thread (AV-005). Never writes to the working tree.
+// One changed path in the working tree or index (F-022), as git status sees it.
+struct GitChange {
+    enum class Kind { Added, Modified, Deleted, Renamed, TypeChanged, Untracked, Conflicted };
+    QString path;     // workdir-relative
+    Kind kind = Kind::Modified;
+    bool staged = false;   // the index differs from HEAD for it
+    bool unstaged = false; // the working tree differs from the index for it
+    // "M", "A", "D", "R", "T", "?", "U"
+    QString letter() const;
+};
+
+// A thin wrapper over a libgit2 repository (ARCHITECTURE.md git/). Not
+// thread-safe: open one per worker task; every call blocks, so none may run
+// on the UI thread (AV-005). Never writes to the working tree: commit()
+// writes only the index and objects under .git/.
 class GitRepository {
 public:
     // The non-bare repository whose working tree contains `path`, searching upward.
@@ -79,6 +91,18 @@ public:
     // Every line of `newText` and the lines of `oldText` it lost, in reading
     // order: the whole file, so a diff reads in context. Needs no repository.
     static std::expected<QList<DiffLine>, QString> diff(const QByteArray& oldText, const QByteArray& newText);
+
+    // Every changed path, untracked ones included, ignored ones not, by path.
+    // Coeus's own files (`.coeus/`, `.*.coeus-tmp-*`) are left out even when no
+    // .gitignore excludes them, so they are never offered for a commit.
+    std::expected<QList<GitChange>, QString> status() const;
+
+    // Commits exactly `paths` as they are in the working tree (a missing file
+    // as its deletion) on top of HEAD, with `message` and the identity Git's
+    // config gives (user.name, user.email), and moves the branch. Anything
+    // else already staged stays staged and out of the commit, as
+    // `git commit -- <paths>` does. Returns the new commit.
+    std::expected<GitCommit, QString> commit(const QStringList& paths, const QString& message);
 
 private:
     struct Free {

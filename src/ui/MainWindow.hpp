@@ -28,7 +28,9 @@ class OutlinePanel;
 class TagPanel;
 class HistoryPanel;
 class ProblemsPanel;
+class CommitDialog;
 class DiffView;
+class GitPush;
 class VersionView;
 struct GitCommit;
 class RegisterPanel;
@@ -83,6 +85,12 @@ public:
     void diffWithHead(const QString& notePath);
     // Opens or closes the blame gutter of the current editor.
     void setBlameShown(bool shown);
+    // F-022: the commit dialog for the current note's repository (or the
+    // vault's), and the status-bar count of changed files.
+    void openCommitDialog();
+    void refreshGitStatus();
+    CommitDialog* commitDialog() const { return m_commitDialog; }
+    QToolButton* gitButton() const { return m_gitButton; }
     QDockWidget* problemsDock() const { return m_problemsDock; }
     QToolButton* problemsButton() const { return m_problemsButton; }
     CommandPalette* templatePicker() const { return m_templatePicker; }
@@ -127,6 +135,10 @@ signals:
     void versionOpened(coeus::VersionView* view);
     void diffOpened(coeus::DiffView* view);
     void blameApplied(coeus::Editor* editor);
+    void gitStatusUpdated(int changes);
+    void commitDialogReady();
+    void committed(const QString& commitId);
+    void pushFinished(bool ok, const QString& message);
     // An ID was reserved and its entry appended to the register's buffer (F-015).
     void nextIdInserted(const QString& ident, const QString& registerFile);
     // A template was inserted into the current buffer (F-010).
@@ -150,6 +162,8 @@ protected:
     void closeEvent(QCloseEvent* event) override;
     void changeEvent(QEvent* event) override;
     void requestBlame(Editor* editor);
+    QString gitStatusPath() const;
+    void commit(const QString& workdir, const QStringList& paths, const QString& message, bool push);
 
 private:
     void createDocks();
@@ -218,6 +232,11 @@ private:
     QLabel* m_vaultLabel = nullptr;
     QLabel* m_indexLabel = nullptr;
     QToolButton* m_problemsButton = nullptr;
+    QToolButton* m_gitButton = nullptr;
+    CommitDialog* m_commitDialog = nullptr;
+    GitPush* m_push = nullptr;
+    QTimer* m_gitStatusTimer = nullptr;
+    int m_gitStatusGeneration = 0;
     QThread* m_indexThread = nullptr;
     IndexService* m_index = nullptr;
     QAction* m_verifyIndex = nullptr;

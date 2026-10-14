@@ -247,6 +247,10 @@ def build_vault(vault: Path, linked: Path) -> None:
           with the Version Before**: 60 Hz in red, 120 Hz in green.
         - **Blame** (or `Ctrl+Alt+B`): each run of lines names its commit and
           date beside the text; your new line is *Not committed*.
+        - The vault is a repository with nothing committed: the status bar says
+          how many files are changed. Click it (or `Ctrl+Alt+C`): notes are
+          ticked, attachments not. Write a message and **Commit**; History now
+          lists it. (Push needs a remote; this demo has none, so leave it off.)
 
         ## Index
         - File → **Verify Index**; File → **Rebuild Index**.

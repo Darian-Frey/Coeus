@@ -190,7 +190,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Acceptance:**
 - Status bar shows dirty-file count; click opens a commit dialog with a multi-paragraph message editor
 - Stage selected notes, commit, and optionally push; errors surface without blocking the UI
-**Status:** Not started (Phase 3)
+**Status:** Complete (Phase 3, 2026-10-14): changed-files count, commit dialog committing the ticked paths through libgit2, push by `git push` (D-020; SPEC.md §Git)
 
 ### Rich Markdown
 

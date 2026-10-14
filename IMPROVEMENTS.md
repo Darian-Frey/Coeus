@@ -13,6 +13,16 @@ Effort vocabulary: trivial | small | medium | large.
 
 ## Suggested
 
+### IMP-005: Run Git's commit hooks on commits made in Coeus
+**Status:** suggested
+**Found:** 2026-10-14 (F-022)
+**Location:** `src/git/GitRepository.cpp` (`commit`), `src/ui/MainWindow.cpp`
+**Effort:** small
+**Description.** Commits made in Coeus go through libgit2, which does not run hooks (D-020), so a repository's `pre-commit` and `commit-msg` hooks are skipped: Coeus's own hook, which runs `coeus --lint`, would not stop a commit made from Coeus with broken register IDs.
+**Proposal.** Before committing, run the repository's `pre-commit` hook (if executable, honouring `core.hooksPath`) as a background process in the working tree, and `commit-msg` with the message in a temporary file; a non-zero exit refuses the commit and shows the hook's output in the dialog. Or commit with `git commit -- <paths>` as push already runs `git push`.
+**Trade-offs.** Hooks can be slow and may assume a terminal; the first option reimplements part of Git's hook protocol, the second gives up libgit2 for commits and depends on the `git` binary for one more thing. Coeus would also be running code from the repository it opened.
+**Notes.** Until then, a Coeus commit is like `git commit --no-verify`.
+
 ### IMP-003: Accept register fields written as list items
 **Status:** suggested
 **Found:** 2026-10-13 (F-016, linting `~/Projects`)

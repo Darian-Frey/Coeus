@@ -92,6 +92,71 @@ public:
         return QString::fromLatin1(hex);
     }
 
+    // Sets user.name and user.email in this repository's own config.
+    void setIdentity(const char* name = "Grace Hopper", const char* email = "grace@example.org") const
+    {
+        git_config* config = nullptr;
+        git_repository_config(&config, m_repo);
+        git_config_set_string(config, "user.name", name);
+        git_config_set_string(config, "user.email", email);
+        git_config_free(config);
+    }
+
+    // Stages `paths` without committing (as `git add`).
+    void stage(const QStringList& paths) const
+    {
+        git_index* index = nullptr;
+        git_repository_index(&index, m_repo);
+        for (const QString& path : paths)
+            git_index_add_bypath(index, path.toUtf8().constData());
+        git_index_write(index);
+        git_index_free(index);
+    }
+
+    // Adds remote `origin` at `url` and makes it main's upstream, as `git push -u` would.
+    void setUpstream(const QString& url) const
+    {
+        git_remote* remote = nullptr;
+        git_remote_create(&remote, m_repo, "origin", url.toUtf8().constData());
+        git_remote_free(remote);
+        git_config* config = nullptr;
+        git_repository_config(&config, m_repo);
+        git_config_set_string(config, "branch.main.remote", "origin");
+        git_config_set_string(config, "branch.main.merge", "refs/heads/main");
+        git_config_free(config);
+    }
+
+    // A bare repository at `path`, to push to.
+    static bool initBare(const QString& path)
+    {
+        git_libgit2_init();
+        git_repository* repo = nullptr;
+        const int rc = git_repository_init(&repo, QFile::encodeName(path).constData(), 1);
+        git_repository_free(repo);
+        git_libgit2_shutdown();
+        return rc == 0;
+    }
+
+    // The id `revision` names in the repository at `path`, or empty.
+    static QString resolve(const QString& path, const char* revision)
+    {
+        git_libgit2_init();
+        git_repository* repo = nullptr;
+        QString id;
+        if (git_repository_open(&repo, QFile::encodeName(path).constData()) == 0) {
+            git_object* object = nullptr;
+            if (git_revparse_single(&object, repo, revision) == 0) {
+                char hex[GIT_OID_HEXSZ + 1] = {};
+                git_oid_tostr(hex, sizeof hex, git_object_id(object));
+                id = QString::fromLatin1(hex);
+                git_object_free(object);
+            }
+            git_repository_free(repo);
+        }
+        git_libgit2_shutdown();
+        return id;
+    }
+
     // Points HEAD at `id` directly (detached).
     bool detach(const QString& id) const
     {

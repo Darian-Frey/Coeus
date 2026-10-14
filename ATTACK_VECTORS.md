@@ -41,7 +41,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Description.** Indexing a large vault, embedding, `git blame` on a long history, or a sync pass freezes the window. Also covers SQLite write locks held by a worker while the UI thread tries to read.
 **Detection.** not implemented (would require a frame-time watchdog in debug builds logging any main-thread stall over 100 ms, and `tests/perf/test_open_large_vault.cpp` asserting the 500 ms tree target from F-002 on a 1,000-file fixture and 10,000-file stress fixture).
 **Related decisions.** D-002, D-004.
-**History.** Identified during scaffolding 2026-09-25. Since 2026-10-13 every libgit2 call (history, versions, diff, blame) runs on a one-thread Git worker; blame of a 175-line note with 69 commits takes about 40 ms there and is repeated only after typing pauses.
+**History.** Identified during scaffolding 2026-09-25. Since 2026-10-13 every libgit2 call (history, versions, diff, blame) runs on a one-thread Git worker; blame of a 175-line note with 69 commits takes about 40 ms there and is repeated only after typing pauses. Status and commits run there too; push is a background `git` process (D-020), stopped after 120 s.
 
 ## Correctness
 

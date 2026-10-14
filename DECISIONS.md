@@ -428,3 +428,27 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - A port to another platform would need a new watcher back end; nothing else depends on inotify.
 
 **Reversal conditions.** Revisit if Coeus ever targets a non-Linux platform (D-003), in which case `QFileSystemWatcher` with per-file watches, or the platform's own API, becomes the back end for that platform.
+
+### D-020 Push by running git; read and commit through libgit2
+**Decided:** 2026-10-14
+**Recorded:** 2026-10-14
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-14)
+**Related:** F-022, AV-005, SPEC.md §Git
+
+**Context.** F-022 commits from Coeus and optionally pushes. Everything else Coeus does with Git (history, versions, diff, blame, status, commit) is local and runs through libgit2. Pushing is not local: it needs the author's credentials. Every repository under `~/Projects` pushes to GitHub over HTTPS through Git's `store` credential helper, which libgit2 does not consult; SSH remotes would need the agent wired in by hand. Git hooks, which the author uses (Coeus's own pre-commit hook runs `coeus --lint`), also run only under the `git` command.
+
+**Options.**
+- **A. libgit2 throughout.** No dependency on the `git` binary. Coeus would need its own credential callback: the SSH agent for SSH remotes, and for HTTPS reading `~/.git-credentials` or a token from its own config, so Coeus would handle plaintext tokens; push-side hooks would not run.
+- **B. Commit through libgit2; push by running `git push`.** Chosen. The push uses the author's credential helper, SSH agent, configuration and hooks exactly as a terminal does, and Coeus never sees a credential.
+- **C. Commit only; no push.** F-022 makes push optional, but the author pushes after nearly every commit.
+
+**Decision.** Option B. `git/GitPush` runs `git -C <workdir> push` as a `QProcess` beside the UI thread, with `GIT_TERMINAL_PROMPT=0` and, unless the author set one, `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential fails at once instead of waiting for input that never comes, stopped after 120 s. Its result goes to the status bar. Commits are made by libgit2 (SPEC.md §Git).
+
+**Consequences.**
+- Push needs `git` on the `PATH`; without it the status bar says so. Everything else works without it.
+- Commits made in Coeus do not run Git's commit hooks (`pre-commit`, `commit-msg`), because libgit2 does not run hooks; IMP-005 records that.
+- Push output is parsed only for its first `fatal:`/`error:` line or its last line, in the C locale.
+
+**Reversal conditions.** Revisit if libgit2 gains support for Git's credential helpers, or if Coeus must run where no `git` binary is available (then option A, with credentials kept out of plaintext).
+

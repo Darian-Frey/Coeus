@@ -2,6 +2,7 @@
 
 #include "ui/BacklinksPanel.hpp"
 #include "ui/CommandPalette.hpp"
+#include "ui/CommitDialog.hpp"
 #include "ui/DiffView.hpp"
 #include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
@@ -9,6 +10,7 @@
 #include "ui/NoteCatalogue.hpp"
 #include "ui/NoteView.hpp"
 #include "ui/OutlinePanel.hpp"
+#include "git/GitPush.hpp"
 #include "git/GitRepository.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
@@ -64,6 +66,7 @@ namespace {
 // Bump when docks or toolbars change identity so stale layouts are ignored.
 constexpr int kLayoutVersion = 1;
 constexpr int kStatusTimeoutMs = 5000;
+constexpr int kGitStatusDelayMs = 400; // after saves and tab changes settle
 
 const char* const kPathProperty = "coeusPath";
 const char* const kDiffProperty = "coeusDiff"; // identifies a DiffView tab
@@ -93,6 +96,18 @@ MainWindow::MainWindow(QWidget* parent)
     // The Git worker (ARCHITECTURE.md threading): libgit2 calls, one at a time.
     m_gitPool = new QThreadPool(this);
     m_gitPool->setMaxThreadCount(1);
+    m_push = new GitPush(this);
+    connect(m_push, &GitPush::finished, this, [this](bool ok, const QString& message) {
+        // A failed push is shown, never thrown at the author in a dialog (F-022).
+        statusBar()->showMessage(ok ? message : tr("Push failed: %1").arg(message), kStatusTimeoutMs * (ok ? 2 : 6));
+        m_gitButton->setToolTip(ok ? message : tr("Last push failed: %1").arg(message));
+        refreshGitStatus();
+        emit pushFinished(ok, message);
+    });
+    m_gitStatusTimer = new QTimer(this);
+    m_gitStatusTimer->setSingleShot(true);
+    m_gitStatusTimer->setInterval(kGitStatusDelayMs);
+    connect(m_gitStatusTimer, &QTimer::timeout, this, &MainWindow::refreshGitStatus);
     m_journalTimer = new QTimer(this);
     m_journalTimer->setInterval(kJournalIntervalMs);
     connect(m_journalTimer, &QTimer::timeout, this, &MainWindow::journalNow);
@@ -109,6 +124,7 @@ MainWindow::MainWindow(QWidget* parent)
             historyOf = diff->notePath();
         m_history->showNote(historyOf);
         m_history->setBlameChecked(editor && editor->blameShown());
+        m_gitStatusTimer->start(); // the count is the current note's repository's
         m_outline->setView(currentView());
         if (editor) {
             m_registers->followNote(editor->path());
@@ -337,10 +353,15 @@ void MainWindow::createActions()
         if (Editor* editor = currentEditor())
             setBlameShown(!editor->blameShown());
     });
+    auto* commitAction = new QAction(tr("&Commit…"), this);
+    commitAction->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
+    connect(commitAction, &QAction::triggered, this, &MainWindow::openCommitDialog);
     QMenu* gitMenu = menuBar()->addMenu(tr("&Git"));
+    gitMenu->addAction(commitAction);
+    gitMenu->addSeparator();
     gitMenu->addAction(diffHead);
     gitMenu->addAction(toggleBlame);
-    for (QAction* action : {diffHead, toggleBlame}) {
+    for (QAction* action : {commitAction, diffHead, toggleBlame}) {
         addAction(action);
         registerAction(action);
     }
@@ -404,6 +425,11 @@ void MainWindow::createStatusBar()
         m_problemsDock->raise();
     });
     statusBar()->addPermanentWidget(m_problemsButton);
+    m_gitButton = new QToolButton;
+    m_gitButton->setAutoRaise(true);
+    m_gitButton->hide();
+    connect(m_gitButton, &QToolButton::clicked, this, &MainWindow::openCommitDialog);
+    statusBar()->addPermanentWidget(m_gitButton);
     statusBar()->addPermanentWidget(m_indexLabel);
     statusBar()->addPermanentWidget(m_vaultLabel);
     updateStatus();
@@ -583,6 +609,7 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_backlinks->refresh();
         m_tags->reload();
         m_search->refresh();
+        m_gitStatusTimer->start();
         emit indexOpened(notes);
     });
     connect(m_index, &IndexService::indexChanged, this, [this](int notes) {
@@ -597,6 +624,7 @@ void MainWindow::startIndex(const QString& vaultPath)
     connect(m_index, &IndexService::filesChanged, this, [this](const QStringList& paths) {
         if (paths.contains(m_history->notePath()))
             m_history->refresh(); // e.g. git checkout or pull changed it
+        m_gitStatusTimer->start();
     });
     connect(m_index, &IndexService::rootRescanned, this, &MainWindow::onRootRescanned);
     connect(m_index, &IndexService::failed, this, [this](const QString& message) {
@@ -1612,11 +1640,171 @@ void MainWindow::requestBlame(Editor* editor)
     }));
 }
 
+QString MainWindow::gitStatusPath() const
+{
+    // The current note's repository; with no note open, the vault's.
+    if (const Editor* editor = currentEditor())
+        return editor->path();
+    if (!m_history->notePath().isEmpty())
+        return m_history->notePath();
+    return m_vault ? m_vault->rootPath() : QString();
+}
+
+void MainWindow::refreshGitStatus()
+{
+    const QString path = gitStatusPath();
+    const int generation = ++m_gitStatusGeneration;
+    if (path.isEmpty()) {
+        m_gitButton->hide();
+        return;
+    }
+    struct Result {
+        bool inRepository = false;
+        QString workdir;
+        int changes = 0;
+    };
+    auto* watcher = new QFutureWatcher<Result>(this);
+    connect(watcher, &QFutureWatcher<Result>::finished, this, [this, watcher, generation] {
+        watcher->deleteLater();
+        if (generation != m_gitStatusGeneration)
+            return;
+        const Result result = watcher->result();
+        m_gitButton->setVisible(result.inRepository && result.changes > 0);
+        m_gitButton->setText(tr("● %n file(s) changed", nullptr, result.changes));
+        if (!m_push->isRunning() && !m_gitButton->toolTip().startsWith(tr("Last push failed")))
+            m_gitButton->setToolTip(tr("Uncommitted changes in %1 — click to commit (Ctrl+Alt+C)").arg(result.workdir));
+        emit gitStatusUpdated(result.inRepository ? result.changes : -1);
+    });
+    watcher->setFuture(QtConcurrent::run(m_gitPool, [path] {
+        Result result;
+        const auto repo = GitRepository::discover(path);
+        if (!repo)
+            return result;
+        result.inRepository = true;
+        result.workdir = repo->workdir();
+        if (const auto changes = repo->status())
+            result.changes = int(changes->size());
+        return result;
+    }));
+}
+
+void MainWindow::openCommitDialog()
+{
+    const QString path = gitStatusPath();
+    if (path.isEmpty())
+        return;
+    if (!m_commitDialog) {
+        m_commitDialog = new CommitDialog(this);
+        connect(m_commitDialog, &CommitDialog::commitRequested, this, &MainWindow::commit);
+        connect(m_commitDialog, &CommitDialog::saveAllRequested, this, [this](const QString& workdir) {
+            for (int i = 0; i < m_tabs->count(); ++i) {
+                if (Editor* editor = editorAt(i); editor && editor->isModified() && editor->path().startsWith(workdir + QLatin1Char('/')))
+                    saveEditor(editor);
+            }
+            openCommitDialog(); // read the changes again, now with the saves
+        });
+    }
+    // Notes open with unsaved changes: their paths, to warn that the commit leaves them out.
+    QList<QPair<QString, bool>> open;
+    for (int i = 0; i < m_tabs->count(); ++i) {
+        if (const Editor* editor = editorAt(i))
+            open.append({editor->path(), editor->isModified()});
+    }
+    struct Result {
+        QString error;
+        QString workdir;
+        QString branch;
+        QList<GitChange> changes;
+        QStringList unsaved;
+    };
+    auto* watcher = new QFutureWatcher<Result>(this);
+    connect(watcher, &QFutureWatcher<Result>::finished, this, [this, watcher] {
+        watcher->deleteLater();
+        const Result result = watcher->result();
+        if (!result.error.isEmpty()) {
+            statusBar()->showMessage(result.error, kStatusTimeoutMs * 2);
+            return;
+        }
+        if (result.changes.isEmpty() && result.unsaved.isEmpty()) {
+            statusBar()->showMessage(tr("Nothing to commit in %1").arg(result.workdir), kStatusTimeoutMs);
+            m_commitDialog->hide();
+            return;
+        }
+        m_commitDialog->setRepository(result.workdir, result.branch, result.changes, result.unsaved);
+        m_commitDialog->setBusy(false);
+        m_commitDialog->show();
+        m_commitDialog->raise();
+        m_commitDialog->activateWindow();
+        emit commitDialogReady();
+    });
+    watcher->setFuture(QtConcurrent::run(m_gitPool, [path, open] {
+        Result result;
+        const auto repo = GitRepository::discover(path);
+        if (!repo) {
+            result.error = repo.error();
+            return result;
+        }
+        result.workdir = repo->workdir();
+        result.branch = repo->branch();
+        const auto changes = repo->status();
+        if (!changes) {
+            result.error = changes.error();
+            return result;
+        }
+        result.changes = *changes;
+        for (const auto& [notePath, modified] : open) {
+            if (modified && notePath.startsWith(result.workdir + QLatin1Char('/')))
+                result.unsaved.append(repo->relativePath(notePath));
+        }
+        return result;
+    }));
+}
+
+void MainWindow::commit(const QString& workdir, const QStringList& paths, const QString& message, bool push)
+{
+    m_commitDialog->setBusy(true, tr("Committing…"));
+    using Result = std::expected<GitCommit, QString>;
+    auto* watcher = new QFutureWatcher<Result>(this);
+    connect(watcher, &QFutureWatcher<Result>::finished, this, [this, watcher, workdir, push] {
+        watcher->deleteLater();
+        const Result made = watcher->result();
+        if (!made) {
+            m_commitDialog->setBusy(false);
+            m_commitDialog->showError(made.error());
+            return;
+        }
+        m_commitDialog->messageEdit()->clear();
+        m_commitDialog->hide();
+        statusBar()->showMessage(tr("Committed %1: %2").arg(made->shortId, made->summary), kStatusTimeoutMs * 2);
+        m_history->refresh();
+        refreshGitStatus();
+        for (int i = 0; i < m_tabs->count(); ++i) {
+            if (Editor* editor = editorAt(i); editor && editor->blameShown())
+                requestBlame(editor); // their "Not committed" lines may be committed now
+        }
+        emit committed(made->id);
+        if (push) {
+            if (m_push->start(workdir))
+                statusBar()->showMessage(tr("Committed %1; pushing…").arg(made->shortId));
+            else
+                statusBar()->showMessage(tr("Committed %1; a push is already running").arg(made->shortId), kStatusTimeoutMs * 2);
+        }
+    });
+    watcher->setFuture(QtConcurrent::run(m_gitPool, [workdir, paths, message]() -> Result {
+        auto repo = GitRepository::discover(workdir);
+        if (!repo)
+            return std::unexpected(repo.error());
+        return repo->commit(paths, message);
+    }));
+}
+
 void MainWindow::changeEvent(QEvent* event)
 {
     // Commits made elsewhere (a terminal, Claude Code) show on coming back.
-    if (event->type() == QEvent::ActivationChange && isActiveWindow() && m_history)
+    if (event->type() == QEvent::ActivationChange && isActiveWindow() && m_history) {
         m_history->refresh();
+        refreshGitStatus();
+    }
     QMainWindow::changeEvent(event);
 }
 

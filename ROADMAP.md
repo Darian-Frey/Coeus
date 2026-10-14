@@ -58,8 +58,9 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] History sidebar section and read-only versions (`src/ui/HistoryPanel.cpp`, `src/ui/VersionView.cpp`; F-020)
 - [x] libgit2 wrapper, step 2: diff of two texts, blame of a buffer (`src/git/GitRepository.cpp`; F-021)
 - [x] Inline diff view and gutter blame (`src/ui/DiffView.cpp`, `src/ui/Editor.cpp`; F-021)
-- [ ] libgit2 wrapper: status, stage, commit, push, fetch, ahead/behind (`src/git/`)
-- [ ] Status-bar change count and commit dialog (F-022)
+- [x] libgit2 wrapper, step 3: status and committing chosen paths; push by `git push` (`src/git/GitRepository.cpp`, `src/git/GitPush.cpp`; D-020)
+- [x] Status-bar change count and commit dialog (`src/ui/CommitDialog.cpp`; F-022)
+- [ ] Fetch and ahead/behind, for the project board's Git columns (F-032)
 - [ ] MCP server with read tools, then opt-in write tools with GUI confirmation (`src/mcp/`)
 **Acceptance:** Opening the vault plus linked repos shows every register with correct counts; a semantic query for a decision by meaning finds it; a note's history, blame and diff match `git log`, `git blame`, `git diff` output; Claude Code in Antigravity can log a DECISIONS entry through MCP that appears in the register panel with the correct next ID.
 

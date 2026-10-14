@@ -40,6 +40,18 @@ using Object = Owned<git_object, git_object_free>;
 using Blob = Owned<git_blob, git_blob_free>;
 using Reference = Owned<git_reference, git_reference_free>;
 using Blame = Owned<git_blame, git_blame_free>;
+using Index = Owned<git_index, git_index_free>;
+using StatusList = Owned<git_status_list, git_status_list_free>;
+using Signature = Owned<git_signature, git_signature_free>;
+
+// Coeus's own files, never offered for a commit (D-011).
+bool isCoeusFile(const QString& path)
+{
+    if (path == QLatin1String(".coeus") || path.startsWith(QLatin1String(".coeus/")) || path.contains(QLatin1String("/.coeus/")))
+        return true;
+    const QString name = path.section(QLatin1Char('/'), -1);
+    return name.startsWith(QLatin1Char('.')) && name.contains(QLatin1String(".coeus-tmp-"));
+}
 
 QString hex(const git_oid* oid)
 {
@@ -232,6 +244,145 @@ std::expected<QByteArray, QString> GitRepository::fileAt(const QString& commitId
     if (git_blob_lookup(blob.out(), m_repo.get(), &oid) != 0)
         return std::unexpected(lastError("Cannot read the file"));
     return QByteArray(static_cast<const char*>(git_blob_rawcontent(blob.get())), qsizetype(git_blob_rawsize(blob.get())));
+}
+
+QString GitChange::letter() const
+{
+    switch (kind) {
+    case Kind::Added: return QStringLiteral("A");
+    case Kind::Modified: return QStringLiteral("M");
+    case Kind::Deleted: return QStringLiteral("D");
+    case Kind::Renamed: return QStringLiteral("R");
+    case Kind::TypeChanged: return QStringLiteral("T");
+    case Kind::Untracked: return QStringLiteral("?");
+    case Kind::Conflicted: return QStringLiteral("U");
+    }
+    return QStringLiteral("M");
+}
+
+std::expected<QList<GitChange>, QString> GitRepository::status() const
+{
+    git_status_options options = GIT_STATUS_OPTIONS_INIT;
+    options.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
+    options.flags = GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS
+                    | GIT_STATUS_OPT_EXCLUDE_SUBMODULES | GIT_STATUS_OPT_SORT_CASE_SENSITIVELY;
+    StatusList list;
+    if (git_status_list_new(list.out(), m_repo.get(), &options) != 0)
+        return std::unexpected(lastError("Cannot read the status"));
+    QList<GitChange> changes;
+    for (size_t i = 0; i < git_status_list_entrycount(list.get()); ++i) {
+        const git_status_entry* entry = git_status_byindex(list.get(), i);
+        const unsigned flags = entry->status;
+        if (flags == GIT_STATUS_CURRENT || (flags & GIT_STATUS_IGNORED))
+            continue;
+        const git_diff_delta* delta = entry->head_to_index ? entry->head_to_index : entry->index_to_workdir;
+        if (!delta)
+            continue;
+        GitChange change;
+        change.path = QString::fromUtf8(delta->new_file.path ? delta->new_file.path : delta->old_file.path);
+        if (isCoeusFile(change.path))
+            continue;
+        change.staged = flags & (GIT_STATUS_INDEX_NEW | GIT_STATUS_INDEX_MODIFIED | GIT_STATUS_INDEX_DELETED
+                                 | GIT_STATUS_INDEX_RENAMED | GIT_STATUS_INDEX_TYPECHANGE);
+        change.unstaged = flags & (GIT_STATUS_WT_NEW | GIT_STATUS_WT_MODIFIED | GIT_STATUS_WT_DELETED
+                                   | GIT_STATUS_WT_RENAMED | GIT_STATUS_WT_TYPECHANGE);
+        if (flags & GIT_STATUS_CONFLICTED)
+            change.kind = GitChange::Kind::Conflicted;
+        else if (flags & (GIT_STATUS_INDEX_DELETED | GIT_STATUS_WT_DELETED))
+            change.kind = GitChange::Kind::Deleted;
+        else if (flags & GIT_STATUS_INDEX_NEW)
+            change.kind = GitChange::Kind::Added;
+        else if (flags & GIT_STATUS_WT_NEW)
+            change.kind = GitChange::Kind::Untracked;
+        else if (flags & (GIT_STATUS_INDEX_RENAMED | GIT_STATUS_WT_RENAMED))
+            change.kind = GitChange::Kind::Renamed;
+        else if (flags & (GIT_STATUS_INDEX_TYPECHANGE | GIT_STATUS_WT_TYPECHANGE))
+            change.kind = GitChange::Kind::TypeChanged;
+        else
+            change.kind = GitChange::Kind::Modified;
+        changes.append(change);
+    }
+    return changes;
+}
+
+std::expected<GitCommit, QString> GitRepository::commit(const QStringList& paths, const QString& message)
+{
+    if (paths.isEmpty())
+        return std::unexpected(QStringLiteral("Nothing selected to commit"));
+    if (message.trimmed().isEmpty())
+        return std::unexpected(QStringLiteral("The commit message is empty"));
+    for (const QString& path : paths) {
+        if (isCoeusFile(path) || path.startsWith(QLatin1String("../")) || QDir::isAbsolutePath(path))
+            return std::unexpected(QStringLiteral("Not a path that can be committed: %1").arg(path));
+    }
+    Signature author;
+    if (git_signature_default(author.out(), m_repo.get()) != 0)
+        return std::unexpected(QStringLiteral("Git does not know who you are: set user.name and user.email (git config)"));
+
+    // 1. Stage the chosen paths in the repository's index, as `git add` would.
+    Index index;
+    if (git_repository_index(index.out(), m_repo.get()) != 0)
+        return std::unexpected(lastError("Cannot read the index"));
+    if (git_index_has_conflicts(index.get()))
+        return std::unexpected(QStringLiteral("The repository has unresolved conflicts; resolve them with git first"));
+    for (const QString& path : paths) {
+        const QByteArray raw = path.toUtf8();
+        const bool exists = QFileInfo::exists(m_workdir + QLatin1Char('/') + path) || QFileInfo(m_workdir + QLatin1Char('/') + path).isSymLink();
+        const int rc = exists ? git_index_add_bypath(index.get(), raw.constData()) : git_index_remove_bypath(index.get(), raw.constData());
+        if (rc != 0)
+            return std::unexpected(lastError(exists ? "Cannot stage a file" : "Cannot stage a deletion"));
+    }
+    if (git_index_write(index.get()) != 0)
+        return std::unexpected(lastError("Cannot write the index"));
+
+    // 2. The commit's tree: HEAD's, with only those paths taken from the index.
+    Commit parent;
+    Tree parentTree;
+    const bool unborn = git_repository_head_unborn(m_repo.get()) == 1;
+    if (!unborn) {
+        Object head;
+        if (git_revparse_single(head.out(), m_repo.get(), "HEAD^{commit}") != 0
+            || git_commit_lookup(parent.out(), m_repo.get(), git_object_id(head.get())) != 0
+            || git_commit_tree(parentTree.out(), parent.get()) != 0)
+            return std::unexpected(lastError("Cannot read HEAD"));
+    }
+    Index partial;
+    if (git_index_new(partial.out()) != 0)
+        return std::unexpected(lastError("Cannot build the commit"));
+    if (parentTree.get() && git_index_read_tree(partial.get(), parentTree.get()) != 0)
+        return std::unexpected(lastError("Cannot read HEAD's tree"));
+    for (const QString& path : paths) {
+        const QByteArray raw = path.toUtf8();
+        if (const git_index_entry* staged = git_index_get_bypath(index.get(), raw.constData(), 0)) {
+            if (git_index_add(partial.get(), staged) != 0)
+                return std::unexpected(lastError("Cannot build the commit"));
+        } else {
+            git_index_remove(partial.get(), raw.constData(), 0); // deleted; absent from HEAD is fine too
+        }
+    }
+    git_oid treeId;
+    if (git_index_write_tree_to(&treeId, partial.get(), m_repo.get()) != 0)
+        return std::unexpected(lastError("Cannot write the tree"));
+    if (parentTree.get() && git_oid_equal(&treeId, git_tree_id(parentTree.get())))
+        return std::unexpected(QStringLiteral("The selected files are unchanged since HEAD"));
+    Tree tree;
+    if (git_tree_lookup(tree.out(), m_repo.get(), &treeId) != 0)
+        return std::unexpected(lastError("Cannot read the new tree"));
+
+    // 3. The commit, moving the branch HEAD names.
+    QString text = message.trimmed();
+    text.replace(QLatin1String("\r\n"), QLatin1String("\n"));
+    const QByteArray encoded = (text + QLatin1Char('\n')).toUtf8();
+    const git_commit* parents[] = {parent.get()};
+    git_oid id;
+    if (git_commit_create(&id, m_repo.get(), "HEAD", author.get(), author.get(), nullptr, encoded.constData(), tree.get(),
+                          unborn ? 0 : 1, parents)
+        != 0)
+        return std::unexpected(lastError("Cannot commit"));
+    Commit created;
+    if (git_commit_lookup(created.out(), m_repo.get(), &id) != 0)
+        return std::unexpected(lastError("Cannot read the new commit"));
+    return describe(created.get(), paths.size() == 1 ? paths.front() : QString());
 }
 
 std::expected<QList<BlameLine>, QString> GitRepository::blame(const QString& relativePath, const QByteArray& buffer) const

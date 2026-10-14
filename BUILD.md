@@ -21,7 +21,8 @@ All of these are required to build.
 | yaml-cpp | 0.8 | Frontmatter (D-015) |
 | toml++ | 3.4 | `.coeus/config.toml` (D-016) |
 | libsodium | 1.0.18 | BLAKE2b-128 hashes; Phase 5 encryption (D-017) |
-| libgit2 | 1.7 | `.gitignore` rules per root; Git history, diff and blame in Phase 3 |
+| libgit2 | 1.7 | `.gitignore` rules per root; Git history, diff, blame, status and commits |
+| git (run time, optional) | any | Only for push after a commit (D-020); everything else works without it |
 
 Phase 3 adds a vendored `sqlite-vec` amalgamation.
 

@@ -36,6 +36,7 @@ add_library(coeus_core STATIC
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
     src/index/ProjectResolver.cpp
+    src/git/GitPush.cpp
     src/git/GitRepository.cpp
     src/index/LintResolver.cpp
     src/index/Schema.cpp
@@ -65,6 +66,7 @@ add_library(coeus_core STATIC
     src/vault/VaultWatcher.cpp
     src/ui/BacklinksPanel.cpp
     src/ui/CommandPalette.cpp
+    src/ui/CommitDialog.cpp
     src/ui/DiffView.cpp
     src/ui/Editor.cpp
     src/ui/ExplorerPanel.cpp
