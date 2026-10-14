@@ -54,10 +54,10 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 
 ### AV-007 Mixed embedding spaces
 **Severity:** Major
-**Description.** Vectors from two different models or dimensions end up in the same `vec` table after a model change, making similarity scores meaningless without any error.
-**Detection.** not implemented (would require a startup check comparing `meta.embed_model`/`embed_dim` to the live model and a test asserting a mismatch drops and rebuilds `vec`).
+**Description.** Vectors from two different models or dimensions end up in the same vector table after a model change, making similarity scores meaningless without any error.
+**Detection.** Implemented for the index. `VectorStore::adopt`, run by the embedding worker and by `coeus --mcp` before they add or compare a vector, drops every vector when `meta.embed_model`/`embed_dim` name another model, and the search skips any vector whose length is not the query's; `tests/search/test_semantic.cpp` changes the recorded model and asserts the vectors are gone. Not implemented yet: the same check on sidecar import (F-035).
 **Related decisions.** D-008, D-011.
-**History.** Identified during scaffolding 2026-09-25. The embeddings sidecar (D-011) is a second entry point for mixed vectors, 2026-10-12.
+**History.** Identified during scaffolding 2026-09-25. The embeddings sidecar (D-011) is a second entry point for mixed vectors, 2026-10-12. Guarded in the index with D-008's model, 2026-10-14.
 
 ### AV-008 Register parser drift from the documentation standard
 **Severity:** Major

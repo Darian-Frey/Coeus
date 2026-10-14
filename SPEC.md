@@ -220,7 +220,7 @@ In the editor each problem in the open note is underlined with a wavy line, red 
 
 ## Index schema
 
-SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 2 (Phase 3) adds `status_headers`, the register tables, `lint` and `reservations` to version 1's Phase 2 tables; version 3 gives fields and citations their lines, adds `register_mentions`, and gives lint rows a subject (F-016); version 4 adds `ideas` (F-032). `chunks` and `vec` arrive later in Phase 3 with further bumps. Opening an index of an older version rebuilds it.
+SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 2 (Phase 3) adds `status_headers`, the register tables, `lint` and `reservations` to version 1's Phase 2 tables; version 3 gives fields and citations their lines, adds `register_mentions`, and gives lint rows a subject (F-016); version 4 adds `ideas` (F-032); version 5 adds `chunks` and `vectors` (F-018). Opening an index of an older version rebuilds it.
 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
@@ -353,16 +353,19 @@ CREATE VIRTUAL TABLE fts USING fts5(
   -- rowid = notes.id. Stores its own copy of the text so snippet() and
   -- highlight() work; the copy is derived and rebuilt like everything else.
 
-CREATE TABLE chunks (
+CREATE TABLE chunks (                 -- schema 5: each note's passages (§Embeddings)
   id INTEGER PRIMARY KEY,
   note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-  heading TEXT, start_line INTEGER, end_line INTEGER,
-  hash BLOB NOT NULL
+  ordinal INTEGER NOT NULL,
+  heading TEXT NOT NULL,
+  start_line INTEGER NOT NULL, end_line INTEGER NOT NULL,
+  text TEXT NOT NULL,                 -- as embedded: "<title> › <heading>\n<words>"
+  hash BLOB NOT NULL                  -- BLAKE2b-128 of text
 );
 
-CREATE VIRTUAL TABLE vec USING vec0(
-  chunk_id INTEGER PRIMARY KEY,
-  embedding float[<embed_dim>]       -- dimension from meta.embed_dim
+CREATE TABLE vectors (                -- one per distinct passage, not per chunk row (D-008)
+  hash BLOB PRIMARY KEY,
+  vec BLOB NOT NULL                   -- embed_dim float32, little-endian, unit length
 );
 ```
 
@@ -384,11 +387,19 @@ Watches are added before a root's first scan, so nothing written during the scan
 
 `term` — FTS5 match on title or body, as a prefix (`arch` finds `architecture`), so results appear while typing. `"phrase"` — exact. `-term` or `-"phrase"` — exclude notes matching it. `tag:x` — notes tagged `x` or beneath it (`#` optional, any case). `path:x` — the display path (`projects/…` in the vault, `pontus/…` in a linked root) starts with `x`; `%` and `_` are literal. `file:x` — the title contains `x`, any case. `re:/pattern/` — the note's text matches the Qt regular expression (which may contain spaces), applied in SQL after the other conditions narrow the notes. Everything is ANDed. Only words and phrases can be excluded; `-tag:` and the like are an error, as is an invalid pattern. A word of punctuation alone is ignored, so a half-typed `-` does nothing.
 
+**Modes** (F-018). A switch beside the query box chooses **Words** (the default, described here), **Meaning** or **Both** (§Embeddings, search). Meaning results name the note, `<path> › <heading>` of the passage that matched, and the passage's opening words, and open the note at the passage's first line.
+
 Results, at most 200, are ordered by BM25 with title matches weighted ten times body matches when the query has words or phrases, otherwise by display path. Each carries a snippet with the matches marked. The Search dock is the third tab beside Explorer and Tags (`Ctrl+Shift+F` focuses it); each search runs off the UI thread 150 ms after typing pauses, a newer one supersedes an older, and the shown results re-run whenever the index changes. Opening a hit selects the first occurrence of a phrase, word or `file:` value in the note. F-006's budget is 100 ms on 10,000 notes; `tests/perf/test_search_speed.cpp` measures 0–29 ms across representative queries in a debug build.
 
 ## Embeddings
 
-Chunking: split at level-1/2 headings, then into windows of at most `chunk_tokens` (default 384) with `chunk_overlap` (default 48). Each chunk's `hash` is BLAKE2b-128 of its text; unchanged chunks are not re-embedded.
+**Chunking** happens at index time (`search/Chunker`), so indexing never needs the model. A note's body, without its frontmatter, is split at level-1 and level-2 headings outside fenced code, and in a register file also at every entry heading (`### D-008 …`), so a match names the entry. Each section is cut into windows of at most `chunk_tokens` (default 384) with `chunk_overlap` (default 48) repeated between neighbours. Tokens are estimated from words (three words to four tokens), so chunks are the same on every machine and need no tokenizer; the model's 512-token limit leaves room. A chunk's heading is its level-1 heading, `› level-2` under it, or `› <entry>`; its text, which is what is embedded, is `<note title> › <heading>` on the first line and then the words, with line breaks kept; its `hash` is BLAKE2b-128 of that text. The index records how it chunked (`meta` `chunking:<root id>`, the chunker's rule version and both settings); a scan that finds another records chunks every note again, unchanged ones included, without discarding vectors.
+
+**Vectors** are stored once per distinct passage, keyed by its hash (`vectors`), so an unchanged passage is never embedded twice, identical passages share a vector, and the sidecar (F-035) can carry them by hash. A search scans them all: a few thousand 384-float vectors take well under a millisecond (D-008 chose this over `sqlite-vec`). Vectors of passages no note has any more are pruned after each pass.
+
+**Embedding.** In the window, an embedding worker on its own low-priority thread (`search/EmbeddingService`) is woken by every index change and embeds passages without vectors, sixteen at a time, returning to its event loop between batches. The status bar shows `embedding N of M` while it works and `meaning ✓` when every passage has a vector, or `no embedding model` with the reason. Embedding the author's `~/Projects`, 3,661 passages, took about six minutes the first time; changing the chunking rules afterwards re-embedded only the 1,076 new passages, in under two. `coeus --mcp` embeds whatever is missing itself, for at most 2 s before each search by meaning, and reports how much of the vault has vectors.
+
+**Search by meaning.** The query is embedded with the query prefix and compared with every passage; each note keeps its best passage, and notes are ranked by it (cosine similarity, also given to MCP clients as `score`). **Both** (MCP's `hybrid`) merges the word search's ranking with this one by reciprocal-rank fusion (`Σ 1/(60 + rank)`), so a note found both ways comes first; its snippet is the word search's, which shows the match. On the author's vault a search by meaning answers in about 55 ms.
 
 The embedding interface Coeus requires from Mnemosyne:
 
@@ -398,7 +409,7 @@ model_name() -> string
 dim() -> int
 ```
 
-`meta.embed_model` and `meta.embed_dim` are written when the first embedding lands. If either differs at startup from the live model, the `vec` table is dropped and rebuilt (AV-007). Nearest-neighbour uses cosine distance (`vec_distance_cosine`); related-notes (F-019) takes the top 20 chunks for the current note's chunks, aggregates by note with max similarity, excludes the note itself and any note it links to, and returns the top 5.
+`meta.embed_model` and `meta.embed_dim` are written when the first embedding lands. If either differs from the model in use, every vector is dropped before any is compared or added, and the vault is embedded again (AV-007). Nearest-neighbour uses cosine similarity; related-notes (F-019) takes the top 20 chunks for the current note's chunks, aggregates by note with max similarity, excludes the note itself and any note it links to, and returns the top 5.
 
 **Model** (D-008): BAAI's bge-small-en-v1.5, 384 dimensions, at most 512 tokens per passage (longer ones are cut, keeping the closing separator; chunking stays under it), pooled on its [CLS] token and normalised to unit length, so cosine similarity is a dot product. A search query, but not a passage, is prefixed with `Represent this sentence for searching relevant passages: `, as BAAI specifies. `search/Embedder` runs it on the CPU through llama.cpp, eight passages a pass, on half the machine's threads. The model file is `$XDG_DATA_HOME/coeus/models/bge-small-en-v1.5-f16.gguf` (by default `~/.local/share/…`), or `[semantic] model` in `config.toml` (absolute, `~/…`, or relative to the vault); `tools/fetch_model.py` downloads it and checks its SHA-256. Without it Coeus runs and searches text as before, and the semantic features say how to fetch it.
 
@@ -447,11 +458,11 @@ Encryption, when enabled, is age-style: a vault key derived from a passphrase wi
 
 **Results.** A tool's result is its JSON object as `structuredContent` and the same JSON as one text content item. A tool that cannot do what was asked (a missing note, an unknown project, bad arguments) returns `isError: true` with a sentence saying why and, where useful, what would work (the roots, the projects). A project is named as `project_status` names it (`projects/coeus`, `pontus`, `pontus/sub`), case aside, or by its folder's name when only one project has it. Paths are root-relative; `.md` may be left off; a path that escapes its root is refused.
 
-Implemented: the read tools `search` (text mode; `semantic` returns an error until F-018), `get_note`, `list_registers`, `project_status` and `list_ideas`, and the write tools `next_id`, `append_entry` and `write_note`. `related` arrives with F-019 and is not listed until then. Tools, with JSON argument shapes:
+Implemented: the read tools `search` (modes `text`, `semantic` and `hybrid`; by meaning, results carry `heading`, `line` and `score`, or `found_by`, and the answer carries `coverage`), `get_note`, `list_registers`, `project_status` and `list_ideas`, and the write tools `next_id`, `append_entry` and `write_note`. `related` arrives with F-019 and is not listed until then. Tools, with JSON argument shapes:
 
 | Tool | Arguments | Returns | Writes |
 |------|-----------|---------|--------|
-| `search` | `{query, mode: "text"\|"semantic", limit}` | `[{root, path, title, snippet, score}]` | no |
+| `search` | `{query, mode: "text"\|"semantic"\|"hybrid", limit}` | `{results: [{root, path, title, snippet, heading?, line?, score?, found_by?}], coverage?}` | no |
 | `related` | `{root, path, limit}` | `[{root, path, title, score}]` | no |
 | `get_note` | `{root, path}` | `{frontmatter, body, links, backlinks}` | no |
 | `list_registers` | `{project, kind?, status?}` | `[{ident, title, status, fields}]` | no |

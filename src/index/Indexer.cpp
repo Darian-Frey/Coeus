@@ -96,6 +96,10 @@ std::expected<Indexer::Outcome, QString> Indexer::indexFile(const RootInfo& root
         // Same content: keep the rows, refresh mtime and size.
         if (auto touched = m_store.touchNote(record); !touched)
             return std::unexpected(touched.error());
+        if (m_rechunk) {
+            if (auto chunked = putChunks(root, relativePath, content); !chunked)
+                return std::unexpected(chunked.error());
+        }
         return Outcome::Unchanged;
     }
     ParsedNote parsed = NoteParser::parse(content);
@@ -106,7 +110,17 @@ std::expected<Indexer::Outcome, QString> Indexer::indexFile(const RootInfo& root
         parsed.registers = RegisterParser::parse(QString::fromUtf8(content));
     if (auto put = m_store.putNote(record, parsed); !put)
         return std::unexpected(put.error());
+    if (auto chunked = putChunks(root, relativePath, content); !chunked)
+        return std::unexpected(chunked.error());
     return knownHash ? Outcome::Updated : Outcome::Added;
+}
+
+std::expected<void, QString> Indexer::putChunks(const RootInfo& root, const QString& relativePath, const QByteArray& content)
+{
+    // The passages semantic search embeds (F-018); the embedding itself happens elsewhere.
+    const auto chunks = Chunker::split(QString::fromUtf8(content), IndexStore::titleOf(relativePath), m_chunkTokens, m_chunkOverlap,
+                                       RegisterParser::isRegisterFile(QFileInfo(relativePath).fileName()));
+    return m_store.putChunks(root.id, relativePath, chunks);
 }
 
 std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root, const IgnoreFn& ignore)
@@ -120,6 +134,17 @@ std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root, 
     auto known = m_store.noteHashes(root.id);
     if (!known)
         return std::unexpected(known.error());
+
+    // Chunked under other rules (an older Coeus, other config): chunk every note again.
+    const QString chunkingKey = QStringLiteral("chunking:%1").arg(root.id);
+    const QString signature = Chunker::signature(m_chunkTokens, m_chunkOverlap);
+    {
+        auto recorded = m_store.database().prepare("SELECT value FROM meta WHERE key = ?");
+        if (!recorded)
+            return std::unexpected(recorded.error());
+        recorded->bind(1, chunkingKey);
+        m_rechunk = !recorded->step().value_or(false) || recorded->text(0) != signature;
+    }
 
     ScanReport report;
     for (const QString& path : noteFiles(root.path, ignore)) {
@@ -148,6 +173,14 @@ std::expected<Indexer::ScanReport, QString> Indexer::scan(const RootInfo& root, 
         return std::unexpected(projects.error());
     if (auto lint = LintResolver::resolveAll(m_store.database()); !lint)
         return std::unexpected(lint.error());
+    if (m_rechunk) {
+        auto record = m_store.database().prepare("INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)");
+        if (!record)
+            return std::unexpected(record.error());
+        if (auto done = record->bind(1, chunkingKey).bind(2, signature).run(); !done)
+            return std::unexpected(done.error());
+        m_rechunk = false;
+    }
     if (auto committed = transaction->commit(); !committed)
         return std::unexpected(committed.error());
     return report;

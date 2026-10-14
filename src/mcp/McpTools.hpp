@@ -2,6 +2,9 @@
 
 #include "index/IndexRoots.hpp"
 #include "mcp/GuiLink.hpp"
+#include "search/Embedder.hpp"
+
+#include <functional>
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -25,6 +28,8 @@ public:
         bool allowWrites = false;      // [mcp] allow_writes in config.toml
         const GuiLink* gui = nullptr;  // the window on this vault, if one is running
         QString holder = QStringLiteral("mcp"); // who holds a next_id reservation
+        // The embedding model, loaded on first use; null with the reason if it cannot be.
+        std::function<Embedder*(QString* why)> embedder;
     };
 
     static bool isWriteTool(const QString& name);

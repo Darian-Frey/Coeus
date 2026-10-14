@@ -124,6 +124,9 @@ QString McpServer::refreshIndex()
             return store.error();
         m_store.emplace(std::move(*store));
         m_indexer = std::make_unique<Indexer>(*m_store);
+        // [semantic] chunk_tokens and chunk_overlap; a change re-chunks every note on the next scan.
+        m_indexer->setChunking(int(VaultConfig::integer(m_vaultPath, "semantic", "chunk_tokens").value_or(Chunker::kDefaultTokens)),
+                               int(VaultConfig::integer(m_vaultPath, "semantic", "chunk_overlap").value_or(Chunker::kDefaultOverlap)));
         const auto reconciled = IndexRoots::reconcile(*m_store, m_vaultPath);
         if (!reconciled)
             return reconciled.error();
@@ -166,11 +169,25 @@ QJsonObject McpServer::callTool(const QJsonObject& params, QJsonObject* error)
         *error = {{QStringLiteral("code"), kInternalError}, {QStringLiteral("message"), QStringLiteral("The index is not usable: %1").arg(problem)}};
         return {};
     }
-    McpTools::Context context{m_vaultPath, m_indexPath, m_roots};
+    McpTools::Context context;
+    context.vaultPath = m_vaultPath;
+    context.indexPath = m_indexPath;
+    context.roots = m_roots;
     // Read on every call, so turning writes on or off takes effect at once.
     context.allowWrites = VaultConfig::boolean(m_vaultPath, "mcp", "allow_writes").value_or(false);
     context.gui = &m_gui;
     context.holder = QStringLiteral("mcp:%1").arg(QCoreApplication::applicationPid());
+    context.embedder = [this](QString* why) -> Embedder* {
+        if (!m_embedder) {
+            auto loaded = Embedder::load(Embedder::modelPath(m_vaultPath));
+            if (!loaded) {
+                *why = loaded.error();
+                return nullptr;
+            }
+            m_embedder = std::move(*loaded);
+        }
+        return m_embedder.get();
+    };
     const auto result = McpTools::call(context, name, arguments.toObject());
     if (result && McpTools::isWriteTool(name))
         m_sinceScan.invalidate(); // the next call indexes what was just written

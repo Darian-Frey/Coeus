@@ -165,6 +165,33 @@ std::expected<std::int64_t, QString> IndexStore::noteId(int rootId, const QStrin
     return *row ? statement->int64(0) : 0;
 }
 
+std::expected<void, QString> IndexStore::putChunks(int rootId, const QString& path, const QList<Chunker::Chunk>& chunks)
+{
+    const auto id = noteId(rootId, path);
+    if (!id)
+        return std::unexpected(id.error());
+    if (*id == 0)
+        return std::unexpected(QStringLiteral("No note %1").arg(path));
+    auto clear = m_db.prepare("DELETE FROM chunks WHERE note = ?");
+    auto insert = m_db.prepare("INSERT INTO chunks(note, ordinal, heading, start_line, end_line, text, hash) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    if (!clear || !insert)
+        return std::unexpected(QStringLiteral("Cannot prepare chunk statements"));
+    COEUS_TRY(clear->bind(1, *id).run());
+    for (qsizetype i = 0; i < chunks.size(); ++i) {
+        const Chunker::Chunk& chunk = chunks[i];
+        insert->reset();
+        COEUS_TRY(insert->bind(1, *id)
+                      .bind(2, int(i))
+                      .bind(3, chunk.heading.isNull() ? QStringLiteral("") : chunk.heading)
+                      .bind(4, chunk.startLine)
+                      .bind(5, chunk.endLine)
+                      .bind(6, chunk.text)
+                      .bind(7, chunk.hash)
+                      .run());
+    }
+    return {};
+}
+
 std::expected<void, QString> IndexStore::removeNote(int rootId, const QString& path)
 {
     const auto id = noteId(rootId, path);

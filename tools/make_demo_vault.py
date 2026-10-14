@@ -203,6 +203,10 @@ def build_vault(vault: Path, linked: Path) -> None:
           are one tag. Click one to filter the Explorer.
         - **Search** (`Ctrl+Shift+F`): try `vault cache`, `"plain folder"`,
           `tag:project`, `path:ideas/`, `file:readme`, `re:/D-0\\d\\d/`, `idea -draft`.
+        - Switch the search to **Meaning** (needs `python3 tools/fetch_model.py` once):
+          `is it safe to throw away the cache` finds D-005, whose words are
+          about deleting the index.
+          **Both** merges the two, notes found both ways first.
         - **Properties**: open `ideas/theia.md` - `status: Done` is flagged, not
           changed; pick *Active*. `ideas/broken frontmatter.md` is read-only.
 

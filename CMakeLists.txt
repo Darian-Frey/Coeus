@@ -78,7 +78,10 @@ add_library(coeus_core STATIC
     src/parser/NoteParser.cpp
     src/parser/RegisterParser.cpp
     src/registers/EntryWriter.cpp
+    src/search/Chunker.cpp
     src/search/Embedder.cpp
+    src/search/EmbeddingService.cpp
+    src/search/VectorStore.cpp
     src/registers/Lint.cpp
     src/registers/LintCommand.cpp
     src/registers/NextId.cpp

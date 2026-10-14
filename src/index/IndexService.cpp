@@ -1,6 +1,7 @@
 #include "index/IndexService.hpp"
 
 #include "index/IndexRoots.hpp"
+#include "vault/VaultConfig.hpp"
 
 #include "vault/GitIgnore.hpp"
 #include "vault/TempSweeper.hpp"
@@ -57,6 +58,9 @@ void IndexService::open(const QString& vaultPath)
     }
     m_store.emplace(std::move(*store));
     m_indexer = std::make_unique<Indexer>(*m_store);
+    // [semantic] chunk_tokens and chunk_overlap; a change re-chunks every note on the next scan.
+    m_indexer->setChunking(int(VaultConfig::integer(vaultPath, "semantic", "chunk_tokens").value_or(Chunker::kDefaultTokens)),
+                           int(VaultConfig::integer(vaultPath, "semantic", "chunk_overlap").value_or(Chunker::kDefaultOverlap)));
 
     // Root 0 is the vault; linked roots keep their id by name (SPEC.md §Linked roots).
     const auto reconciled = IndexRoots::reconcile(*m_store, vaultPath);

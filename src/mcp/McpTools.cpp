@@ -12,11 +12,13 @@
 #include "registers/RegisterTemplates.hpp"
 #include "registers/ProjectOverview.hpp"
 #include "registers/Vocabulary.hpp"
+#include "search/VectorStore.hpp"
 #include "vault/Vault.hpp"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QDeadlineTimer>
 #include <QHash>
 #include <QJsonValue>
 #include <QRegularExpression>
@@ -28,6 +30,7 @@ namespace coeus {
 namespace {
 
 constexpr int kDefaultLimit = 20;
+constexpr int kCatchUpMs = 2000; // embedding what the window has not, before a search by meaning
 constexpr int kMaxLimit = 100;
 
 QJsonObject schema(const QJsonObject& properties, const QStringList& required = {})
@@ -186,13 +189,16 @@ QJsonArray McpTools::definitions()
 {
     return {
         tool(QStringLiteral("search"), QStringLiteral("Search notes"),
-             QStringLiteral("Full-text search of every note in the vault and its linked project roots, best first. The query takes "
+             QStringLiteral("Search every note in the vault and its linked project roots, best first. In text mode the query takes "
                             "Coeus's search syntax: words (prefix match), \"exact phrases\", -excluded words, tag:name, path:folder, "
-                            "file:name and re:/regex/. Matches in the snippet are wrapped in **."),
+                            "file:name and re:/regex/; matches in the snippet are wrapped in **. Semantic and hybrid modes find "
+                            "notes by meaning: ask in plain words, as a question if you like."),
              schema({{QStringLiteral("query"), stringProperty(QStringLiteral("What to find."))},
-                     {QStringLiteral("mode"), stringProperty(QStringLiteral("\"text\" (default). \"semantic\" is not available until "
-                                                                            "Mnemosyne exists."),
-                                                             {QStringLiteral("text"), QStringLiteral("semantic")})},
+                     {QStringLiteral("mode"), stringProperty(QStringLiteral("\"text\" (default): the words as written. \"semantic\": passages "
+                                                                            "about the same thing in other words, best passage per note, "
+                                                                            "with its heading and line. \"hybrid\": both, merged by rank, "
+                                                                            "notes found both ways first."),
+                                                             {QStringLiteral("text"), QStringLiteral("semantic"), QStringLiteral("hybrid")})},
                      {QStringLiteral("limit"), limitProperty()}},
                     {QStringLiteral("query")})),
         tool(QStringLiteral("get_note"), QStringLiteral("Read a note"),
@@ -297,25 +303,86 @@ std::expected<QJsonObject, QString> McpTools::search(const Context& context, con
     const auto mode = text(arguments, "mode", false);
     if (!mode)
         return std::unexpected(mode.error());
-    if (*mode == QLatin1String("semantic"))
-        return std::unexpected(QStringLiteral("Semantic search is not available yet: it needs Mnemosyne (F-018). Use mode \"text\"."));
-    if (!mode->isEmpty() && *mode != QLatin1String("text"))
-        return std::unexpected(QStringLiteral("`mode` is \"text\" or \"semantic\""));
+    const bool byWords = mode->isEmpty() || *mode == QLatin1String("text") || *mode == QLatin1String("hybrid");
+    const bool byMeaning = *mode == QLatin1String("semantic") || *mode == QLatin1String("hybrid");
+    if (!byWords && !byMeaning)
+        return std::unexpected(QStringLiteral("`mode` is \"text\", \"semantic\" or \"hybrid\""));
     const auto count = limit(arguments);
     if (!count)
         return std::unexpected(count.error());
-    const auto hits = Search::run(context.indexPath, SearchQuery::parse(*query), *count);
-    if (!hits)
-        return std::unexpected(hits.error());
-    QJsonArray results;
-    for (const Search::Hit& hit : *hits) {
-        const auto [root, path] = locate(context, hit.notePath);
-        QString snippet = hit.snippet;
-        snippet.replace(Search::kMarkStart, QStringLiteral("**")).replace(Search::kMarkEnd, QStringLiteral("**"));
-        results.append(QJsonObject{{QStringLiteral("root"), root}, {QStringLiteral("path"), path},
-                                   {QStringLiteral("title"), hit.title}, {QStringLiteral("snippet"), snippet}});
+
+    QList<QPair<QString, QPair<QString, QString>>> wordHits; // absolute path -> (title, snippet)
+    if (byWords) {
+        const auto hits = Search::run(context.indexPath, SearchQuery::parse(*query), byMeaning ? kMaxLimit : *count);
+        if (!hits)
+            return std::unexpected(hits.error());
+        for (const Search::Hit& hit : *hits) {
+            QString snippet = hit.snippet;
+            snippet.replace(Search::kMarkStart, QStringLiteral("**")).replace(Search::kMarkEnd, QStringLiteral("**"));
+            wordHits.append({hit.notePath, {hit.title, snippet}});
+        }
     }
-    return QJsonObject{{QStringLiteral("results"), results}};
+    const auto entry = [&context](const QString& absolute, const QString& title, const QString& snippet) {
+        const auto [root, path] = locate(context, absolute);
+        return QJsonObject{{QStringLiteral("root"), root}, {QStringLiteral("path"), path}, {QStringLiteral("title"), title},
+                           {QStringLiteral("snippet"), snippet}};
+    };
+    if (!byMeaning) {
+        QJsonArray results;
+        for (const auto& [path, info] : std::as_const(wordHits))
+            results.append(entry(path, info.first, info.second));
+        return QJsonObject{{QStringLiteral("results"), results}};
+    }
+
+    // By meaning: the model, and vectors for whatever the window has not embedded yet.
+    QString why;
+    Embedder* embedder = context.embedder ? context.embedder(&why) : nullptr;
+    if (!embedder)
+        return std::unexpected(QStringLiteral("Search by meaning is not available: %1. Use mode \"text\".").arg(why.isEmpty() ? QStringLiteral("no embedding model") : why));
+    auto db = Database::open(context.indexPath);
+    if (!db)
+        return std::unexpected(db.error());
+    if (auto adopted = VectorStore::adopt(*db, *embedder); !adopted)
+        return std::unexpected(adopted.error());
+    if (auto caught = VectorStore::catchUp(*db, *embedder, QDeadlineTimer(kCatchUpMs)); !caught)
+        return std::unexpected(caught.error());
+    const auto coverage = VectorStore::coverage(*db);
+    const auto vector = embedder->embed({*query}, Embedder::Purpose::Query);
+    if (!vector)
+        return std::unexpected(vector.error());
+    const auto meaning = SemanticSearch::nearest(context.indexPath, vector->front(), byWords ? kMaxLimit : *count);
+    if (!meaning)
+        return std::unexpected(meaning.error());
+
+    QJsonArray results;
+    if (!byWords) {
+        for (const SemanticSearch::Hit& hit : *meaning) {
+            QJsonObject result = entry(hit.notePath, hit.title, hit.snippet);
+            result.insert(QStringLiteral("heading"), hit.heading);
+            result.insert(QStringLiteral("line"), hit.startLine);
+            result.insert(QStringLiteral("score"), double(qRound(hit.score * 1000)) / 1000);
+            results.append(result);
+        }
+    } else {
+        for (const SemanticSearch::Blended& hit : SemanticSearch::blend(wordHits, *meaning, *count)) {
+            QJsonObject result = entry(hit.notePath, hit.title, hit.snippet);
+            QJsonArray found;
+            if (hit.byWords)
+                found.append(QStringLiteral("text"));
+            if (hit.byMeaning) {
+                found.append(QStringLiteral("semantic"));
+                result.insert(QStringLiteral("heading"), hit.heading);
+                result.insert(QStringLiteral("line"), hit.line);
+            }
+            result.insert(QStringLiteral("found_by"), found);
+            results.append(result);
+        }
+    }
+    QJsonObject answer{{QStringLiteral("results"), results}};
+    if (coverage)
+        answer.insert(QStringLiteral("coverage"), QJsonObject{{QStringLiteral("embedded"), coverage->embedded},
+                                                              {QStringLiteral("total"), coverage->total}});
+    return answer;
 }
 
 std::expected<QJsonObject, QString> McpTools::getNote(const Context& context, const QJsonObject& arguments)

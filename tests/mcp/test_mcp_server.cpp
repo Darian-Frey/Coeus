@@ -6,6 +6,7 @@
 
 #include "mcp/McpServer.hpp"
 #include "parser/RegisterParser.hpp"
+#include "search/Embedder.hpp"
 
 #include <QFile>
 #include <QJsonArray>
@@ -149,11 +150,47 @@ private slots:
         results = call(QStringLiteral("search"), {{QStringLiteral("query"), QStringLiteral("lighthouse")}}).value(QStringLiteral("results")).toArray();
         QCOMPARE(results.size(), 2);
         bool ok = true;
-        QVERIFY(call(QStringLiteral("search"), {{QStringLiteral("query"), QStringLiteral("x")}, {QStringLiteral("mode"), QStringLiteral("semantic")}}, &ok)
-                    .value(QStringLiteral("error")).toString().contains(QStringLiteral("Mnemosyne")));
-        QVERIFY(!ok);
         call(QStringLiteral("search"), {}, &ok);
         QVERIFY(!ok); // query is required
+        call(QStringLiteral("search"), {{QStringLiteral("query"), QStringLiteral("x")}, {QStringLiteral("mode"), QStringLiteral("fuzzy")}}, &ok);
+        QVERIFY(!ok);
+
+        // Without the model, by meaning is refused with the way to get it.
+        writeFile(vault(".coeus/config.toml"), "[semantic]\nmodel = \"/nonexistent/model.gguf\"\n");
+        QVERIFY(call(QStringLiteral("search"), {{QStringLiteral("query"), QStringLiteral("x")}, {QStringLiteral("mode"), QStringLiteral("semantic")}}, &ok)
+                    .value(QStringLiteral("error")).toString().contains(QStringLiteral("fetch_model.py")));
+        QVERIFY(!ok);
+        QFile::remove(vault(".coeus/config.toml"));
+    }
+
+    void searchByMeaning()
+    {
+        if (!QFile::exists(Embedder::defaultModelPath()))
+            QSKIP("No embedding model: run tools/fetch_model.py");
+        bool ok = false;
+        // "Lighthouse budget" in other words; the window never ran, so the server embeds first.
+        QJsonObject found = call(QStringLiteral("search"), {{QStringLiteral("query"), QStringLiteral("how much money the coastal beacon will cost")},
+                                                            {QStringLiteral("mode"), QStringLiteral("semantic")},
+                                                            {QStringLiteral("limit"), 3}}, &ok);
+        QVERIFY2(ok, qPrintable(found.value(QStringLiteral("error")).toString()));
+        const QJsonArray semantic = found.value(QStringLiteral("results")).toArray();
+        QCOMPARE(semantic[0].toObject().value(QStringLiteral("path")).toString(), QStringLiteral("notes/plan.md"));
+        QCOMPARE(semantic[0].toObject().value(QStringLiteral("heading")).toString(), QStringLiteral("Plan"));
+        QVERIFY(semantic[0].toObject().value(QStringLiteral("score")).toDouble() > 0.3);
+        const QJsonObject coverage = found.value(QStringLiteral("coverage")).toObject();
+        QCOMPARE(coverage.value(QStringLiteral("embedded")).toInt(), coverage.value(QStringLiteral("total")).toInt());
+
+        found = call(QStringLiteral("search"), {{QStringLiteral("query"), QStringLiteral("lighthouse")}, {QStringLiteral("mode"), QStringLiteral("hybrid")}}, &ok);
+        QVERIFY(ok);
+        // plan.md and later.md both say "lighthouse": each is found by its words and by its meaning, so they lead.
+        const QJsonArray hybrid = found.value(QStringLiteral("results")).toArray();
+        QStringList leaders;
+        for (int i = 0; i < 2; ++i) {
+            leaders.append(hybrid[i].toObject().value(QStringLiteral("path")).toString());
+            QCOMPARE(hybrid[i].toObject().value(QStringLiteral("found_by")).toArray().size(), 2);
+        }
+        leaders.sort();
+        QCOMPARE(leaders, (QStringList{QStringLiteral("notes/later.md"), QStringLiteral("notes/plan.md")}));
     }
 
     void getNoteReadsFrontmatterBodyAndLinks()

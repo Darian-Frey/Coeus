@@ -4,6 +4,7 @@
 #include "index/IndexStore.hpp"
 #include "index/Indexer.hpp"
 #include "mcp/GuiLink.hpp"
+#include "search/Embedder.hpp"
 #include "vault/GitIgnore.hpp"
 
 #include <QByteArray>
@@ -56,6 +57,8 @@ private:
     QHash<int, std::shared_ptr<GitIgnore>> m_ignores;
     QElapsedTimer m_sinceScan;
     GuiLink m_gui;
+    std::unique_ptr<Embedder> m_embedder; // loaded on the first search by meaning
+    QString m_embedderProblem;
     bool m_alwaysRescan = false;
 };
 

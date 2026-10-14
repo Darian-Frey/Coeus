@@ -27,6 +27,7 @@ class BacklinksPanel;
 class OutlinePanel;
 class TagPanel;
 class HistoryPanel;
+class EmbeddingService;
 class ProblemsPanel;
 class ProjectBoard;
 class McpLink;
@@ -168,6 +169,8 @@ signals:
     void tempSweepFinished(int removed);
     // The index worker opened the vault's index and finished its first scan.
     void indexOpened(int noteCount);
+    // F-018: how many passages have vectors, as the embedding worker reports it.
+    void embeddingProgress(int embedded, int total);
     // The index worker reported a change in the number of indexed notes.
     void indexUpdated(int noteCount);
     // The first-open .gitignore offer is showing (SPEC.md §Vault layout).
@@ -283,6 +286,9 @@ private:
     QDockWidget* m_boardDock = nullptr;
     QTimer* m_boardTimer = nullptr;
     McpLink* m_mcpLink = nullptr;
+    QThread* m_embedThread = nullptr;
+    EmbeddingService* m_embedding = nullptr;
+    QLabel* m_semanticLabel = nullptr;
     QList<QPointer<WriteToast>> m_toasts;
     QObject* m_templateActions = nullptr; // parent of the picker's per-template actions
     NoteCatalogue* m_catalogue = nullptr; // notes and aliases for [[ completion

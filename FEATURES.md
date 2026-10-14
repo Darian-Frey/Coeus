@@ -154,11 +154,11 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 ### F-018 Semantic search
 **Priority:** Must
 **Acceptance:**
-- Notes are chunked and embedded locally through Mnemosyne; vectors stored in `sqlite-vec`
+- Notes are chunked and embedded locally (D-008: bge-small-en-v1.5 through llama.cpp); vectors stored in the index (`sqlite-vec` at first; a plain table by D-008's amendment)
 - A semantic query mode in the search panel returns nearest chunks with note and heading context
 - Embedding runs on a worker thread; the UI never waits on it (AV-005)
 - Changing the embedding model triggers a full re-embed rather than mixing vector spaces (AV-007)
-**Status:** In progress (Phase 3): the model, bge-small-en-v1.5 run by llama.cpp, is chosen and running (D-008, 2026-10-14)
+**Status:** Complete (Phase 3, 2026-10-14): chunking at index time, the embedding worker, vectors per passage, and Words, Meaning and Both in the search pane and MCP's `search` (SPEC.md §Embeddings)
 **Notes:** Model choice is D-008 (pending).
 
 ### F-019 Related-notes sidebar

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "index/Database.hpp"
+#include "search/Chunker.hpp"
 #include "parser/ParsedNote.hpp"
 
 #include <QByteArray>
@@ -40,6 +41,8 @@ public:
     std::expected<void, QString> putRoot(const RootInfo& root, bool present = true);
     // Drops a root removed from config, with every row derived from it.
     std::expected<void, QString> removeRoot(int rootId);
+    // Replaces the passages of the note at (rootId, path) (F-018).
+    std::expected<void, QString> putChunks(int rootId, const QString& path, const QList<Chunker::Chunk>& chunks);
     // Every recorded root, ordered by id.
     std::expected<QList<RootInfo>, QString> roots();
     std::expected<int, QString> noteCount();

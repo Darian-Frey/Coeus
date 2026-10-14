@@ -185,6 +185,8 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 
 **Reversal conditions.** Revisit if retrieval on the author's notes proves poor (then a larger model, with a full re-embed as AV-007 requires), if llama.cpp's API churn makes upgrades costly (then ONNX Runtime), or if Mnemosyne becomes a shared service worth calling.
 
+**Amended 2026-10-14.** Vectors are kept in an ordinary table, one per distinct passage keyed by its hash, and scanned in C++ for each query, rather than in `sqlite-vec` as F-018's acceptance first said: at the author's scale (3,661 passages of 384 floats) a scan takes under a millisecond, and it spares a pre-1.0 extension that would have to be built and loaded into every connection. Revisit if a vault reaches hundreds of thousands of passages.
+
 ### D-009 License
 **Decided:** 2026-10-12
 **Recorded:** 2026-09-25

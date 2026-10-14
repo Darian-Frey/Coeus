@@ -6,8 +6,7 @@ namespace {
 
 // Version 2 adds the register tables (F-015); version 3 gives fields and
 // citations their lines, mentions their own table, and lint rows a subject (F-016);
-// version 4 adds ideas (F-032). Chunks and vectors arrive later in Phase 3
-// with another bump.
+// version 4 adds ideas (F-032); version 5 chunks and vectors (F-018).
 constexpr const char* kSchemaSql = R"sql(
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
 
@@ -126,6 +125,26 @@ CREATE TABLE register_mentions (
   line INTEGER NOT NULL
 );
 CREATE INDEX register_mentions_src ON register_mentions(src);
+
+-- Semantic search (F-018, SPEC.md §Embeddings): each note's passages, and a
+-- vector per distinct passage, keyed by the hash of its text, so an unchanged
+-- passage is never embedded twice and identical ones share a vector. Vectors
+-- are float32 little-endian; meta holds embed_model and embed_dim (AV-007).
+CREATE TABLE chunks (
+  id INTEGER PRIMARY KEY,
+  note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL,
+  heading TEXT NOT NULL,
+  start_line INTEGER NOT NULL, end_line INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  hash BLOB NOT NULL
+);
+CREATE INDEX chunks_note ON chunks(note);
+CREATE INDEX chunks_hash ON chunks(hash);
+CREATE TABLE vectors (
+  hash BLOB PRIMARY KEY,
+  vec BLOB NOT NULL
+);
 
 -- Notes under the vault's ideas/ with a `stage` (SPEC.md §Ideas, F-032).
 CREATE TABLE ideas (

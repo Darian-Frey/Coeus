@@ -17,6 +17,7 @@
 #include "index/ContentHash.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
+#include "search/EmbeddingService.hpp"
 #include "parser/RegisterParser.hpp"
 #include "registers/Lint.hpp"
 #include "registers/NextId.hpp"
@@ -212,6 +213,7 @@ void MainWindow::createDocks()
     addDockWidget(Qt::LeftDockWidgetArea, m_searchDock);
     tabifyDockWidget(m_explorerDock, m_searchDock);
     connect(m_search, &SearchPanel::openRequested, this, &MainWindow::openNoteAtWords);
+    connect(m_search, &SearchPanel::openAtLineRequested, this, &MainWindow::openNoteAt);
 
     // Registers: the scaffold standard's entries for the current project (F-015).
     m_registers = new RegisterPanel(m_catalogue);
@@ -492,6 +494,9 @@ void MainWindow::createStatusBar()
     m_gitButton->hide();
     connect(m_gitButton, &QToolButton::clicked, this, &MainWindow::openCommitDialog);
     statusBar()->addPermanentWidget(m_gitButton);
+    m_semanticLabel = new QLabel;
+    m_semanticLabel->hide();
+    statusBar()->addPermanentWidget(m_semanticLabel);
     statusBar()->addPermanentWidget(m_indexLabel);
     statusBar()->addPermanentWidget(m_vaultLabel);
     updateStatus();
@@ -660,6 +665,7 @@ void MainWindow::startIndex(const QString& vaultPath)
     m_backlinks->setIndexPath(IndexService::indexPath(vaultPath));
     m_tags->setIndexPath(IndexService::indexPath(vaultPath));
     m_search->setIndexPath(IndexService::indexPath(vaultPath));
+    m_search->setModelPath(Embedder::modelPath(vaultPath));
     connect(m_indexThread, &QThread::finished, m_index, &QObject::deleteLater);
 
     connect(m_index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
@@ -710,6 +716,34 @@ void MainWindow::startIndex(const QString& vaultPath)
                        m_indexLabel->toolTip());
     });
 
+    // The embedding worker (F-018): its own low-priority thread, woken by every index change.
+    m_embedThread = new QThread(this);
+    m_embedThread->setObjectName(QStringLiteral("coeus-embed"));
+    m_embedding = new EmbeddingService; // no parent: it moves to the worker thread
+    m_embedding->moveToThread(m_embedThread);
+    connect(m_embedThread, &QThread::finished, m_embedding, &QObject::deleteLater);
+    connect(m_embedding, &EmbeddingService::progress, this, [this](int embedded, int total) {
+        m_semanticLabel->setVisible(total > 0);
+        m_semanticLabel->setText(embedded >= total ? tr("meaning ✓") : tr("embedding %L1 of %L2").arg(embedded).arg(total));
+        m_semanticLabel->setToolTip(tr("%L1 of %L2 passages have vectors for search by meaning (bge-small-en-v1.5)").arg(embedded).arg(total));
+        emit embeddingProgress(embedded, total);
+    });
+    connect(m_embedding, &EmbeddingService::unavailable, this, [this](const QString& why) {
+        m_semanticLabel->setVisible(true);
+        m_semanticLabel->setText(tr("no embedding model"));
+        m_semanticLabel->setToolTip(why);
+    });
+    const auto wakeEmbedding = [this, vaultPath](bool reopen) {
+        QMetaObject::invokeMethod(m_embedding, [service = m_embedding, vaultPath, reopen] {
+            if (reopen)
+                service->open(vaultPath);
+            service->wake();
+        }, Qt::QueuedConnection);
+    };
+    connect(m_index, &IndexService::opened, this, [wakeEmbedding] { wakeEmbedding(true); });
+    connect(m_index, &IndexService::indexChanged, this, [wakeEmbedding] { wakeEmbedding(false); });
+    m_embedThread->start(QThread::LowPriority);
+
     m_indexThread->start();
     setIndexStatus(tr("Indexing…"));
     QMetaObject::invokeMethod(m_index, [service = m_index, vaultPath] { service->open(vaultPath); },
@@ -720,6 +754,14 @@ void MainWindow::stopIndex()
 {
     if (!m_indexThread)
         return;
+    if (m_embedThread) {
+        m_embedThread->quit(); // returns after the batch in hand, at most about half a second
+        m_embedThread->wait();
+        delete m_embedThread;
+        m_embedThread = nullptr;
+        m_embedding = nullptr;
+        m_semanticLabel->hide();
+    }
     m_indexThread->quit();
     m_indexThread->wait();
     delete m_indexThread;

@@ -35,6 +35,13 @@ public:
 
     explicit Indexer(IndexStore& store);
 
+    // Passage sizes for semantic search (config.toml [semantic] chunk_tokens, chunk_overlap).
+    void setChunking(int tokens, int overlap)
+    {
+        m_chunkTokens = tokens;
+        m_chunkOverlap = overlap;
+    }
+
     // Full pass: indexes new and changed notes, drops deleted and newly
     // ignored ones, resolves links.
     std::expected<ScanReport, QString> scan(const RootInfo& root, const IgnoreFn& ignore = {});
@@ -58,7 +65,12 @@ private:
     std::expected<Outcome, QString> indexFile(const RootInfo& root, const QString& relativePath,
                                               const QByteArray* knownHash);
 
+    std::expected<void, QString> putChunks(const RootInfo& root, const QString& relativePath, const QByteArray& content);
+
     IndexStore& m_store;
+    bool m_rechunk = false; // this scan re-chunks unchanged notes too: the chunking rules changed
+    int m_chunkTokens = Chunker::kDefaultTokens;
+    int m_chunkOverlap = Chunker::kDefaultOverlap;
 };
 
 } // namespace coeus

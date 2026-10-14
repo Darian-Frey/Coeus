@@ -53,9 +53,10 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Ideas register and project board with freshness, phase, unreleased and Git ahead/behind columns (`src/ui/ProjectBoard.cpp`, `src/registers/ProjectStatus.cpp`; index schema 4; F-032)
 - [x] Refresh header and Promote idea (`src/registers/ProjectScaffold.cpp`, `src/ui/PromoteDialog.cpp`; F-032)
 - [x] Embedding model running in Coeus: bge-small-en-v1.5 through llama.cpp, fetched by `tools/fetch_model.py` (`src/search/Embedder.cpp`; D-008)
-- [ ] Chunking, embedding worker and vector storage (`src/search/`)
-- [ ] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`)
-- [ ] Semantic query mode and related-notes sidebar
+- [x] Chunking, embedding worker and vector storage (`src/search/Chunker.cpp`, `src/search/EmbeddingService.cpp`, `src/search/VectorStore.cpp`; index schema 5; F-018)
+- [x] Semantic and hybrid query modes in the search pane and MCP (F-018)
+- [ ] Related-notes sidebar and MCP `related` (F-019)
+- [ ] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`; F-035)
 - [x] libgit2 wrapper, step 1: repository discovery, per-note history following renames, a file at a commit (`src/git/GitRepository.cpp`; F-020)
 - [x] History sidebar section and read-only versions (`src/ui/HistoryPanel.cpp`, `src/ui/VersionView.cpp`; F-020)
 - [x] libgit2 wrapper, step 2: diff of two texts, blame of a buffer (`src/git/GitRepository.cpp`; F-021)

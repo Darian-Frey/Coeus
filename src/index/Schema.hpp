@@ -9,7 +9,7 @@ namespace coeus {
 // rebuilt from the vault.
 class Schema {
 public:
-    static constexpr int kVersion = 4; // 2: registers and projects (F-015); 3: lint (F-016); 4: ideas (F-032)
+    static constexpr int kVersion = 5; // 2: registers and projects (F-015); 3: lint (F-016); 4: ideas (F-032); 5: chunks and vectors (F-018)
 
     // Version stored in `meta`, or 0 for an empty database.
     static std::expected<int, QString> version(Database& db);
