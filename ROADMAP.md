@@ -44,7 +44,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 3 — Differentiators
 **Goal:** The three features that make Coeus more than an Obsidian clone.
-**Status:** In progress. Order agreed 2026-10-13: registers (F-015, F-016), native Git (F-020–F-022), the project board (F-032), the MCP server (F-033), then semantic search (F-018, F-019, F-035) once D-008 is decided
+**Status:** In progress. Order agreed 2026-10-13: registers (F-015, F-016), native Git (F-020–F-022), the project board (F-032), the MCP server (F-033), then semantic search (F-018, F-019, F-035) once D-008 is decided. Everything but semantic search is built (2026-10-14). D-008 was decided the same day: bge-small-en-v1.5, run on the CPU by llama.cpp inside Coeus; semantic search is under way
 **Features delivered:** F-015, F-016, F-018, F-019, F-020, F-021, F-022, F-032, F-033, F-035
 **Deliverables:**
 - [x] Register parser and model over the scaffold document types (`src/parser/RegisterParser.cpp`, `src/index/ProjectResolver.cpp`; index schema 2)
@@ -52,7 +52,8 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Lint rules L1–L9, the Problems panel and editor underlines (`src/registers/Lint.cpp`, `src/index/LintResolver.cpp`, `src/ui/ProblemsPanel.cpp`; index schema 3; F-016)
 - [x] Ideas register and project board with freshness, phase, unreleased and Git ahead/behind columns (`src/ui/ProjectBoard.cpp`, `src/registers/ProjectStatus.cpp`; index schema 4; F-032)
 - [x] Refresh header and Promote idea (`src/registers/ProjectScaffold.cpp`, `src/ui/PromoteDialog.cpp`; F-032)
-- [ ] Mnemosyne embedding worker and `sqlite-vec` table (`src/search/Semantic.cpp`)
+- [x] Embedding model running in Coeus: bge-small-en-v1.5 through llama.cpp, fetched by `tools/fetch_model.py` (`src/search/Embedder.cpp`; D-008)
+- [ ] Chunking, embedding worker and vector storage (`src/search/`)
 - [ ] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`)
 - [ ] Semantic query mode and related-notes sidebar
 - [x] libgit2 wrapper, step 1: repository discovery, per-note history following renames, a file at a commit (`src/git/GitRepository.cpp`; F-020)

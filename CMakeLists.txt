@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.25)
 project(Coeus
     VERSION 0.1.0
     DESCRIPTION "Local-first Markdown knowledge base"
-    LANGUAGES CXX)
+    LANGUAGES C CXX)   # C for ggml, under llama.cpp
 
 set(CMAKE_CXX_STANDARD 23)              # D-013
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -20,6 +20,32 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(sodium REQUIRED IMPORTED_TARGET libsodium>=1.0.18) # D-017
 pkg_check_modules(libgit2 REQUIRED IMPORTED_TARGET libgit2>=1.7)     # .gitignore rules; Git features in Phase 3
 qt_standard_project_setup()
+
+# Semantic search (D-008): llama.cpp runs the embedding model, bge-small-en-v1.5,
+# on the CPU. Built from source at a pinned release, verified by hash, as a
+# static library with its tools, examples, server and HTTPS left out; tuned
+# for the CPU that builds it, and optimised even in a Debug build, where it
+# would otherwise be too slow to embed a vault. The model file itself is not
+# in the repository: tools/fetch_model.py downloads it.
+include(FetchContent)
+set(BUILD_SHARED_LIBS OFF)
+foreach(option LLAMA_BUILD_COMMON LLAMA_BUILD_TESTS LLAMA_BUILD_TOOLS LLAMA_BUILD_EXAMPLES LLAMA_BUILD_SERVER
+               LLAMA_BUILD_APP LLAMA_OPENSSL LLAMA_ALL_WARNINGS)
+    set(${option} OFF CACHE BOOL "Set by Coeus" FORCE)
+endforeach()
+set(GGML_NATIVE ON CACHE BOOL "Set by Coeus" FORCE)
+set(GGML_CCACHE OFF CACHE BOOL "Set by Coeus" FORCE)
+FetchContent_Declare(llama
+    URL https://github.com/ggml-org/llama.cpp/archive/refs/tags/b10926.tar.gz
+    URL_HASH SHA256=7eb66cd46bc6b5a64149588c7d1025000092996df6a73355873fc6eb00863a82
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    SYSTEM)                         # its headers are not held to Coeus's -Werror
+FetchContent_MakeAvailable(llama)
+foreach(target ggml ggml-base ggml-cpu llama)
+    if(TARGET ${target})
+        target_compile_options(${target} PRIVATE -O2)
+    endif()
+endforeach()
 
 # Project-wide warning policy. Applied to Coeus targets only, never to Qt.
 add_library(coeus_warnings INTERFACE)
@@ -52,6 +78,7 @@ add_library(coeus_core STATIC
     src/parser/NoteParser.cpp
     src/parser/RegisterParser.cpp
     src/registers/EntryWriter.cpp
+    src/search/Embedder.cpp
     src/registers/Lint.cpp
     src/registers/LintCommand.cpp
     src/registers/NextId.cpp
@@ -107,7 +134,7 @@ qt_add_resources(coeus_core "icons" PREFIX "/icons" BASE resources/icons
           resources/icons/tags.svg resources/icons/palette.svg resources/icons/sidebar.svg)
 target_link_libraries(coeus_core
     PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Network Qt6::Widgets
-    PRIVATE md4c::md4c yaml-cpp::yaml-cpp SQLite::SQLite3 PkgConfig::sodium PkgConfig::libgit2 coeus_warnings)
+    PRIVATE md4c::md4c yaml-cpp::yaml-cpp SQLite::SQLite3 PkgConfig::sodium PkgConfig::libgit2 llama coeus_warnings)
 
 qt_add_executable(coeus src/app/main.cpp)
 target_compile_definitions(coeus PRIVATE COEUS_VERSION="${PROJECT_VERSION}")

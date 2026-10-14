@@ -159,11 +159,11 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 **Reversal conditions.** Revisit if rclone bisync proves reliable enough that native Drive sync adds no value, in which case F-029 is Withdrawn.
 
 ### D-008 Embedding model and Mnemosyne integration mechanism
-**Decided:** —
+**Decided:** 2026-10-14
 **Recorded:** 2026-09-25
-**Status:** Proposed
-**Authors:** Shane Hartley
-**Related:** F-018, F-019, AV-007, SPEC.md §Embeddings
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-14)
+**Related:** F-018, F-019, F-035, AV-005, AV-007, D-021, SPEC.md §Embeddings
 
 **Context.** Semantic search needs a local embedding model and a way for Coeus to call Mnemosyne.
 
@@ -174,11 +174,16 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 
 Model candidates are to be evaluated for quality on the author's own notes, memory footprint on 32–64 GB RAM with a 4 GB VRAM GPU, and dimension (stored in the index per AV-007).
 
-**Decision.** Pending. To be decided at the start of Phase 3 after a benchmark on the author's vault.
+**Decision.** Option C. The model is BAAI's bge-small-en-v1.5 (MIT; 33M parameters, 384 dimensions, up to 512 tokens), chosen by the author on 2026-10-14 over all-MiniLM-L6-v2 (weaker) and nomic-embed-text-v1.5 (stronger on long notes, four times the size), and over a hosted embeddings API, which would send every note off the machine. Coeus runs it on the CPU with llama.cpp, built from source at the pinned release b10926 (MIT) as part of Coeus's own build, in `search/Embedder`. The weights are CompendiumLabs' f16 GGUF conversion (67 MB, pinned by revision and SHA-256); they are kept out of the repository, which GitHub's 100 MB file limit would refuse in full precision and which is no place for weights in any case, and `tools/fetch_model.py` downloads and verifies them once per machine. Mnemosyne (option B) does not exist; if it comes, it can stand behind the same interface.
 
-**Consequences.** Until decided, SPEC.md §Embeddings records the interface only; the index stores model name and dimension so the choice can change with a re-embed.
+**Consequences.**
+- Semantic search works offline, on any machine Coeus builds on, with no GPU; no note leaves the machine.
+- A clean build fetches and compiles llama.cpp (about 90 s on the author's machine); it is compiled optimised even in Debug builds.
+- Throughput on the author's i7-11850H is about 25 passages of 170 tokens a second: a first full embedding of a vault of a few thousand chunks takes minutes on a worker thread, later saves fractions of a second.
+- A machine without the model file still builds and runs; semantic features say how to fetch it, and their tests skip.
+- Search queries carry bge's retrieval prefix; passages do not.
 
-**Reversal conditions.** N/A until Accepted.
+**Reversal conditions.** Revisit if retrieval on the author's notes proves poor (then a larger model, with a full re-embed as AV-007 requires), if llama.cpp's API churn makes upgrades costly (then ONNX Runtime), or if Mnemosyne becomes a shared service worth calling.
 
 ### D-009 License
 **Decided:** 2026-10-12

@@ -9,7 +9,7 @@ sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-too
     libsqlite3-dev libmd4c-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev libgit2-dev
 ```
 
-All of these are required to build. `qt6-svg-dev` brings Qt's SVG image plugins, which draw the tool strip's own icons (`resources/icons/`) where the desktop's icon theme has none; without them those buttons show their names instead.
+All of these are required to build. CMake also downloads llama.cpp's source (release b10926, checked against its SHA-256) on the first configure and builds it with Coeus, which adds about 90 seconds to a clean build; it runs the embedding model (D-008). `qt6-svg-dev` brings Qt's SVG image plugins, which draw the tool strip's own icons (`resources/icons/`) where the desktop's icon theme has none; without them those buttons show their names instead.
 
 | Requirement | Minimum | Why |
 |-------------|---------|-----|
@@ -23,6 +23,7 @@ All of these are required to build. `qt6-svg-dev` brings Qt's SVG image plugins,
 | libsodium | 1.0.18 | BLAKE2b-128 hashes; Phase 5 encryption (D-017) |
 | libgit2 | 1.7 | `.gitignore` rules per root; Git history, diff, blame, status and commits |
 | git (run time, optional) | any | Only for push after a commit (D-020); everything else works without it |
+| llama.cpp | b10926 | Fetched and built by CMake; runs the embedding model (D-008) |
 
 Phase 3 adds a vendored `sqlite-vec` amalgamation.
 
@@ -83,6 +84,16 @@ python3 tools/make_demo_vault.py --bulk 2000  # add 2,000 synthetic notes
 ```
 
 `--force` deletes the target only if this script made it (it leaves a `.coeus-demo` marker). The script uses the Python standard library and `git init`, if Git is installed, so the `.gitignore` offer and ignore rules can be tried.
+
+## Embedding model
+
+Semantic search needs bge-small-en-v1.5 (67 MB), which is not in the repository. Fetch it once per machine:
+
+```bash
+python3 tools/fetch_model.py      # into ~/.local/share/coeus/models/, SHA-256 checked
+```
+
+Without it everything else works, and `test_embedder` skips.
 
 ## Run
 

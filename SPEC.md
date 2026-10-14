@@ -400,7 +400,7 @@ dim() -> int
 
 `meta.embed_model` and `meta.embed_dim` are written when the first embedding lands. If either differs at startup from the live model, the `vec` table is dropped and rebuilt (AV-007). Nearest-neighbour uses cosine distance (`vec_distance_cosine`); related-notes (F-019) takes the top 20 chunks for the current note's chunks, aggregates by note with max similarity, excludes the note itself and any note it links to, and returns the top 5.
 
-Model selection is D-008 (pending).
+**Model** (D-008): BAAI's bge-small-en-v1.5, 384 dimensions, at most 512 tokens per passage (longer ones are cut, keeping the closing separator; chunking stays under it), pooled on its [CLS] token and normalised to unit length, so cosine similarity is a dot product. A search query, but not a passage, is prefixed with `Represent this sentence for searching relevant passages: `, as BAAI specifies. `search/Embedder` runs it on the CPU through llama.cpp, eight passages a pass, on half the machine's threads. The model file is `$XDG_DATA_HOME/coeus/models/bge-small-en-v1.5-f16.gguf` (by default `~/.local/share/…`), or `[semantic] model` in `config.toml` (absolute, `~/…`, or relative to the vault); `tools/fetch_model.py` downloads it and checks its SHA-256. Without it Coeus runs and searches text as before, and the semantic features say how to fetch it.
 
 ## Embeddings sidecar
 
@@ -592,6 +592,7 @@ A save, Load Disk Version or Discard removes the note's entry. On opening a vaul
 | Name | Default | Where |
 |------|---------|-------|
 | `review_threshold_days` | 14 | config.toml `[registers]` |
+| `model` | `~/.local/share/coeus/models/bge-small-en-v1.5-f16.gguf` | config.toml `[semantic]` |
 | `chunk_tokens` | 384 | config.toml `[semantic]` |
 | `chunk_overlap` | 48 | config.toml `[semantic]` |
 | `related_count` | 5 | config.toml `[semantic]` |

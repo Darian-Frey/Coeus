@@ -158,7 +158,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - A semantic query mode in the search panel returns nearest chunks with note and heading context
 - Embedding runs on a worker thread; the UI never waits on it (AV-005)
 - Changing the embedding model triggers a full re-embed rather than mixing vector spaces (AV-007)
-**Status:** Not started (Phase 3)
+**Status:** In progress (Phase 3): the model, bge-small-en-v1.5 run by llama.cpp, is chosen and running (D-008, 2026-10-14)
 **Notes:** Model choice is D-008 (pending).
 
 ### F-019 Related-notes sidebar
@@ -167,7 +167,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Right sidebar section shows the five nearest notes to the current note's content, excluding notes already linked from it
 - Updates on save, debounced, without blocking editing
 - Each entry offers "Link here" which inserts a wikilink at the cursor
-**Status:** Not started (Phase 3)
+**Status:** In progress (Phase 3): the model, bge-small-en-v1.5 run by llama.cpp, is chosen and running (D-008, 2026-10-14)
 
 ### Native Git
 
@@ -295,7 +295,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - `.coeus-shared/embeddings.bin` exported after each embedding batch, keyed by chunk hash and tagged with model and dimension
 - On startup, matching hashes are imported before any local embedding runs; mismatched model or dimension is ignored with a log line
 - A compaction command drops hashes no longer present in the vault
-**Status:** Not started (Phase 3)
+**Status:** In progress (Phase 3): the model, bge-small-en-v1.5 run by llama.cpp, is chosen and running (D-008, 2026-10-14)
 
 ## Candidate features (uncommitted)
 - GitHub API status: pull-request state and Actions results on the project board, via polling or webhook.

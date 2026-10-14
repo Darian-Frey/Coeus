@@ -42,6 +42,7 @@ coeus_add_test(test_lint index/test_lint.cpp)
 coeus_add_test(test_lint_command index/test_lint_command.cpp)
 coeus_add_test(test_project_status index/test_project_status.cpp)
 coeus_add_test(test_entry_writer index/test_entry_writer.cpp)
+coeus_add_test(test_embedder search/test_embedder.cpp)
 coeus_add_test(test_mcp_server mcp/test_mcp_server.cpp)
 target_link_libraries(test_mcp_server PRIVATE PkgConfig::libgit2)
 target_compile_definitions(test_mcp_server PRIVATE COEUS_BINARY="$<TARGET_FILE:coeus>")
@@ -92,6 +93,8 @@ add_test(NAME lint_coeus_docs COMMAND coeus --lint --mentions --quiet ${PROJECT_
 
 find_package(Python3 COMPONENTS Interpreter)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME test_fetch_model
+             COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/test_fetch_model.py)
     add_test(NAME test_make_demo_vault
              COMMAND Python3::Interpreter ${PROJECT_SOURCE_DIR}/tools/test_make_demo_vault.py)
 endif()
