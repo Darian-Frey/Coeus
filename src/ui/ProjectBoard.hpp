@@ -2,7 +2,7 @@
 
 #include "git/GitRepository.hpp"
 #include "index/IndexQueries.hpp"
-#include "registers/ProjectStatus.hpp"
+#include "registers/ProjectOverview.hpp"
 
 #include <QDate>
 #include <QWidget>
@@ -31,18 +31,7 @@ class ProjectBoard : public QWidget {
 public:
     enum Column { Name, Status, Reviewed, Build, Unreleased, Git, ColumnCount };
 
-    struct ProjectRow {
-        ProjectRef project;
-        QString folder;   // absolute
-        QString readme;   // absolute
-        int reviewedDaysAgo = -1; // -1: not a date
-        ProjectStatus::Build build;
-        bool inGit = false;
-        QString workdir;  // the repository's working tree, if in Git
-        QString branch;
-        std::optional<GitRepository::Tracking> tracking;
-        int changes = 0;  // changed files under the project's folder
-    };
+    using ProjectRow = ProjectOverview;
 
     ProjectBoard(const NoteCatalogue* catalogue, QThreadPool* pool, QWidget* parent = nullptr);
 

@@ -7,6 +7,7 @@
 #include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
 #include "ui/HistoryPanel.hpp"
+#include "ui/Icons.hpp"
 #include "ui/NoteCatalogue.hpp"
 #include "ui/NoteView.hpp"
 #include "ui/OutlinePanel.hpp"
@@ -317,20 +318,19 @@ void MainWindow::createActions()
     quit->setShortcut(QKeySequence::Quit);
     connect(quit, &QAction::triggered, this, &QWidget::close);
 
-    auto* palette = new QAction(QIcon::fromTheme(QStringLiteral("system-search")),
+    auto* palette = new QAction(Icons::palette(),
                                 tr("Command &Palette…"), this);
     palette->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
     connect(palette, &QAction::triggered, this, &MainWindow::showCommandPalette);
 
     QAction* toggleExplorer = m_explorerDock->toggleViewAction();
     toggleExplorer->setText(tr("Toggle &Explorer"));
-    toggleExplorer->setIcon(QIcon::fromTheme(QStringLiteral("folder")));
+    toggleExplorer->setIcon(Icons::explorer());
     toggleExplorer->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
 
     QAction* toggleSidebar = m_sidebarDock->toggleViewAction();
     toggleSidebar->setText(tr("Toggle &Sidebar"));
-    toggleSidebar->setIcon(QIcon::fromTheme(QStringLiteral("view-right-pane"),
-                                            QIcon::fromTheme(QStringLiteral("view-list-details"))));
+    toggleSidebar->setIcon(Icons::sidebar());
     toggleSidebar->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B));
 
     m_verifyIndex = new QAction(tr("&Verify Index"), this);
@@ -407,7 +407,7 @@ void MainWindow::createActions()
     strip->setIconSize(QSize(18, 18));
     strip->setToolButtonStyle(Qt::ToolButtonIconOnly);
     strip->addAction(toggleExplorer);
-    auto* findNotes = new QAction(QIcon::fromTheme(QStringLiteral("edit-find")), tr("Search &Notes…"), this);
+    auto* findNotes = new QAction(Icons::search(), tr("Search &Notes…"), this);
     findNotes->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F));
     connect(findNotes, &QAction::triggered, this, [this] {
         m_searchDock->show();
@@ -429,7 +429,7 @@ void MainWindow::createActions()
 
     QAction* toggleBoard = m_boardDock->toggleViewAction();
     toggleBoard->setText(tr("Toggle Project &Board"));
-    toggleBoard->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details"), QIcon::fromTheme(QStringLiteral("x-office-spreadsheet"))));
+    toggleBoard->setIcon(Icons::board());
     toggleBoard->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
     strip->addAction(toggleBoard);
     viewMenu->addAction(toggleBoard);
@@ -438,7 +438,7 @@ void MainWindow::createActions()
 
     QAction* toggleTags = m_tagsDock->toggleViewAction();
     toggleTags->setText(tr("Toggle &Tags"));
-    toggleTags->setIcon(QIcon::fromTheme(QStringLiteral("tag"), QIcon::fromTheme(QStringLiteral("bookmarks"))));
+    toggleTags->setIcon(Icons::tags());
     toggleTags->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
     strip->addAction(toggleTags);
     viewMenu->addAction(toggleTags);

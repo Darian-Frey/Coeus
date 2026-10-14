@@ -12,6 +12,7 @@
 #include <QFileSystemModel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QToolBar>
 #include <QToolButton>
 #include <QTreeView>
 #include <QSettings>
@@ -51,6 +52,23 @@ private slots:
         QVERIFY(window.tabs());
         QVERIFY(window.statusBar());
         QVERIFY(!window.registeredActions().isEmpty());
+    }
+
+    void everyToolStripButtonHasAnIcon()
+    {
+        // With no icon theme at all (the offscreen platform has none), the
+        // strip uses Coeus's own icons rather than falling back to text.
+        MainWindow window;
+        auto* strip = window.findChild<QToolBar*>(QStringLiteral("toolStrip"));
+        QVERIFY(strip);
+        QVERIFY(strip->actions().size() >= 6);
+        for (QAction* action : strip->actions()) {
+            if (action->isSeparator())
+                continue;
+            QVERIFY2(!action->icon().pixmap(18, 18).isNull(), qPrintable(action->text()));
+        }
+        for (const char* name : {"explorer", "search", "board", "tags", "palette", "sidebar"})
+            QVERIFY2(!QIcon(QStringLiteral(":/icons/%1.svg").arg(QLatin1String(name))).pixmap(18, 18).isNull(), name);
     }
 
     void opensNoteForEditingOnce()

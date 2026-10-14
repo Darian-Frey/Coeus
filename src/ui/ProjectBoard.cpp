@@ -28,23 +28,6 @@ constexpr int kPathRole = Qt::UserRole + 1;
 constexpr int kIdeaRole = Qt::UserRole + 2; // index into m_ideas, on idea rows
 const QColor kStale(0xc0, 0x7a, 0x00);
 
-std::optional<QString> slurp(const std::optional<QString>& path)
-{
-    if (!path)
-        return std::nullopt;
-    QFile file(*path);
-    if (!file.open(QIODevice::ReadOnly))
-        return std::nullopt;
-    return QString::fromUtf8(file.readAll());
-}
-
-QString label(const ProjectRef& project)
-{
-    if (project.rootName == QLatin1String("vault"))
-        return project.path.isEmpty() ? QStringLiteral("(vault)") : project.path;
-    return project.path.isEmpty() ? project.rootName : project.rootName + QLatin1Char('/') + project.path;
-}
-
 int orderOf(const QStringList& vocabulary, const QString& value)
 {
     const auto term = Vocabulary::termOf(vocabulary, value);
@@ -218,30 +201,8 @@ void ProjectBoard::refresh()
     });
     watcher->setFuture(QtConcurrent::run(m_pool, [projects, today] {
         QList<ProjectRow> rows;
-        for (const ProjectRef& project : projects) {
-            ProjectRow row;
-            row.project = project;
-            row.folder = project.path.isEmpty() ? project.rootPath : project.rootPath + QLatin1Char('/') + project.path;
-            row.readme = row.folder + QStringLiteral("/README.md");
-            const QDate reviewed = QDate::fromString(project.lastReviewed.left(10), Qt::ISODate);
-            row.reviewedDaysAgo = reviewed.isValid() ? int(reviewed.daysTo(today)) : -1;
-            row.build = ProjectStatus::parse(slurp(ProjectStatus::find(row.folder, QStringLiteral("ROADMAP.md"))),
-                                             slurp(ProjectStatus::find(row.folder, QStringLiteral("CHANGELOG.md"))));
-            if (const auto repo = GitRepository::discover(row.folder)) {
-                row.inGit = true;
-                row.workdir = repo->workdir();
-                row.branch = repo->branch();
-                row.tracking = repo->tracking();
-                const QString prefix = repo->relativePath(row.folder);
-                if (const auto changes = repo->status()) {
-                    for (const GitChange& change : *changes) {
-                        if (prefix == QLatin1String(".") || prefix.isEmpty() || change.path.startsWith(prefix + QLatin1Char('/')))
-                            ++row.changes;
-                    }
-                }
-            }
-            rows.append(row);
-        }
+        for (const ProjectRef& project : projects)
+            rows.append(ProjectOverview::of(project, today));
         return rows;
     }));
 }
@@ -252,7 +213,7 @@ void ProjectBoard::present(const QList<ProjectRow>& unsorted, const QList<IdeaRe
     std::stable_sort(projects.begin(), projects.end(), [](const ProjectRow& a, const ProjectRow& b) {
         const int x = orderOf(Vocabulary::projectStatus(), a.project.status);
         const int y = orderOf(Vocabulary::projectStatus(), b.project.status);
-        return x != y ? x < y : label(a.project).compare(label(b.project), Qt::CaseInsensitive) < 0;
+        return x != y ? x < y : a.label.compare(b.label, Qt::CaseInsensitive) < 0;
     });
     QList<IdeaRef> ideas = unsortedIdeas;
     std::stable_sort(ideas.begin(), ideas.end(), [](const IdeaRef& a, const IdeaRef& b) {
@@ -276,7 +237,7 @@ void ProjectBoard::present(const QList<ProjectRow>& unsorted, const QList<IdeaRe
     int stale = 0;
     for (const ProjectRow& row : std::as_const(projects)) {
         auto* item = new QTreeWidgetItem(projectsGroup);
-        item->setText(Name, label(row.project));
+        item->setText(Name, row.label);
         item->setData(Name, kPathRole, row.readme);
         item->setToolTip(Name, row.folder);
         item->setText(Status, row.project.status.section(QLatin1Char(' '), 0, 0));

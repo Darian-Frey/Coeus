@@ -454,3 +454,26 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 
 **Amended 2026-10-14.** The author extended the decision to fetching: the project board's Fetch (F-032) runs `git fetch --quiet` in each project's repository, one after another, the same way and with the same environment, only when asked and never on a timer. Fetch updates only remote-tracking refs, never the working tree.
 
+### D-021 Claude Code is the MCP client; local models are optional
+**Decided:** 2026-10-14
+**Recorded:** 2026-10-14
+**Status:** Accepted
+**Authors:** Shane Hartley (with Claude discussion 2026-10-14)
+**Related:** F-033, D-012, D-003, D-008, SPEC.md §MCP surface
+
+**Context.** `coeus --mcp` (F-033) serves tools; the model that calls them lives in the client. The author has LM Studio 0.4.26, itself an MCP client, with Qwen3.5 9B Abliterated and Qwen2.5 7B Instruct (both marked for tool use), Qwen2.5 Coder 14B and Nomic Embed Text v1.5. D-012 named Claude chat and Claude Code as the clients. The author needs a client that works on any machine they use, whatever its hardware.
+
+**Options.**
+- **A. A local model through LM Studio.** Private, offline and free, but it needs a machine with the memory and GPU to run it and LM Studio installed; 7–9B models chain tool calls and write register entries less reliably, and their default context is too short for a large note.
+- **B. A Claude session.** Chosen. Claude Code runs on any machine without local model hardware, chains tool calls reliably, holds whole register files in context, and writes entries to the standard. Notes a tool returns are sent to Anthropic.
+- **C. Claude in the browser (claude.ai).** It cannot start a local program, so it cannot use a stdio server; Coeus would need to serve MCP over HTTP.
+
+**Decision.** Option B. Claude Code is the client Coeus's MCP server is built and documented for, registered once per machine with `claude mcp add --scope user` (BUILD.md §MCP server); it serves Claude Code in a terminal and in IDEs such as Antigravity. A local model through LM Studio stays a supported, optional client for private or offline questions, with its own snippet; nothing in Coeus depends on one.
+
+**Consequences.**
+- The tools and their error messages are written for a capable model; no extra guidance is added for small ones.
+- Registration is per machine and points at that machine's `coeus` binary and vault; the binary is Linux-only (D-003).
+- Nomic Embed Text v1.5, served by LM Studio, is a candidate for the embedding model D-008 leaves open; this decision does not choose it.
+
+**Reversal conditions.** Revisit if the author's notes must not leave the machine (then a local model becomes the client and the tools may need simpler results), or if Claude's web and desktop apps gain a way to reach a local stdio server.
+

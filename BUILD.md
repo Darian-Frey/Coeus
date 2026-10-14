@@ -5,11 +5,11 @@ Verified 2026-10-12 on Linux Mint 22.3 (Ubuntu 24.04 base) with GCC 13.3, CMake 
 ## Dependencies
 
 ```bash
-sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-tools \
+sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-tools qt6-svg-dev \
     libsqlite3-dev libmd4c-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev libgit2-dev
 ```
 
-All of these are required to build.
+All of these are required to build. `qt6-svg-dev` brings Qt's SVG image plugins, which draw the tool strip's own icons (`resources/icons/`) where the desktop's icon theme has none; without them those buttons show their names instead.
 
 | Requirement | Minimum | Why |
 |-------------|---------|-----|
@@ -93,6 +93,51 @@ python3 tools/make_demo_vault.py --bulk 2000  # add 2,000 synthetic notes
 ```
 
 `Ctrl+P` opens the command palette. Window geometry and dock layout are saved to `~/.config/coeus/coeus.ini` on exit; delete that file to reset the layout.
+
+## MCP server
+
+`coeus --mcp --vault <folder>` (or `COEUS_VAULT=<folder> coeus --mcp`) serves the vault's index to an AI session over stdio (F-033, SPEC.md §MCP surface). Claude Code is the client it is built for; a local model through LM Studio is optional (D-021). It needs no display and works whether or not the Coeus window is open; it keeps the same `.coeus/index.db` up to date, scanning for changes before answering. Use the absolute path of the built binary.
+
+**Claude Code** (in a terminal, or in an IDE such as Antigravity through its Claude Code extension), once per machine, for every project on it:
+
+```bash
+claude mcp add --scope user coeus -- "$HOME/Projects/Coeus/build/coeus" --mcp --vault "$HOME/Projects"
+claude mcp list          # coeus should show as connected
+claude mcp remove coeus -s user   # to undo
+```
+
+The shell expands `$HOME` when the command is run, so the registration holds this machine's absolute paths; run it again on each machine, after building Coeus there. A session started before the registration does not see the tools until it is restarted.
+
+Inside a session, `/mcp` lists the server and its tools.
+
+**Claude Desktop**, in `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "coeus": {
+      "command": "/home/you/Projects/Coeus/build/coeus",
+      "args": ["--mcp", "--vault", "/home/you/Vault"]
+    }
+  }
+}
+```
+
+**LM Studio** (optional, D-021), in `~/.lmstudio/mcp.json` (Program tab › Install › Edit mcp.json), the same shape as Claude Desktop's; use a model marked for tool use, such as Qwen3.5 9B, and raise its context length to 16k–32k tokens, since a register file can be 8k tokens on its own:
+
+```json
+{ "mcpServers": { "coeus": { "command": "/home/you/Projects/Coeus/build/coeus", "args": ["--mcp", "--vault", "/home/you/Projects"] } } }
+```
+
+Claude in a web browser (claude.ai) cannot start a local program, so it cannot use a stdio server; it would need Coeus to serve MCP over HTTP, which it does not.
+
+To try the protocol by hand:
+
+```bash
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"project_status","arguments":{}}}' \
+  | ./build/coeus --mcp --vault ~/Vault
+```
 
 ## Large vaults and inotify
 

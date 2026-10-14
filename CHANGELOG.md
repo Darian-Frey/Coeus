@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Added
+- MCP server, step 1 (F-033): `coeus --mcp --vault <folder>` serves the vault's index over stdio to Claude Code, Claude Desktop or any MCP client, without a display or the GUI. Read tools `search`, `get_note`, `list_registers`, `project_status` and `list_ideas`; the index is brought up to date before each call. Root reconciliation moved into `index/IndexRoots` and the board's per-project reading into `registers/ProjectOverview`, so the GUI and the server share them. BUILD.md shows how to register it with Claude Code, the client it is built for, and optionally LM Studio (D-021). Test `test_mcp_server`, which also drives the binary over stdio.
 - Project board commands (F-032 complete): Refresh Header… sets a README's Last reviewed to today after confirmation (in the open buffer if it is open); Promote Idea… turns an idea into a project in `projects/<codename>/` or a new folder added as a linked root, with the status header and the standard's skeletons and no IDs, removing the idea note once everything is written; Fetch runs `git fetch` in each project's repository (D-020 amended). `GitPush` became `GitCommand`. Tests `test_board_commands` (including a fetch that finds another clone's push), and cases in `test_project_status` and `test_roots`.
 - Project board (F-032, step 1): a Project Board dock (`Ctrl+Shift+J`) lists every project by README status, with days since Last reviewed (amber past the threshold), build status from ROADMAP.md, unreleased CHANGELOG entries, and Git branch, ahead/behind and changed files; then ideas by stage. Notes under `ideas/` with a `stage` are indexed (schema 4). Read on the Git worker. Tests `test_project_status`, `test_project_board`; `test_git_commit` gains ahead/behind.
 - Commit from Coeus (F-022): the status bar counts the current repository's changed files (Coeus's own files never included); Git › Commit… (`Ctrl+Alt+C`) or the count opens a dialog listing them with ticks (tracked changes and notes ticked), unsaved open notes with Save All, a multi-paragraph message and Push after committing. libgit2 commits exactly the ticked paths, leaving anything else staged as it was; push runs `git push` in the background with prompts off (D-020), its result in the status bar. Tests `test_git_commit` (including a real push to a bare remote), `test_commit_dialog`.
@@ -47,6 +48,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - D-013 C++23 language standard.
 - D-014 to D-018 (Accepted): md4c, yaml-cpp, toml++, libsodium, SQLite C API for Phase 2.
 - `reservations` table and cross-process `NextId` allocation (SPEC.md §ID allocation).
+### Fixed
+- Tool strip buttons without an icon in the desktop's theme (Toggle Tags and Toggle Sidebar on Linux Mint) showed their names; Coeus now ships its own icons as a fallback (`ui/Icons`, `resources/icons/`), so every button has one on any machine. Test `test_main_window`.
+
 ### Changed
 - `registers` drops SPEC's `UNIQUE(project_id, kind, number)` and allows a NULL project, so duplicate IDs are indexed for lint to report (AV-003) instead of failing silently.
 - The sidebar's Properties placeholder is gone: properties sit above the note, as F-008 and the mockup place them.

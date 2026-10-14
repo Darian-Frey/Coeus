@@ -1,3 +1,4 @@
+#include "mcp/McpServer.hpp"
 #include "registers/LintCommand.hpp"
 #include "ui/MainWindow.hpp"
 #include "vault/Vault.hpp"
@@ -10,18 +11,50 @@
 
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 
 namespace {
 
-// `coeus --lint`: no window, so no display (IMP-004). Decided before any
-// application object exists, since QApplication needs a display.
-bool wantsLint(int argc, char* argv[])
+// `coeus --lint` and `coeus --mcp`: no window, so no display (IMP-004,
+// F-033). Decided before any application object exists, since QApplication
+// needs a display.
+bool wants(int argc, char* argv[], const char* option)
 {
     for (int i = 1; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--lint") == 0)
+        if (std::strcmp(argv[i], option) == 0)
             return true;
     }
     return false;
+}
+
+int mcp(int argc, char* argv[])
+{
+    QCoreApplication app(argc, argv);
+    QCoreApplication::setApplicationName(QStringLiteral("coeus"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(COEUS_VERSION));
+    QCommandLineParser parser;
+    parser.setApplicationDescription(QStringLiteral("Serve the vault's index to AI sessions over MCP on stdio (F-033)."));
+    parser.addHelpOption();
+    const QCommandLineOption mcpOption(QStringLiteral("mcp"), QStringLiteral("Serve MCP instead of opening a window."));
+    const QCommandLineOption vaultOption(QStringLiteral("vault"),
+                                         QStringLiteral("The vault folder (default: the COEUS_VAULT environment variable)."),
+                                         QStringLiteral("path"));
+    parser.addOptions({mcpOption, vaultOption});
+    parser.process(app);
+    QString folder = parser.value(vaultOption);
+    if (folder.isEmpty())
+        folder = qEnvironmentVariable("COEUS_VAULT");
+    if (folder.isEmpty()) {
+        std::fprintf(stderr, "coeus --mcp: name the vault with --vault <path> or COEUS_VAULT\n");
+        return 2;
+    }
+    const auto vault = coeus::Vault::open(folder);
+    if (!vault) {
+        std::fprintf(stderr, "coeus --mcp: %s\n", qPrintable(vault.error()));
+        return 2;
+    }
+    coeus::McpServer server(vault->rootPath());
+    return server.run(std::cin, std::cout);
 }
 
 int lint(int argc, char* argv[])
@@ -59,7 +92,9 @@ int lint(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    if (wantsLint(argc, argv))
+    if (wants(argc, argv, "--mcp"))
+        return mcp(argc, argv);
+    if (wants(argc, argv, "--lint"))
         return lint(argc, argv);
 
     QApplication app(argc, argv);
@@ -75,6 +110,8 @@ int main(int argc, char* argv[])
     parser.addVersionOption();
     const QCommandLineOption verbose(QStringLiteral("verbose"), QStringLiteral("Enable debug logging."));
     parser.addOption(verbose);
+    parser.addOption(QCommandLineOption(QStringLiteral("mcp"),
+                                        QStringLiteral("Serve the vault's index over MCP on stdio and exit; see coeus --mcp --help.")));
     parser.addOption(QCommandLineOption(QStringLiteral("lint"),
                                         QStringLiteral("Lint the registers in <folder> and exit; see coeus --lint --help.")));
     parser.addPositionalArgument(QStringLiteral("vault"), QStringLiteral("Folder to open as a vault."),

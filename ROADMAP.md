@@ -63,7 +63,8 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Status-bar change count and commit dialog (`src/ui/CommitDialog.cpp`; F-022)
 - [x] Ahead/behind against the upstream for the project board (`GitRepository::tracking`; F-032)
 - [x] Fetch from Coeus, so ahead/behind is current (`git fetch`, D-020 amended; F-032)
-- [ ] MCP server with read tools, then opt-in write tools with GUI confirmation (`src/mcp/`)
+- [x] MCP server with read tools (`src/mcp/McpServer.cpp`, `src/mcp/McpTools.cpp`; F-033)
+- [ ] Opt-in MCP write tools with GUI confirmation and undo (F-033, AV-012)
 **Acceptance:** Opening the vault plus linked repos shows every register with correct counts; a semantic query for a decision by meaning finds it; a note's history, blame and diff match `git log`, `git blame`, `git diff` output; Claude Code in Antigravity can log a DECISIONS entry through MCP that appears in the register panel with the correct next ID.
 
 ## Phase 4 — Rich Markdown and workspace

@@ -64,7 +64,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **sync/** — `SyncProvider` interface (SPEC.md §Sync). `RcloneProvider` shells out to `rclone bisync`. `DriveProvider` (Phase 5) talks to the Google Drive API with a change log and merge engine. Providers see encrypted bytes when encryption is enabled. Providers operate on root 0 only; linked roots are assumed to sync through Git.
 
-**mcp/** — `coeus --mcp` entry point. Serves the tools in SPEC.md §MCP surface over stdio against the same index. Read tools open the index read-only and work without the GUI. Write tools go through `vault/AtomicWriter` and `registers/NextId` exactly as the UI does, and, when the GUI is running, through a local socket to raise the confirmation toast.
+**mcp/** — `coeus --mcp` entry point. `McpServer` speaks the protocol (JSON-RPC over stdio) and keeps the vault's index current with the same `IndexRoots` reconciliation and incremental `Indexer` scans the GUI uses; `McpTools` implements the tools in SPEC.md §MCP surface. Read tools query the index read-only and work without the GUI. Write tools go through `vault/AtomicWriter` and `registers/NextId` exactly as the UI does, and, when the GUI is running, through a local socket to raise the confirmation toast.
 
 **vault/Roots** — reads `[[roots]]` from `config.toml`, assigns `root_id`s, owns one `VaultWatcher` per present root, and marks absent roots without deleting their rows (D-010).
 

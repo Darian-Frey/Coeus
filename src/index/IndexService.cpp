@@ -1,14 +1,14 @@
 #include "index/IndexService.hpp"
 
+#include "index/IndexRoots.hpp"
+
 #include "vault/GitIgnore.hpp"
-#include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
 #include "vault/VaultWatcher.hpp"
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QSet>
 
 #include <algorithm>
 
@@ -59,55 +59,14 @@ void IndexService::open(const QString& vaultPath)
     m_indexer = std::make_unique<Indexer>(*m_store);
 
     // Root 0 is the vault; linked roots keep their id by name (SPEC.md §Linked roots).
-    const Roots::Loaded config = Roots::load(vaultPath);
-    QStringList problems = config.problems;
-    QHash<QString, int> knownIds;
-    int nextId = 1;
-    if (const auto known = m_store->roots()) {
-        for (const RootInfo& root : *known) {
-            knownIds.insert(root.name, root.id);
-            nextId = std::max(nextId, root.id + 1);
-        }
+    const auto reconciled = IndexRoots::reconcile(*m_store, vaultPath);
+    if (!reconciled) {
+        emit failed(reconciled.error());
+        return;
     }
-
-    m_roots.insert(0, {{0, QLatin1String(Roots::kVaultRootName), vaultPath}, true});
-    QSet<QString> configured{QLatin1String(Roots::kVaultRootName)};
-    for (const RootConfig& root : config.roots) {
-        const int id = knownIds.contains(root.name) ? knownIds.value(root.name) : nextId++;
-        const bool present = QFileInfo(root.path).isDir();
-        m_roots.insert(id, {{id, root.name, root.path}, present});
-        configured.insert(root.name);
-        if (!present)
-            problems.append(tr("Linked root \"%1\" is missing on this machine (%2); its notes are kept but not updated.")
-                                .arg(root.name, root.path));
-    }
-
-    {
-        auto transaction = Transaction::begin(m_store->database(), Transaction::Kind::Immediate);
-        if (!transaction) {
-            emit failed(transaction.error());
-            return;
-        }
-        // Roots removed from config take their rows with them.
-        for (auto it = knownIds.constBegin(); it != knownIds.constEnd(); ++it) {
-            if (!configured.contains(it.key()) && it.value() != 0) {
-                if (auto removed = m_store->removeRoot(it.value()); !removed) {
-                    emit failed(removed.error());
-                    return;
-                }
-            }
-        }
-        for (const RootState& root : std::as_const(m_roots)) {
-            if (auto put = m_store->putRoot(root.info, root.present); !put) {
-                emit failed(put.error());
-                return;
-            }
-        }
-        if (auto committed = transaction->commit(); !committed) {
-            emit failed(committed.error());
-            return;
-        }
-    }
+    const QStringList problems = reconciled->problems;
+    for (const IndexRoots::Root& root : reconciled->roots)
+        m_roots.insert(root.info.id, {root.info, root.present});
 
     // Watch before scanning, so nothing written during the scan is missed.
     QList<int> ids = m_roots.keys();

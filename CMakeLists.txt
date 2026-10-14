@@ -32,6 +32,7 @@ add_library(coeus_core STATIC
     src/index/Database.cpp
     src/index/Indexer.cpp
     src/index/IndexQueries.cpp
+    src/index/IndexRoots.cpp
     src/index/IndexService.cpp
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
@@ -39,6 +40,8 @@ add_library(coeus_core STATIC
     src/git/GitCommand.cpp
     src/git/GitRepository.cpp
     src/index/LintResolver.cpp
+    src/mcp/McpServer.cpp
+    src/mcp/McpTools.cpp
     src/index/Schema.cpp
     src/index/Search.cpp
     src/index/SearchQuery.cpp
@@ -50,6 +53,7 @@ add_library(coeus_core STATIC
     src/registers/Lint.cpp
     src/registers/LintCommand.cpp
     src/registers/NextId.cpp
+    src/registers/ProjectOverview.cpp
     src/registers/ProjectScaffold.cpp
     src/registers/ProjectStatus.cpp
     src/registers/RegisterTemplates.cpp
@@ -80,6 +84,7 @@ add_library(coeus_core STATIC
     src/ui/OutlinePanel.cpp
     src/ui/PropertiesPanel.cpp
     src/ui/HistoryPanel.cpp
+    src/ui/Icons.cpp
     src/ui/ProblemsPanel.cpp
     src/ui/PromoteDialog.cpp
     src/ui/ProjectBoard.cpp
@@ -92,12 +97,17 @@ add_library(coeus_core STATIC
     src/ui/WikilinkCompletion.cpp
 )
 target_include_directories(coeus_core PUBLIC src)
+# The tool strip's own icons, used where the desktop's icon theme has none (ui/Icons).
+qt_add_resources(coeus_core "icons" PREFIX "/icons" BASE resources/icons
+    FILES resources/icons/explorer.svg resources/icons/search.svg resources/icons/board.svg
+          resources/icons/tags.svg resources/icons/palette.svg resources/icons/sidebar.svg)
 target_link_libraries(coeus_core
     PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Widgets
     PRIVATE md4c::md4c yaml-cpp::yaml-cpp SQLite::SQLite3 PkgConfig::sodium PkgConfig::libgit2 coeus_warnings)
 
 qt_add_executable(coeus src/app/main.cpp)
 target_compile_definitions(coeus PRIVATE COEUS_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(coeus_core PRIVATE COEUS_VERSION="${PROJECT_VERSION}") # the MCP server reports it
 target_link_libraries(coeus PRIVATE coeus_core coeus_warnings)
 
 if(COEUS_BUILD_TESTS)

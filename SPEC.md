@@ -441,7 +441,13 @@ Encryption, when enabled, is age-style: a vault key derived from a passphrase wi
 
 ## MCP surface
 
-`coeus --mcp [--vault <path>]` speaks MCP over stdio. Tools, with JSON argument shapes:
+`coeus --mcp [--vault <path>]` speaks MCP over stdio (F-033, D-012): JSON-RPC 2.0, one message per line, protocol versions 2025-06-18, 2025-03-26 and 2024-11-05 (the client's if it is one of them, else the newest). It answers `initialize`, `ping`, `tools/list` and `tools/call`; notifications get no reply; anything else is `-32601`, unparseable input `-32700`, an unknown tool `-32602`. Only protocol messages go to stdout; diagnostics go to stderr. The vault is `--vault`, else the `COEUS_VAULT` environment variable; without either it exits with status 2. It needs no display and no running GUI.
+
+**Index.** It opens the vault's own `.coeus/index.db`, reconciles roots with `config.toml` exactly as the GUI does (`index/IndexRoots`), and before each tool call scans every present root for changes (unchanged files are skipped on mtime and size), at most once every 2 s, so edits made by Claude Code or anything else are seen. With the GUI open both processes write the same index; SQLite serialises them. Against eleven real repositories the first call, which scans everything, took 418 ms and later ones 1–220 ms.
+
+**Results.** A tool's result is its JSON object as `structuredContent` and the same JSON as one text content item. A tool that cannot do what was asked (a missing note, an unknown project, bad arguments) returns `isError: true` with a sentence saying why and, where useful, what would work (the roots, the projects). A project is named as `project_status` names it (`projects/coeus`, `pontus`, `pontus/sub`), case aside, or by its folder's name when only one project has it. Paths are root-relative; `.md` may be left off; a path that escapes its root is refused.
+
+Implemented (step 1): the read tools `search` (text mode; `semantic` returns an error until F-018), `get_note`, `list_registers`, `project_status` and `list_ideas`. `related` arrives with F-019 and is not listed until then. The write tools are step 2. Tools, with JSON argument shapes:
 
 | Tool | Arguments | Returns | Writes |
 |------|-----------|---------|--------|
