@@ -5,8 +5,9 @@ namespace coeus {
 namespace {
 
 // Version 2 adds the register tables (F-015); version 3 gives fields and
-// citations their lines, mentions their own table, and lint rows a subject (F-016). Ideas, chunks and
-// vectors arrive later in Phase 3 with another bump.
+// citations their lines, mentions their own table, and lint rows a subject (F-016);
+// version 4 adds ideas (F-032). Chunks and vectors arrive later in Phase 3
+// with another bump.
 constexpr const char* kSchemaSql = R"sql(
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
 
@@ -125,6 +126,12 @@ CREATE TABLE register_mentions (
   line INTEGER NOT NULL
 );
 CREATE INDEX register_mentions_src ON register_mentions(src);
+
+-- Notes under the vault's ideas/ with a `stage` (SPEC.md §Ideas, F-032).
+CREATE TABLE ideas (
+  note INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+  stage TEXT NOT NULL, codename TEXT, repo TEXT, summary TEXT
+);
 
 CREATE TABLE lint (
   note INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,

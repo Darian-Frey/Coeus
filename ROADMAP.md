@@ -50,7 +50,8 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Register parser and model over the scaffold document types (`src/parser/RegisterParser.cpp`, `src/index/ProjectResolver.cpp`; index schema 2)
 - [x] Register panel, ID completion, "Insert next ID" command and `{{next:KIND}}` (`src/ui/RegisterPanel.cpp`, `src/registers/NextId.cpp`, `src/registers/RegisterTemplates.cpp`; F-010, F-015)
 - [x] Lint rules L1–L9, the Problems panel and editor underlines (`src/registers/Lint.cpp`, `src/index/LintResolver.cpp`, `src/ui/ProblemsPanel.cpp`; index schema 3; F-016)
-- [ ] Ideas register and project board with freshness, phase and Git ahead/behind columns (`src/ui/ProjectBoard.cpp`)
+- [x] Ideas register and project board with freshness, phase, unreleased and Git ahead/behind columns (`src/ui/ProjectBoard.cpp`, `src/registers/ProjectStatus.cpp`; index schema 4; F-032)
+- [ ] Refresh header and Promote idea (F-032)
 - [ ] Mnemosyne embedding worker and `sqlite-vec` table (`src/search/Semantic.cpp`)
 - [ ] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`)
 - [ ] Semantic query mode and related-notes sidebar
@@ -60,7 +61,8 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Inline diff view and gutter blame (`src/ui/DiffView.cpp`, `src/ui/Editor.cpp`; F-021)
 - [x] libgit2 wrapper, step 3: status and committing chosen paths; push by `git push` (`src/git/GitRepository.cpp`, `src/git/GitPush.cpp`; D-020)
 - [x] Status-bar change count and commit dialog (`src/ui/CommitDialog.cpp`; F-022)
-- [ ] Fetch and ahead/behind, for the project board's Git columns (F-032)
+- [x] Ahead/behind against the upstream for the project board (`GitRepository::tracking`; F-032)
+- [ ] Fetch from Coeus, so ahead/behind is current (F-032)
 - [ ] MCP server with read tools, then opt-in write tools with GUI confirmation (`src/mcp/`)
 **Acceptance:** Opening the vault plus linked repos shows every register with correct counts; a semantic query for a decision by meaning finds it; a note's history, blame and diff match `git log`, `git blame`, `git diff` output; Claude Code in Antigravity can log a DECISIONS entry through MCP that appears in the register panel with the correct next ID.
 

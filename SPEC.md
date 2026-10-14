@@ -58,7 +58,7 @@ Each root gets its own `VaultWatcher` and its own `.gitignore` handling. `notes.
 
 ## Ideas
 
-Notes under `<vault>/ideas/` are ideas when their frontmatter carries `stage`:
+Notes under `<vault>/ideas/` (root 0 only, subfolders included) are ideas when their frontmatter carries a non-empty `stage`; the index keeps them in `ideas` (schema 4). A stage outside the vocabulary is still an idea, shown amber on the board and flagged by the properties panel:
 
 ```yaml
 ---
@@ -69,7 +69,22 @@ summary: One-line pitch
 ---
 ```
 
-The project board lists ideas by `stage`. "Promote" moves the note to `<vault>/projects/<codename>/README.md` (or into a new linked root the author chooses), prepends the four-field status header with `Status: Active`, and writes the standard's skeletons for FEATURES, ROADMAP, DECISIONS, CLAUDE and CHANGELOG. The original idea file is deleted only after the move succeeds.
+The project board (§Project board) lists ideas by `stage`. "Promote" moves the note to `<vault>/projects/<codename>/README.md` (or into a new linked root the author chooses), prepends the four-field status header with `Status: Active`, and writes the standard's skeletons for FEATURES, ROADMAP, DECISIONS, CLAUDE and CHANGELOG. The original idea file is deleted only after the move succeeds.
+
+## Project board
+
+The Project Board dock (`Ctrl+Shift+J`, View menu, tool strip; below the editor, tabbed with Problems, hidden until asked for) lists every project and every idea, and nothing on it is kept by hand (F-032, absorbing F-017). Projects come first, by README status in vocabulary order (Active, Dormant, Complete, Archived, Superseded) then name; ideas follow by stage (idea, scoped, building, shipped, parked) then codename or title. Clicking a row opens the project's README or the idea's note.
+
+| Column | Project | Idea |
+|--------|---------|------|
+| Name | Folder within the vault, or `<root>/<folder>` in a linked root | Codename, else the note's title |
+| Status | README status term (the full line on hover) | Stage; amber outside the vocabulary |
+| Reviewed | Days since `Last reviewed` (`today`, `12 d`), amber past `review_threshold_days`; `no date` (amber) if it is not one | — |
+| Build | From ROADMAP.md: `<phase> — <title> · <its Status> (n of m complete)`, the current phase being the first whose Status does not open with `Complete` (`Feature-complete` does not count); `All m phases complete`; `no ROADMAP` | `summary` |
+| Unreleased | Top-level bullets under CHANGELOG.md `## [Unreleased]`, with the newest release and its date on hover; `—` without a CHANGELOG | — |
+| Git | Branch, `↑ahead ↓behind` against its upstream as of the last fetch (nothing is fetched), `●n` changed files under the project's folder; `not in Git` | `repo` |
+
+ROADMAP.md and CHANGELOG.md are looked for in the project folder, then `docs/`, then `Docs/`. A phase is a `## Phase <n> — <title>` heading (outside fenced code) and its Status the first `**Status:**` line under it. The documents and Git are read on the Git worker, never the UI thread: when the dock is shown, a second after the index changes while it is shown, and when the window is activated. The header counts the projects and how many are past the review threshold.
 
 ## Markdown dialect
 
@@ -197,7 +212,7 @@ In the editor each problem in the open note is underlined with a wavy line, red 
 
 ## Index schema
 
-SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 2 (Phase 3) adds `status_headers`, the register tables, `lint` and `reservations` to version 1's Phase 2 tables; version 3 gives fields and citations their lines, adds `register_mentions`, and gives lint rows a subject (F-016). `ideas`, `chunks` and `vec` arrive later in Phase 3 with further bumps. Opening an index of an older version rebuilds it.
+SQLite through the C API (D-018), WAL mode, `synchronous=NORMAL`, `PRAGMA foreign_keys=ON`, 5 s busy timeout. Schema version in `meta`. There are no migrations: an index with another schema version, or one that cannot be opened, is deleted and rebuilt from the vault (D-005). Schema version 2 (Phase 3) adds `status_headers`, the register tables, `lint` and `reservations` to version 1's Phase 2 tables; version 3 gives fields and citations their lines, adds `register_mentions`, and gives lint rows a subject (F-016); version 4 adds `ideas` (F-032). `chunks` and `vec` arrive later in Phase 3 with further bumps. Opening an index of an older version rebuilds it.
 
 ```sql
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);

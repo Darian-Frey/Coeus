@@ -135,6 +135,21 @@ private slots:
         QVERIFY2(finished.front().at(0).toBool(), qPrintable(finished.front().at(1).toString()));
         QVERIFY(finished.front().at(1).toString().contains(QStringLiteral("main -> main")));
         QCOMPARE(GitFixture::resolve(remote, "refs/heads/main"), id);
+
+        // Ahead/behind against the upstream, as of the last fetch (git push updated it).
+        auto repo = GitRepository::discover(dir.filePath(QStringLiteral("work")));
+        auto tracking = repo->tracking();
+        QVERIFY(tracking);
+        QCOMPARE(tracking->upstream, QStringLiteral("origin/main"));
+        QCOMPARE(tracking->ahead, 0);
+        QCOMPARE(tracking->behind, 0);
+        git.write(QStringLiteral("a.md"), "a2\n");
+        git.commit(QStringLiteral("Local only"), {QStringLiteral("a.md")}, kStart + 86400);
+        tracking = repo->tracking();
+        QCOMPARE(tracking->ahead, 1);
+        QCOMPARE(tracking->behind, 0);
+        QVERIFY(git.detach(id));
+        QVERIFY(!repo->tracking()); // detached: no branch to track
     }
 };
 

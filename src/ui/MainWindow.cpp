@@ -19,6 +19,7 @@
 #include "registers/NextId.hpp"
 #include "registers/RegisterTemplates.hpp"
 #include "ui/ProblemsPanel.hpp"
+#include "ui/ProjectBoard.hpp"
 #include "ui/RegisterPanel.hpp"
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
@@ -67,6 +68,7 @@ namespace {
 constexpr int kLayoutVersion = 1;
 constexpr int kStatusTimeoutMs = 5000;
 constexpr int kGitStatusDelayMs = 400; // after saves and tab changes settle
+constexpr int kBoardDelayMs = 1000;    // after the index settles
 
 const char* const kPathProperty = "coeusPath";
 const char* const kDiffProperty = "coeusDiff"; // identifies a DiffView tab
@@ -217,6 +219,27 @@ void MainWindow::createDocks()
             m_problems->followNote(editor->path());
         m_problems->refresh();
         updateProblemsButton();
+    });
+    // The project board (F-032): below the editor with Problems, shown on request.
+    m_board = new ProjectBoard(m_catalogue, m_gitPool);
+    m_boardDock = new QDockWidget(tr("Project Board"), this);
+    m_boardDock->setObjectName(QStringLiteral("boardDock"));
+    m_boardDock->setWidget(m_board);
+    addDockWidget(Qt::BottomDockWidgetArea, m_boardDock);
+    tabifyDockWidget(m_problemsDock, m_boardDock);
+    m_boardDock->hide();
+    connect(m_board, &ProjectBoard::openRequested, this, &MainWindow::openNoteAt);
+    m_boardTimer = new QTimer(this);
+    m_boardTimer->setSingleShot(true);
+    m_boardTimer->setInterval(kBoardDelayMs);
+    connect(m_boardTimer, &QTimer::timeout, m_board, &ProjectBoard::refresh);
+    connect(m_boardDock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (visible)
+            m_board->refresh();
+    });
+    connect(m_catalogue, &NoteCatalogue::reloaded, this, [this] {
+        if (m_boardDock->isVisible())
+            m_boardTimer->start(); // documents and Git are read once edits settle
     });
     connect(m_tags, &TagPanel::tagActivated, this, &MainWindow::showTag);
     connect(m_tags, &TagPanel::reloaded, this, [this] {
@@ -391,6 +414,15 @@ void MainWindow::createActions()
     viewMenu->addAction(toggleProblems);
     addAction(toggleProblems);
     registerAction(toggleProblems);
+
+    QAction* toggleBoard = m_boardDock->toggleViewAction();
+    toggleBoard->setText(tr("Toggle Project &Board"));
+    toggleBoard->setIcon(QIcon::fromTheme(QStringLiteral("view-list-details"), QIcon::fromTheme(QStringLiteral("x-office-spreadsheet"))));
+    toggleBoard->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
+    strip->addAction(toggleBoard);
+    viewMenu->addAction(toggleBoard);
+    addAction(toggleBoard);
+    registerAction(toggleBoard);
 
     QAction* toggleTags = m_tagsDock->toggleViewAction();
     toggleTags->setText(tr("Toggle &Tags"));
@@ -1804,6 +1836,8 @@ void MainWindow::changeEvent(QEvent* event)
     if (event->type() == QEvent::ActivationChange && isActiveWindow() && m_history) {
         m_history->refresh();
         refreshGitStatus();
+        if (m_boardDock && m_boardDock->isVisible())
+            m_board->refresh(); // commits, pulls and reviews made elsewhere
     }
     QMainWindow::changeEvent(event);
 }

@@ -37,6 +37,8 @@ inline QStringList dumpIndex(Database& db)
         "SELECT 'ref', n.root_id || ':' || n.path, r.ident, x.target_ident, x.line, tn.root_id || ':' || tn.path, t.line "
         "FROM register_refs x JOIN registers r ON r.id = x.src JOIN notes n ON n.id = r.note "
         "LEFT JOIN registers t ON t.id = x.target LEFT JOIN notes tn ON tn.id = t.note",
+        "SELECT 'idea', n.root_id || ':' || n.path, i.stage, i.codename, i.repo, i.summary FROM ideas i "
+        "JOIN notes n ON n.id = i.note",
         "SELECT 'mention', n.root_id || ':' || n.path, r.ident, m.ident, m.line FROM register_mentions m "
         "JOIN registers r ON r.id = m.src JOIN notes n ON n.id = r.note",
         "SELECT 'lint', n.root_id || ':' || n.path, l.rule, l.level, l.line, l.message, l.subject FROM lint l "

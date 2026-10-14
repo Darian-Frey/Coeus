@@ -17,6 +17,7 @@ void NoteCatalogue::setIndexPath(const QString& indexPath)
     m_registers.clear();
     m_projects.clear();
     m_problems.clear();
+    m_ideas.clear();
     ++m_generation;
 }
 
@@ -30,6 +31,7 @@ void NoteCatalogue::reload()
         QList<RegisterRef> registers;
         QList<ProjectRef> projects;
         QList<ProblemRef> problems;
+        QList<IdeaRef> ideas;
     };
     auto* watcher = new QFutureWatcher<Snapshot>(this);
     connect(watcher, &QFutureWatcher<Snapshot>::finished, this, [this, watcher, generation] {
@@ -41,13 +43,15 @@ void NoteCatalogue::reload()
         m_registers = snapshot.registers;
         m_projects = snapshot.projects;
         m_problems = snapshot.problems;
+        m_ideas = snapshot.ideas;
         emit reloaded();
     });
     watcher->setFuture(QtConcurrent::run([path = m_indexPath, threshold = m_reviewThresholdDays] {
         return Snapshot{IndexQueries::allNotes(path).value_or(QList<NoteEntry>()),
                         IndexQueries::registers(path).value_or(QList<RegisterRef>()),
                         IndexQueries::projects(path).value_or(QList<ProjectRef>()),
-                        IndexQueries::problems(path, QDate::currentDate(), threshold).value_or(QList<ProblemRef>())};
+                        IndexQueries::problems(path, QDate::currentDate(), threshold).value_or(QList<ProblemRef>()),
+                        IndexQueries::ideas(path).value_or(QList<IdeaRef>())};
     }));
 }
 

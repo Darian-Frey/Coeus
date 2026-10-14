@@ -385,6 +385,23 @@ std::expected<GitCommit, QString> GitRepository::commit(const QStringList& paths
     return describe(created.get(), paths.size() == 1 ? paths.front() : QString());
 }
 
+std::optional<GitRepository::Tracking> GitRepository::tracking() const
+{
+    if (git_repository_head_unborn(m_repo.get()) == 1 || git_repository_head_detached(m_repo.get()) == 1)
+        return std::nullopt;
+    Reference head;
+    Reference upstream;
+    if (git_repository_head(head.out(), m_repo.get()) != 0 || git_branch_upstream(upstream.out(), head.get()) != 0)
+        return std::nullopt;
+    const git_oid* local = git_reference_target(head.get());
+    const git_oid* remote = git_reference_target(upstream.get());
+    size_t ahead = 0;
+    size_t behind = 0;
+    if (!local || !remote || git_graph_ahead_behind(&ahead, &behind, m_repo.get(), local, remote) != 0)
+        return std::nullopt;
+    return Tracking{QString::fromUtf8(git_reference_shorthand(upstream.get())), int(ahead), int(behind)};
+}
+
 std::expected<QList<BlameLine>, QString> GitRepository::blame(const QString& relativePath, const QByteArray& buffer) const
 {
     // Lines of the buffer, as libgit2 counts them.

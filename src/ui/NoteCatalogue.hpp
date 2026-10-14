@@ -29,6 +29,7 @@ public:
     void setIndexPath(const QString& indexPath);
     // config.toml [registers] review_threshold_days, for lint L8.
     void setReviewThreshold(int days) { m_reviewThresholdDays = days; }
+    int reviewThreshold() const { return m_reviewThresholdDays; }
     void reload();
 
     const QList<NoteEntry>& notes() const { return m_notes; }
@@ -36,6 +37,7 @@ public:
     const QList<ProjectRef>& projects() const { return m_projects; }
     // By root, note and line; L8 as of the last reload.
     const QList<ProblemRef>& problems() const { return m_problems; }
+    const QList<IdeaRef>& ideas() const { return m_ideas; }
     QList<ProblemRef> problemsFor(const QString& absolutePath) const;
     // The project (root name, root path, folder) of the note at `absolutePath`, if any.
     std::optional<ProjectRef> projectOf(const QString& absolutePath) const;
@@ -56,6 +58,7 @@ private:
     QList<RegisterRef> m_registers;
     QList<ProjectRef> m_projects;
     QList<ProblemRef> m_problems;
+    QList<IdeaRef> m_ideas;
     int m_reviewThresholdDays = 14;
     int m_generation = 0; // drops results of reloads overtaken by a newer one
 };

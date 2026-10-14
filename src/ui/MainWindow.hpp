@@ -28,6 +28,7 @@ class OutlinePanel;
 class TagPanel;
 class HistoryPanel;
 class ProblemsPanel;
+class ProjectBoard;
 class CommitDialog;
 class DiffView;
 class GitPush;
@@ -68,6 +69,8 @@ public:
     CommandPalette* nextIdPicker() const { return m_nextIdPicker; }
     RegisterPanel* registers() const { return m_registers; }
     ProblemsPanel* problems() const { return m_problems; }
+    ProjectBoard* board() const { return m_board; }
+    QDockWidget* boardDock() const { return m_boardDock; }
     HistoryPanel* history() const { return m_history; }
     // Opens the note as it was in `commit`, read-only, in a tab (F-020).
     void openVersion(const QString& notePath, const GitCommit& commit, const QString& workdir);
@@ -253,6 +256,9 @@ private:
     HistoryPanel* m_history = nullptr;
     QThreadPool* m_gitPool = nullptr;
     QDockWidget* m_problemsDock = nullptr;
+    ProjectBoard* m_board = nullptr;
+    QDockWidget* m_boardDock = nullptr;
+    QTimer* m_boardTimer = nullptr;
     QObject* m_templateActions = nullptr; // parent of the picker's per-template actions
     NoteCatalogue* m_catalogue = nullptr; // notes and aliases for [[ completion
     QTimer* m_journalTimer = nullptr;

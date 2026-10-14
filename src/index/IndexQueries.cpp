@@ -149,6 +149,29 @@ std::expected<QList<ProblemRef>, QString> IndexQueries::problems(const QString& 
     return problems;
 }
 
+std::expected<QList<IdeaRef>, QString> IndexQueries::ideas(const QString& indexPath)
+{
+    if (!QFileInfo::exists(indexPath))
+        return std::unexpected(QStringLiteral("The index is not built yet"));
+    auto db = Database::open(indexPath, Database::Mode::ReadOnly);
+    if (!db)
+        return std::unexpected(db.error());
+    auto query = db->prepare("SELECT r.path || '/' || n.path, n.title, i.stage, coalesce(i.codename, ''), coalesce(i.repo, ''), "
+                             "coalesce(i.summary, '') FROM ideas i JOIN notes n ON n.id = i.note JOIN roots r ON r.id = n.root_id "
+                             "ORDER BY n.path");
+    if (!query)
+        return std::unexpected(query.error());
+    QList<IdeaRef> ideas;
+    for (;;) {
+        const auto row = query->step();
+        if (!row)
+            return std::unexpected(row.error());
+        if (!*row)
+            return ideas;
+        ideas.append({query->text(0), query->text(1), query->text(2), query->text(3), query->text(4), query->text(5)});
+    }
+}
+
 std::expected<QList<ProjectRef>, QString> IndexQueries::projects(const QString& indexPath)
 {
     if (!QFileInfo::exists(indexPath))

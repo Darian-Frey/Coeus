@@ -4,6 +4,7 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 
 namespace coeus {
 
@@ -285,6 +286,27 @@ std::expected<void, QString> IndexStore::putNote(const NoteRecord& record, const
                       .bind(4, parsed.statusHeader->lastReviewed)
                       .bind(5, parsed.statusHeader->why)
                       .run());
+    }
+
+    // An idea: a note under the vault's ideas/ whose frontmatter has a stage (SPEC.md §Ideas).
+    if (record.rootId == 0 && record.path.startsWith(QLatin1String("ideas/"))) {
+        QHash<QString, QString> props;
+        for (const Property& property : parsed.properties) {
+            if (!props.contains(property.key) && !property.values.isEmpty())
+                props.insert(property.key, property.values.join(QStringLiteral(", ")));
+        }
+        const QString stage = props.value(QStringLiteral("stage")).trimmed();
+        if (!stage.isEmpty()) {
+            auto idea = m_db.prepare("INSERT INTO ideas(note, stage, codename, repo, summary) VALUES (?, ?, ?, ?, ?)");
+            if (!idea)
+                return std::unexpected(idea.error());
+            const auto optional = [&props](const char* key) {
+                const QString value = props.value(QLatin1String(key)).trimmed();
+                return value.isEmpty() ? QString() : value; // null binds NULL
+            };
+            COEUS_TRY(idea->bind(1, id).bind(2, stage).bind(3, optional("codename")).bind(4, optional("repo"))
+                          .bind(5, optional("summary")).run());
+        }
     }
 
     // Entries are stored per note; ProjectResolver attaches them to a project.

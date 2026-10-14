@@ -252,6 +252,14 @@ def build_vault(vault: Path, linked: Path) -> None:
           ticked, attachments not. Write a message and **Commit**; History now
           lists it. (Push needs a remote; this demo has none, so leave it off.)
 
+        ## Project board
+        - `Ctrl+Shift+J` opens the **Project Board** under the editor: coeus,
+          pontus-notes and the pontus root by status, how long since each was
+          reviewed (amber past 14 days: pontus-notes, Dormant, was last
+          reviewed in August), the phase its
+          ROADMAP is in, what its CHANGELOG has not released, and its Git branch;
+          below them the ideas by stage. Click a row to open it.
+
         ## Index
         - File → **Verify Index**; File → **Rebuild Index**.
         """)
@@ -330,6 +338,11 @@ def build_vault(vault: Path, linked: Path) -> None:
         Uses the memory engine. #project/coeus
         """)
     write(vault / "projects/pontus-notes/README.md", """
+        > **Status:** Dormant
+        > **Provenance:** Demo data for Coeus
+        > **Last reviewed:** 2026-08-20
+        > **Why this status:** Waiting on the Pontus root; stale on purpose.
+
         # Pontus notes
 
         Personal notes about the [[pontus:README|Pontus]] project. A second README, so

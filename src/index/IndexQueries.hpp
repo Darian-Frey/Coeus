@@ -43,6 +43,16 @@ struct ProjectRef {
     QString lastReviewed;
 };
 
+// One idea (SPEC.md §Ideas, F-032).
+struct IdeaRef {
+    QString notePath;  // absolute
+    QString title;     // the note's title
+    QString stage;
+    QString codename;
+    QString repo;
+    QString summary;
+};
+
 // One lint problem (F-016), for the Problems panel and the editor.
 struct ProblemRef {
     QString rootName;
@@ -78,6 +88,8 @@ public:
     // Every register entry inside a project, by project then kind then number.
     static std::expected<QList<RegisterRef>, QString> registers(const QString& indexPath);
     static std::expected<QList<ProjectRef>, QString> projects(const QString& indexPath);
+    // Every idea, by path.
+    static std::expected<QList<IdeaRef>, QString> ideas(const QString& indexPath);
     // Every stored lint problem, plus L8 (stale review) evaluated for `today`,
     // by root, note path and line.
     static std::expected<QList<ProblemRef>, QString> problems(const QString& indexPath, const QDate& today,

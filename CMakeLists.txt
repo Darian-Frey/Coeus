@@ -50,6 +50,7 @@ add_library(coeus_core STATIC
     src/registers/Lint.cpp
     src/registers/LintCommand.cpp
     src/registers/NextId.cpp
+    src/registers/ProjectStatus.cpp
     src/registers/RegisterTemplates.cpp
     src/registers/Vocabulary.cpp
     src/vault/AtomicWriter.cpp
@@ -79,6 +80,7 @@ add_library(coeus_core STATIC
     src/ui/PropertiesPanel.cpp
     src/ui/HistoryPanel.cpp
     src/ui/ProblemsPanel.cpp
+    src/ui/ProjectBoard.cpp
     src/ui/RegisterPanel.cpp
     src/ui/SearchPanel.cpp
     src/ui/SidebarPanel.cpp

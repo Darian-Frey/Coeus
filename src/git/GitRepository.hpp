@@ -7,6 +7,7 @@
 
 #include <expected>
 #include <memory>
+#include <optional>
 
 struct git_repository;
 
@@ -103,6 +104,16 @@ public:
     // else already staged stays staged and out of the commit, as
     // `git commit -- <paths>` does. Returns the new commit.
     std::expected<GitCommit, QString> commit(const QStringList& paths, const QString& message);
+
+    // How far the current branch is ahead of and behind its upstream, as of
+    // the last fetch (the remote-tracking ref; nothing is fetched here).
+    struct Tracking {
+        QString upstream; // e.g. "origin/main"
+        int ahead = 0;
+        int behind = 0;
+    };
+    // nullopt when the branch has no upstream, HEAD is detached, or there are no commits.
+    std::optional<Tracking> tracking() const;
 
 private:
     struct Free {

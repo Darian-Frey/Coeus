@@ -152,7 +152,7 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(!status.isEmpty() && status.last().at(0).toInt() == 2, kWaitMs);
         QCOMPARE(m_window->gitButton()->text(), QStringLiteral("● 2 file(s) changed"));
 
-        QVERIFY(pushed.wait(kWaitMs));
+        QTRY_VERIFY_WITH_TIMEOUT(!pushed.isEmpty(), kWaitMs); // it may land while the test checks other things
         QVERIFY2(pushed.front().at(0).toBool(), qPrintable(pushed.front().at(1).toString()));
         QCOMPARE(GitFixture::resolve(remote(), "refs/heads/main"), id);
         QVERIFY(dialog->pushBox()->isChecked()); // remembered
@@ -185,7 +185,7 @@ private slots:
         dialog->pushBox()->setChecked(true);
         QSignalSpy pushed(m_window.get(), &MainWindow::pushFinished);
         dialog->commitButton()->click();
-        QVERIFY(pushed.wait(kWaitMs));
+        QTRY_VERIFY_WITH_TIMEOUT(!pushed.isEmpty(), kWaitMs); // it may land while the test checks other things
         QCOMPARE(pushed.front().at(0).toBool(), false);
         QVERIFY(m_window->statusBar()->currentMessage().startsWith(QStringLiteral("Push failed: ")));
         QVERIFY(m_window->gitButton()->toolTip().startsWith(QStringLiteral("Last push failed")));
