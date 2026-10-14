@@ -79,6 +79,35 @@ private slots:
         config.close();
         QCOMPARE(Roots::load(vault.path()).roots.size(), 1);
     }
+
+    void addingARootKeepsTheRest()
+    {
+        const QString vault = QStringLiteral("/home/a/vault");
+        const QByteArray before = "# My roots\n[[roots]]\nname = \"pontus\"  # the scanner\npath = \"/home/a/pontus\"\n";
+        const auto updated = coeus::Roots::withRoot(before, vault, QStringLiteral("theia"), QStringLiteral("/home/a/Theia"));
+        QVERIFY2(updated, updated ? "" : qPrintable(updated.error()));
+        QVERIFY(updated->startsWith(before)); // comments and order kept
+        const auto loaded = coeus::Roots::parse(*updated, vault);
+        QCOMPARE(loaded.roots.size(), 2);
+        QCOMPARE(loaded.roots[1].name, QStringLiteral("theia"));
+        QCOMPARE(loaded.roots[1].path, QStringLiteral("/home/a/Theia"));
+        QVERIFY(coeus::Roots::withRoot(QByteArray(), vault, QStringLiteral("first"), QStringLiteral("/x/first")));
+
+        QVERIFY(!coeus::Roots::withRoot(before, vault, QStringLiteral("pontus"), QStringLiteral("/elsewhere")));  // name taken
+        QVERIFY(!coeus::Roots::withRoot(before, vault, QStringLiteral("again"), QStringLiteral("/home/a/pontus"))); // path taken
+        QVERIFY(!coeus::Roots::withRoot(before, vault, QStringLiteral("vault"), QStringLiteral("/x")));             // reserved
+        QVERIFY(!coeus::Roots::withRoot(before, vault, QStringLiteral("bad name"), QStringLiteral("/x")));          // invalid
+        QVERIFY(!coeus::Roots::withRoot("[[roots]\nbroken", vault, QStringLiteral("ok"), QStringLiteral("/x")));    // not TOML
+    }
+
+    void addWritesConfig()
+    {
+        QTemporaryDir vault;
+        QVERIFY(coeus::Roots::add(vault.path(), QStringLiteral("theia"), QStringLiteral("/tmp/theia-root")));
+        const auto loaded = coeus::Roots::load(vault.path());
+        QCOMPARE(loaded.roots.size(), 1);
+        QCOMPARE(loaded.roots.front().name, QStringLiteral("theia"));
+    }
 };
 
 QTEST_GUILESS_MAIN(TestRoots)

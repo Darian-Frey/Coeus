@@ -4,6 +4,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <expected>
+
 namespace coeus {
 
 // A linked project root from `<vault>/.coeus/config.toml` (SPEC.md §Linked
@@ -30,6 +32,15 @@ public:
     static Loaded load(const QString& vaultPath);
     // The same, from text; `vaultPath` resolves relative root paths.
     static Loaded parse(const QByteArray& toml, const QString& vaultPath);
+
+    // `toml` with a [[roots]] table for `name` at `path` appended, every other
+    // byte kept; fails if the name is invalid or taken, the path already a
+    // root, or the text or result not valid config.
+    static std::expected<QByteArray, QString> withRoot(const QByteArray& toml, const QString& vaultPath,
+                                                       const QString& name, const QString& path);
+    // The same edit on the vault's config.toml, written through AtomicWriter
+    // (an explicit user command: Promote idea, F-032).
+    static std::expected<void, QString> add(const QString& vaultPath, const QString& name, const QString& path);
 };
 
 } // namespace coeus

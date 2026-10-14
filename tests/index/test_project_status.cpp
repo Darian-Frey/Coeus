@@ -5,6 +5,8 @@
 #include "index/IndexQueries.hpp"
 #include "index/IndexStore.hpp"
 #include "index/Indexer.hpp"
+#include "parser/RegisterParser.hpp"
+#include "registers/ProjectScaffold.hpp"
 #include "registers/ProjectStatus.hpp"
 
 #include <QTemporaryDir>
@@ -69,6 +71,56 @@ private slots:
         QCOMPARE(ProjectStatus::find(dir.filePath(QStringLiteral("a")), QStringLiteral("ROADMAP.md")), dir.filePath(QStringLiteral("a/ROADMAP.md")));
         QCOMPARE(ProjectStatus::find(dir.filePath(QStringLiteral("b")), QStringLiteral("CHANGELOG.md")), dir.filePath(QStringLiteral("b/Docs/CHANGELOG.md")));
         QVERIFY(!ProjectStatus::find(dir.filePath(QStringLiteral("b")), QStringLiteral("ROADMAP.md")));
+    }
+
+    void refreshingTheHeaderChangesOneLine()
+    {
+        const QString readme = QStringLiteral("> **Status:** Active\r\n> **Provenance:** Me\r\n> **Last reviewed:** 2026-01-01\r\n"
+                                              "> **Why this status:** Busy.\r\n\r\n# P\r\nLast reviewed: elsewhere stays.\r\n");
+        const auto updated = ProjectScaffold::withLastReviewed(readme, QDate(2026, 10, 14));
+        QVERIFY(updated);
+        QCOMPARE(*updated, QString(readme).replace(QStringLiteral("2026-01-01"), QStringLiteral("2026-10-14")));
+        QVERIFY(!ProjectScaffold::withLastReviewed(QStringLiteral("# No header\n"), QDate(2026, 10, 14)));
+    }
+
+    void codenamesMakeFolderAndRootNames()
+    {
+        QCOMPARE(ProjectScaffold::folderName(QStringLiteral("  Theia Lamp ")), QStringLiteral("Theia Lamp"));
+        QCOMPARE(ProjectScaffold::folderName(QStringLiteral("../escape")), QString());
+        QCOMPARE(ProjectScaffold::folderName(QStringLiteral(".hidden")), QString());
+        QCOMPARE(ProjectScaffold::folderName(QStringLiteral("a/b")), QString());
+        QCOMPARE(ProjectScaffold::rootName(QStringLiteral("Theia Lamp")), QStringLiteral("theia-lamp"));
+        QCOMPARE(ProjectScaffold::rootName(QStringLiteral("Vault")), QStringLiteral("vault-project")); // reserved
+    }
+
+    void promotionWritesTheReadmeAndSkeletons()
+    {
+        const auto files = ProjectScaffold::promotion(
+            QStringLiteral("---\nstage: scoped\ncodename: Theia\nrepo: https://example.org/theia\nsummary: A lamp\n---\n"
+                           "# Theia\n\nA reading lamp that dims with the sun.\n"),
+            QStringLiteral("ideas/theia.md"), QStringLiteral("Theia"), QDate(2026, 10, 14));
+        QStringList names;
+        for (const auto& file : files)
+            names.append(file.first);
+        QCOMPARE(names, (QStringList{QStringLiteral("README.md"), QStringLiteral("FEATURES.md"), QStringLiteral("ROADMAP.md"),
+                                     QStringLiteral("DECISIONS.md"), QStringLiteral("CLAUDE.md"), QStringLiteral("CHANGELOG.md")}));
+        const QString readme = files.front().second;
+        const auto header = RegisterParser::statusHeader(readme); // the header opens the file, so it is a project
+        QVERIFY(header);
+        QCOMPARE(header->status, QStringLiteral("Active"));
+        QCOMPARE(header->lastReviewed, QStringLiteral("2026-10-14"));
+        QVERIFY(header->provenance.contains(QStringLiteral("ideas/theia.md")));
+        QVERIFY(!readme.contains(QStringLiteral("stage:"))); // frontmatter gone
+        QVERIFY(readme.contains(QStringLiteral("\n\n# Theia\n\nA lamp\n\nRepository: https://example.org/theia\n\nA reading lamp")));
+        for (const auto& [name, text] : files)
+            QVERIFY2(RegisterParser::parse(text).isEmpty(), qPrintable(name)); // no entries, so no IDs
+        const auto build = ProjectStatus::parse(files[2].second, files[5].second);
+        QCOMPARE(build.phase, QStringLiteral("Phase 0"));
+        QCOMPARE(build.unreleased, 1);
+        // An idea without a heading gets the codename as one.
+        const auto bare = ProjectScaffold::promotion(QStringLiteral("Just a thought.\n"), QStringLiteral("ideas/x.md"),
+                                                     QStringLiteral("Hermes"), QDate(2026, 10, 14));
+        QVERIFY(bare.front().second.contains(QStringLiteral("\n\n# Hermes\n\nJust a thought.\n")));
     }
 
     void ideasAreNotesUnderIdeasWithAStage()

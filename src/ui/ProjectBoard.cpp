@@ -1,13 +1,18 @@
 #include "ui/ProjectBoard.hpp"
 
+#include "git/GitCommand.hpp"
 #include "registers/Lint.hpp"
 #include "registers/Vocabulary.hpp"
 #include "ui/NoteCatalogue.hpp"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QFutureWatcher>
 #include <QHeaderView>
+#include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
+#include <QPushButton>
 #include <QThreadPool>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -20,6 +25,7 @@ namespace coeus {
 namespace {
 
 constexpr int kPathRole = Qt::UserRole + 1;
+constexpr int kIdeaRole = Qt::UserRole + 2; // index into m_ideas, on idea rows
 const QColor kStale(0xc0, 0x7a, 0x00);
 
 std::optional<QString> slurp(const std::optional<QString>& path)
@@ -58,8 +64,24 @@ ProjectBoard::ProjectBoard(const NoteCatalogue* catalogue, QThreadPool* pool, QW
     , m_pool(pool)
     , m_today(QDate::currentDate())
     , m_summary(new QLabel(this))
+    , m_fetch(new QPushButton(tr("Fetch"), this))
     , m_tree(new QTreeWidget(this))
+    , m_menu(new QMenu(this))
+    , m_fetcher(new GitCommand(this))
 {
+    m_fetch->setToolTip(tr("Run git fetch in every project's repository, so ahead and behind are current"));
+    connect(m_fetch, &QPushButton::clicked, this, &ProjectBoard::fetchAll);
+    connect(m_fetcher, &GitCommand::finished, this, [this](bool ok, const QString& message) {
+        if (!ok)
+            m_fetchFailures.append(QStringLiteral("%1: %2").arg(QFileInfo(m_fetchQueue.front()).fileName(), message));
+        m_fetchQueue.removeFirst();
+        fetchNext();
+    });
+    m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_tree, &QTreeWidget::customContextMenuRequested, this, [this](const QPoint& at) {
+        if (QMenu* menu = rowMenu(m_tree->itemAt(at)); !menu->isEmpty())
+            menu->popup(m_tree->viewport()->mapToGlobal(at));
+    });
     m_summary->setForegroundRole(QPalette::PlaceholderText);
     m_tree->setColumnCount(ColumnCount);
     m_tree->setHeaderLabels({tr("Name"), tr("Status"), tr("Reviewed"), tr("Build"), tr("Unreleased"), tr("Git")});
@@ -76,9 +98,13 @@ ProjectBoard::ProjectBoard(const NoteCatalogue* catalogue, QThreadPool* pool, QW
     connect(m_tree, &QTreeWidget::itemClicked, this, open);
     connect(m_tree, &QTreeWidget::itemActivated, this, open);
 
+    auto* header = new QHBoxLayout;
+    header->setContentsMargins(0, 0, 0, 0);
+    header->addWidget(m_summary, 1);
+    header->addWidget(m_fetch);
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(m_summary);
+    layout->addLayout(header);
     layout->addWidget(m_tree, 1);
     present({}, {}, Lint::kDefaultReviewThresholdDays);
 }
@@ -103,6 +129,78 @@ QTreeWidgetItem* ProjectBoard::row(const QString& name) const
         }
     }
     return nullptr;
+}
+
+QString ProjectBoard::summary() const
+{
+    return m_summary->text();
+}
+
+QMenu* ProjectBoard::rowMenu(QTreeWidgetItem* item)
+{
+    m_menu->clear();
+    if (!item || !item->parent())
+        return m_menu; // a group heading
+    const QString path = item->data(Name, kPathRole).toString();
+    const QVariant idea = item->data(Name, kIdeaRole);
+    if (!idea.isValid()) {
+        const QString name = item->text(Name);
+        m_menu->addAction(tr("Open README"), this, [this, path] { emit openRequested(path, 1); });
+        m_menu->addAction(tr("Refresh Header…"), this, [this, path, name] { emit refreshHeaderRequested(path, name); });
+    } else {
+        const int index = idea.toInt();
+        m_menu->addAction(tr("Open"), this, [this, path] { emit openRequested(path, 1); });
+        m_menu->addAction(tr("Promote Idea…"), this, [this, index] {
+            if (index >= 0 && index < m_ideas.size())
+                emit promoteRequested(m_ideas[index]);
+        });
+    }
+    return m_menu;
+}
+
+bool ProjectBoard::isFetching() const
+{
+    return !m_fetchQueue.isEmpty();
+}
+
+void ProjectBoard::fetchAll()
+{
+    if (isFetching())
+        return;
+    for (const ProjectRow& row : std::as_const(m_rows)) {
+        if (row.inGit && !m_fetchQueue.contains(row.workdir))
+            m_fetchQueue.append(row.workdir);
+    }
+    m_fetchTotal = int(m_fetchQueue.size());
+    m_fetchFailures.clear();
+    if (m_fetchQueue.isEmpty()) {
+        m_summary->setText(tr("No project is in a Git repository: nothing to fetch"));
+        emit fetched(0, {});
+        return;
+    }
+    m_fetch->setEnabled(false);
+    fetchNext();
+}
+
+void ProjectBoard::fetchNext()
+{
+    if (m_fetchQueue.isEmpty()) {
+        m_fetch->setEnabled(true);
+        refresh(); // ahead/behind as of now
+        const QStringList failures = m_fetchFailures;
+        if (!failures.isEmpty())
+            m_fetch->setToolTip(tr("Last fetch: %1").arg(failures.join(QStringLiteral("; "))));
+        emit fetched(m_fetchTotal, failures);
+        return;
+    }
+    const QString workdir = m_fetchQueue.front();
+    m_summary->setText(tr("Fetching %1 of %2: %3…").arg(m_fetchTotal - m_fetchQueue.size() + 1).arg(m_fetchTotal)
+                           .arg(QFileInfo(workdir).fileName()));
+    if (!m_fetcher->start(workdir, {QStringLiteral("fetch"), QStringLiteral("--quiet")})) {
+        m_fetchFailures.append(QStringLiteral("%1: a fetch is already running").arg(QFileInfo(workdir).fileName()));
+        m_fetchQueue.removeFirst();
+        fetchNext();
+    }
 }
 
 void ProjectBoard::refresh()
@@ -131,6 +229,7 @@ void ProjectBoard::refresh()
                                              slurp(ProjectStatus::find(row.folder, QStringLiteral("CHANGELOG.md"))));
             if (const auto repo = GitRepository::discover(row.folder)) {
                 row.inGit = true;
+                row.workdir = repo->workdir();
                 row.branch = repo->branch();
                 row.tracking = repo->tracking();
                 const QString prefix = repo->relativePath(row.folder);
@@ -162,6 +261,8 @@ void ProjectBoard::present(const QList<ProjectRow>& unsorted, const QList<IdeaRe
         return x != y ? x < y : ideaName(a).compare(ideaName(b), Qt::CaseInsensitive) < 0;
     });
 
+    m_rows = projects;
+    m_ideas = ideas;
     m_tree->clear();
     auto* projectsGroup = new QTreeWidgetItem(m_tree, {tr("Projects (%1)").arg(projects.size())});
     auto* ideasGroup = new QTreeWidgetItem(m_tree, {tr("Ideas (%1)").arg(ideas.size())});
@@ -231,6 +332,7 @@ void ProjectBoard::present(const QList<ProjectRow>& unsorted, const QList<IdeaRe
     }
     for (const IdeaRef& idea : std::as_const(ideas)) {
         auto* item = new QTreeWidgetItem(ideasGroup);
+        item->setData(Name, kIdeaRole, int(&idea - ideas.constData()));
         item->setText(Name, ideaName(idea));
         item->setData(Name, kPathRole, idea.notePath);
         item->setToolTip(Name, idea.notePath);

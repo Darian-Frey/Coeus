@@ -1,7 +1,10 @@
 #include "vault/Roots.hpp"
 
+#include "vault/AtomicWriter.hpp"
+
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QRegularExpression>
 #include <QSet>
 
@@ -97,6 +100,51 @@ Roots::Loaded Roots::parse(const QByteArray& text, const QString& vaultPath)
         loaded.roots.append({rootName, expandPath(QString::fromUtf8(path->data(), qsizetype(path->size())), vaultPath)});
     }
     return loaded;
+}
+
+std::expected<QByteArray, QString> Roots::withRoot(const QByteArray& toml, const QString& vaultPath,
+                                                    const QString& name, const QString& path)
+{
+    if (!toml.isEmpty() && !toml::parse(std::string_view(toml.constData(), size_t(toml.size()))))
+        return std::unexpected(QStringLiteral("config.toml is not valid TOML; it was left unchanged"));
+    const Loaded before = parse(toml, vaultPath);
+    const QString clean = QDir::cleanPath(path);
+    for (const RootConfig& root : before.roots) {
+        if (root.name == name)
+            return std::unexpected(QStringLiteral("A linked root is already called %1").arg(name));
+        if (root.path == clean)
+            return std::unexpected(QStringLiteral("%1 is already the linked root %2").arg(clean, root.name));
+    }
+    QString escaped = clean;
+    escaped.replace(QLatin1Char('\\'), QLatin1String("\\\\")).replace(QLatin1Char('"'), QLatin1String("\\\""));
+    QByteArray updated = toml;
+    if (!updated.isEmpty() && !updated.endsWith('\n'))
+        updated += '\n';
+    if (!updated.isEmpty())
+        updated += '\n';
+    updated += QStringLiteral("[[roots]]\nname = \"%1\"\npath = \"%2\"\n").arg(name, escaped).toUtf8();
+    const Loaded after = parse(updated, vaultPath);
+    if (after.roots.size() != before.roots.size() + 1 || after.problems.size() != before.problems.size())
+        return std::unexpected(after.problems.isEmpty() ? QStringLiteral("The root could not be added")
+                                                        : after.problems.back());
+    return updated;
+}
+
+std::expected<void, QString> Roots::add(const QString& vaultPath, const QString& name, const QString& path)
+{
+    const QString file = configPath(vaultPath);
+    QByteArray current;
+    if (QFile in(file); in.exists()) {
+        if (!in.open(QIODevice::ReadOnly))
+            return std::unexpected(QStringLiteral("Cannot read %1: %2").arg(file, in.errorString()));
+        current = in.readAll();
+    }
+    const auto updated = withRoot(current, vaultPath, name, path);
+    if (!updated)
+        return std::unexpected(updated.error());
+    if (!QDir().mkpath(QFileInfo(file).absolutePath()))
+        return std::unexpected(QStringLiteral("Cannot create %1").arg(QFileInfo(file).absolutePath()));
+    return AtomicWriter::write(file, *updated);
 }
 
 } // namespace coeus

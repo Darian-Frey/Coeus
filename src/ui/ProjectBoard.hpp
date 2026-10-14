@@ -8,12 +8,15 @@
 #include <QWidget>
 
 class QLabel;
+class QMenu;
+class QPushButton;
 class QThreadPool;
 class QTreeWidget;
 class QTreeWidgetItem;
 
 namespace coeus {
 
+class GitCommand;
 class NoteCatalogue;
 
 // The project board (F-032, absorbing F-017): every project by README
@@ -35,6 +38,7 @@ public:
         int reviewedDaysAgo = -1; // -1: not a date
         ProjectStatus::Build build;
         bool inGit = false;
+        QString workdir;  // the repository's working tree, if in Git
         QString branch;
         std::optional<GitRepository::Tracking> tracking;
         int changes = 0;  // changed files under the project's folder
@@ -52,20 +56,44 @@ public:
     QTreeWidgetItem* ideasGroup() const;
     // The row named `name` (a project's label or an idea's name), or nullptr.
     QTreeWidgetItem* row(const QString& name) const;
+    // The menu a right-click on `item` shows (for tests too): a project's
+    // Open README and Refresh Header…, an idea's Open and Promote Idea….
+    QMenu* rowMenu(QTreeWidgetItem* item);
+
+    // Runs `git fetch` in every project's repository, one after another
+    // (D-020), then reads the board again. Only on request; never automatic.
+    void fetchAll();
+    bool isFetching() const;
+    QPushButton* fetchButton() const { return m_fetch; }
+    QString summary() const;
 
 signals:
     void openRequested(const QString& absolutePath, int line);
     void updated(int projects, int ideas);
+    // F-032 commands, carried out by MainWindow after confirmation.
+    void refreshHeaderRequested(const QString& readmePath, const QString& projectLabel);
+    void promoteRequested(const coeus::IdeaRef& idea);
+    // Every repository fetched, or tried: how many, and the failures as "name: reason".
+    void fetched(int repositories, const QStringList& failures);
 
 private:
     void present(const QList<ProjectRow>& projects, const QList<IdeaRef>& ideas, int threshold);
+    void fetchNext();
 
     const NoteCatalogue* m_catalogue;
     QThreadPool* m_pool;
     QDate m_today;
     int m_generation = 0;
     QLabel* m_summary = nullptr;
+    QPushButton* m_fetch = nullptr;
     QTreeWidget* m_tree = nullptr;
+    QMenu* m_menu = nullptr;
+    QList<ProjectRow> m_rows;
+    QList<IdeaRef> m_ideas;
+    GitCommand* m_fetcher = nullptr;
+    QStringList m_fetchQueue;
+    int m_fetchTotal = 0;
+    QStringList m_fetchFailures;
 };
 
 } // namespace coeus

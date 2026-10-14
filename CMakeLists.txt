@@ -36,7 +36,7 @@ add_library(coeus_core STATIC
     src/index/IndexStore.cpp
     src/index/LinkResolver.cpp
     src/index/ProjectResolver.cpp
-    src/git/GitPush.cpp
+    src/git/GitCommand.cpp
     src/git/GitRepository.cpp
     src/index/LintResolver.cpp
     src/index/Schema.cpp
@@ -50,6 +50,7 @@ add_library(coeus_core STATIC
     src/registers/Lint.cpp
     src/registers/LintCommand.cpp
     src/registers/NextId.cpp
+    src/registers/ProjectScaffold.cpp
     src/registers/ProjectStatus.cpp
     src/registers/RegisterTemplates.cpp
     src/registers/Vocabulary.cpp
@@ -80,6 +81,7 @@ add_library(coeus_core STATIC
     src/ui/PropertiesPanel.cpp
     src/ui/HistoryPanel.cpp
     src/ui/ProblemsPanel.cpp
+    src/ui/PromoteDialog.cpp
     src/ui/ProjectBoard.cpp
     src/ui/RegisterPanel.cpp
     src/ui/SearchPanel.cpp

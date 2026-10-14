@@ -10,16 +10,18 @@
 #include "ui/NoteCatalogue.hpp"
 #include "ui/NoteView.hpp"
 #include "ui/OutlinePanel.hpp"
-#include "git/GitPush.hpp"
+#include "git/GitCommand.hpp"
 #include "git/GitRepository.hpp"
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
 #include "parser/RegisterParser.hpp"
 #include "registers/Lint.hpp"
 #include "registers/NextId.hpp"
+#include "registers/ProjectScaffold.hpp"
 #include "registers/RegisterTemplates.hpp"
 #include "ui/ProblemsPanel.hpp"
 #include "ui/ProjectBoard.hpp"
+#include "ui/PromoteDialog.hpp"
 #include "ui/RegisterPanel.hpp"
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
@@ -98,8 +100,9 @@ MainWindow::MainWindow(QWidget* parent)
     // The Git worker (ARCHITECTURE.md threading): libgit2 calls, one at a time.
     m_gitPool = new QThreadPool(this);
     m_gitPool->setMaxThreadCount(1);
-    m_push = new GitPush(this);
-    connect(m_push, &GitPush::finished, this, [this](bool ok, const QString& message) {
+    m_push = new GitCommand(this);
+    connect(m_push, &GitCommand::finished, this, [this](bool ok, const QString& result) {
+        const QString message = ok ? (result.isEmpty() ? tr("Pushed") : tr("Pushed: %1").arg(result)) : result;
         // A failed push is shown, never thrown at the author in a dialog (F-022).
         statusBar()->showMessage(ok ? message : tr("Push failed: %1").arg(message), kStatusTimeoutMs * (ok ? 2 : 6));
         m_gitButton->setToolTip(ok ? message : tr("Last push failed: %1").arg(message));
@@ -229,6 +232,15 @@ void MainWindow::createDocks()
     tabifyDockWidget(m_problemsDock, m_boardDock);
     m_boardDock->hide();
     connect(m_board, &ProjectBoard::openRequested, this, &MainWindow::openNoteAt);
+    connect(m_board, &ProjectBoard::refreshHeaderRequested, this, &MainWindow::refreshHeader);
+    connect(m_board, &ProjectBoard::promoteRequested, this, &MainWindow::promoteIdea);
+    connect(m_board, &ProjectBoard::fetched, this, [this](int repositories, const QStringList& failures) {
+        // Failures are reported, never thrown at the author in a dialog.
+        statusBar()->showMessage(failures.isEmpty() ? tr("Fetched %n repositor(y/ies)", nullptr, repositories)
+                                                    : tr("Fetched %1 of %2; %3").arg(repositories - failures.size()).arg(repositories)
+                                                          .arg(failures.join(QStringLiteral("; "))),
+                                 kStatusTimeoutMs * (failures.isEmpty() ? 2 : 6));
+    });
     m_boardTimer = new QTimer(this);
     m_boardTimer->setSingleShot(true);
     m_boardTimer->setInterval(kBoardDelayMs);
@@ -1816,7 +1828,7 @@ void MainWindow::commit(const QString& workdir, const QStringList& paths, const 
         }
         emit committed(made->id);
         if (push) {
-            if (m_push->start(workdir))
+            if (m_push->start(workdir, {QStringLiteral("push")}))
                 statusBar()->showMessage(tr("Committed %1; pushing…").arg(made->shortId));
             else
                 statusBar()->showMessage(tr("Committed %1; a push is already running").arg(made->shortId), kStatusTimeoutMs * 2);
@@ -1828,6 +1840,141 @@ void MainWindow::commit(const QString& workdir, const QStringList& paths, const 
             return std::unexpected(repo.error());
         return repo->commit(paths, message);
     }));
+}
+
+void MainWindow::refreshHeader(const QString& readmePath, const QString& projectLabel)
+{
+    const QString today = QDate::currentDate().toString(Qt::ISODate);
+    auto* box = new QMessageBox(QMessageBox::Question, tr("Refresh header"),
+                                tr("Set Last reviewed of %1 to %2?").arg(projectLabel, today),
+                                QMessageBox::Yes | QMessageBox::Cancel, this);
+    box->setObjectName(QStringLiteral("refreshHeaderPrompt"));
+    box->setInformativeText(tr("Only that line of %1 changes.").arg(displayPath(readmePath)));
+    box->setDefaultButton(QMessageBox::Yes);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    connect(box, &QMessageBox::finished, this, [this, box, readmePath] {
+        if (box->clickedButton() != box->button(QMessageBox::Yes))
+            return;
+        const QDate date = QDate::currentDate();
+        if (Editor* editor = editorFor(readmePath)) {
+            // Open: change the buffer (one undo step). A clean buffer is then
+            // saved, through the conflict check as any save (AV-002); one with
+            // the author's unsaved edits is left for them to save.
+            const bool hadEdits = editor->isModified();
+            const auto updated = ProjectScaffold::withLastReviewed(editor->toPlainText(), date);
+            if (!updated) {
+                statusBar()->showMessage(tr("%1 does not open with a status header").arg(displayPath(readmePath)), kStatusTimeoutMs * 2);
+                return;
+            }
+            QTextCursor cursor(editor->document()->findBlockByNumber(2)); // the Last reviewed line
+            cursor.beginEditBlock();
+            cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+            cursor.insertText(updated->section(QLatin1Char('\n'), 2, 2).remove(QLatin1Char('\r')));
+            cursor.endEditBlock();
+            if (hadEdits) {
+                statusBar()->showMessage(tr("Last reviewed set in the open %1, which has other unsaved changes: save it to keep it")
+                                             .arg(displayPath(readmePath)),
+                                         kStatusTimeoutMs * 3);
+                emit headerRefreshed(readmePath);
+                return;
+            }
+            if (!saveEditor(editor))
+                return;
+        } else {
+            const Vault* root = rootFor(readmePath);
+            QFile file(readmePath);
+            if (!root || !file.open(QIODevice::ReadOnly)) {
+                statusBar()->showMessage(tr("Cannot read %1").arg(displayPath(readmePath)), kStatusTimeoutMs * 2);
+                return;
+            }
+            const auto updated = ProjectScaffold::withLastReviewed(QString::fromUtf8(file.readAll()), date);
+            file.close();
+            if (!updated) {
+                statusBar()->showMessage(tr("%1 does not open with a status header").arg(displayPath(readmePath)), kStatusTimeoutMs * 2);
+                return;
+            }
+            if (const auto written = root->writeNote(readmePath, updated->toUtf8()); !written) {
+                statusBar()->showMessage(written.error(), kStatusTimeoutMs * 2);
+                return;
+            }
+        }
+        statusBar()->showMessage(tr("Last reviewed set to %1 in %2").arg(date.toString(Qt::ISODate), displayPath(readmePath)),
+                                 kStatusTimeoutMs);
+        emit headerRefreshed(readmePath);
+    });
+    box->open();
+}
+
+void MainWindow::promoteIdea(const IdeaRef& idea)
+{
+    if (!m_vault)
+        return;
+    auto* dialog = new PromoteDialog(idea, m_vault->rootPath(), this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dialog, &QDialog::accepted, this, [this, dialog] {
+        promote(dialog->idea(), dialog->codename(), dialog->targetFolder(),
+                dialog->toLinkedRoot() ? dialog->rootName() : QString());
+    });
+    dialog->open();
+}
+
+bool MainWindow::promote(const IdeaRef& idea, const QString& codename, const QString& targetFolder, const QString& rootName)
+{
+    const auto fail = [this](const QString& message) {
+        statusBar()->showMessage(tr("Not promoted: %1").arg(message), kStatusTimeoutMs * 3);
+        return false;
+    };
+    if (!m_vault || targetFolder.isEmpty())
+        return fail(tr("no folder to create"));
+    if (QFileInfo::exists(targetFolder) && !QDir(targetFolder).isEmpty())
+        return fail(tr("%1 already exists").arg(targetFolder));
+    if (Editor* open = editorFor(idea.notePath); open && open->isModified())
+        return fail(tr("the idea has unsaved changes; save or discard them first"));
+    const bool linked = !rootName.isEmpty();
+    if (linked) {
+        // The root's name and place are checked against config.toml before anything is written.
+        QByteArray config;
+        if (QFile file(Roots::configPath(m_vault->rootPath())); file.open(QIODevice::ReadOnly))
+            config = file.readAll();
+        if (const auto check = Roots::withRoot(config, m_vault->rootPath(), rootName, targetFolder); !check)
+            return fail(check.error());
+        if (targetFolder.startsWith(m_vault->rootPath() + QLatin1Char('/')))
+            return fail(tr("a linked root lies outside the vault"));
+    } else if (!targetFolder.startsWith(m_vault->rootPath() + QLatin1Char('/'))) {
+        return fail(tr("%1 is outside the vault").arg(targetFolder));
+    }
+
+    QFile ideaFile(idea.notePath);
+    if (!ideaFile.open(QIODevice::ReadOnly))
+        return fail(tr("cannot read %1").arg(displayPath(idea.notePath)));
+    const QString ideaText = QString::fromUtf8(ideaFile.readAll());
+    ideaFile.close();
+    if (!QDir().mkpath(targetFolder))
+        return fail(tr("cannot create %1").arg(targetFolder));
+    const auto target = linked ? Vault::open(targetFolder) : std::expected<Vault, QString>(*m_vault);
+    if (!target)
+        return fail(target.error());
+    const auto files = ProjectScaffold::promotion(ideaText, m_vault->relativePath(idea.notePath), codename, QDate::currentDate());
+    for (const auto& [name, content] : files) {
+        if (const auto written = target->writeNote(targetFolder + QLatin1Char('/') + name, content.toUtf8()); !written)
+            return fail(written.error());
+    }
+    // Every file is written: only now does the idea note go (SPEC.md §Ideas).
+    if (const int tab = tabIndexFor(idea.notePath); tab >= 0)
+        closeTab(tab);
+    if (!QFile::remove(idea.notePath))
+        statusBar()->showMessage(tr("Promoted, but %1 could not be removed").arg(displayPath(idea.notePath)), kStatusTimeoutMs * 3);
+    const QString readme = targetFolder + QStringLiteral("/README.md");
+    if (linked) {
+        if (const auto added = Roots::add(m_vault->rootPath(), rootName, targetFolder); !added)
+            return fail(tr("the project was created at %1 but not linked: %2").arg(targetFolder, added.error()));
+        openVault(*m_vault); // reopened, so the new root is watched and indexed
+    }
+    openNote(readme);
+    statusBar()->showMessage(tr("Promoted %1 to %2").arg(codename, linked ? tr("the linked root %1").arg(rootName) : displayPath(targetFolder)),
+                             kStatusTimeoutMs * 2);
+    emit promoted(readme);
+    return true;
 }
 
 void MainWindow::changeEvent(QEvent* event)

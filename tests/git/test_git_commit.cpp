@@ -2,7 +2,7 @@
 
 #include "GitFixture.hpp"
 
-#include "git/GitPush.hpp"
+#include "git/GitCommand.hpp"
 #include "git/GitRepository.hpp"
 
 #include <QSignalSpy>
@@ -119,18 +119,18 @@ private slots:
         git.write(QStringLiteral("a.md"), "a\n");
         const QString id = git.commit(QStringLiteral("To push"), {QStringLiteral("a.md")}, kStart);
 
-        GitPush push;
-        QSignalSpy finished(&push, &GitPush::finished);
+        GitCommand push;
+        QSignalSpy finished(&push, &GitCommand::finished);
         // No remote yet: git's own reason comes back.
-        QVERIFY(push.start(dir.filePath(QStringLiteral("work"))));
+        QVERIFY(push.start(dir.filePath(QStringLiteral("work")), {QStringLiteral("push")}));
         QVERIFY(finished.wait(30'000));
         QCOMPARE(finished.front().at(0).toBool(), false);
         QVERIFY2(finished.front().at(1).toString().contains(QStringLiteral("No configured push destination")), qPrintable(finished.front().at(1).toString()));
 
         git.setUpstream(remote);
         finished.clear();
-        QVERIFY(push.start(dir.filePath(QStringLiteral("work"))));
-        QVERIFY(!push.start(dir.filePath(QStringLiteral("work")))); // one at a time
+        QVERIFY(push.start(dir.filePath(QStringLiteral("work")), {QStringLiteral("push")}));
+        QVERIFY(!push.start(dir.filePath(QStringLiteral("work")), {QStringLiteral("push")})); // one at a time
         QVERIFY(finished.wait(30'000));
         QVERIFY2(finished.front().at(0).toBool(), qPrintable(finished.front().at(1).toString()));
         QVERIFY(finished.front().at(1).toString().contains(QStringLiteral("main -> main")));

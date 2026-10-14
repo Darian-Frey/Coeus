@@ -29,9 +29,11 @@ class TagPanel;
 class HistoryPanel;
 class ProblemsPanel;
 class ProjectBoard;
+class PromoteDialog;
+struct IdeaRef;
 class CommitDialog;
 class DiffView;
-class GitPush;
+class GitCommand;
 class VersionView;
 struct GitCommit;
 class RegisterPanel;
@@ -70,6 +72,13 @@ public:
     RegisterPanel* registers() const { return m_registers; }
     ProblemsPanel* problems() const { return m_problems; }
     ProjectBoard* board() const { return m_board; }
+    // F-032 board commands, each an explicit user command (CLAUDE.md §Invariants).
+    // Asks, then sets the README's Last reviewed to today.
+    void refreshHeader(const QString& readmePath, const QString& projectLabel);
+    // Asks for the codename and place, then promotes the idea.
+    void promoteIdea(const IdeaRef& idea);
+    // Writes the new project and removes the idea; true on success.
+    bool promote(const IdeaRef& idea, const QString& codename, const QString& targetFolder, const QString& rootName);
     QDockWidget* boardDock() const { return m_boardDock; }
     HistoryPanel* history() const { return m_history; }
     // Opens the note as it was in `commit`, read-only, in a tab (F-020).
@@ -142,6 +151,8 @@ signals:
     void commitDialogReady();
     void committed(const QString& commitId);
     void pushFinished(bool ok, const QString& message);
+    void headerRefreshed(const QString& readmePath);
+    void promoted(const QString& readmePath);
     // An ID was reserved and its entry appended to the register's buffer (F-015).
     void nextIdInserted(const QString& ident, const QString& registerFile);
     // A template was inserted into the current buffer (F-010).
@@ -237,7 +248,7 @@ private:
     QToolButton* m_problemsButton = nullptr;
     QToolButton* m_gitButton = nullptr;
     CommitDialog* m_commitDialog = nullptr;
-    GitPush* m_push = nullptr;
+    GitCommand* m_push = nullptr;
     QTimer* m_gitStatusTimer = nullptr;
     int m_gitStatusGeneration = 0;
     QThread* m_indexThread = nullptr;

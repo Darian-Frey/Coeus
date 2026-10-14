@@ -52,6 +52,7 @@ Each root gets its own `VaultWatcher` and its own `.gitignore` handling. `notes.
 - **Ids.** Root 0 is the vault. A linked root keeps the id recorded for its name in `roots`; a new name takes the next free id. Renaming a root is removing one and adding another.
 - **Absent roots** (`path` missing): `roots.present = 0`; the root is neither scanned nor watched, so its rows survive untouched (AV-010).
 - **Removed roots** (no longer in config): the root and every row derived from it are deleted.
+- **Added by Promote idea** (§Ideas): a `[[roots]]` table is appended to `config.toml` through `AtomicWriter`, every other byte kept, after checking the name and path against the roots already there; the vault then reopens to watch and index it.
 - **Ignore rules.** Paths a Git repository ignores are neither indexed nor watched, using Git's own rules through libgit2: nested `.gitignore` files, negation, `.git/info/exclude` and global excludes. Two kinds of repository apply: the one containing the root (found by searching upward; disregarded if it ignores the root itself), and repositories nested inside the root, recognised when the walk reaches a visible, non-ignored folder holding `.git`. A path is judged by the innermost repository containing it; outside every repository nothing is ignored. Editing a `.gitignore` rescans the root.
 - **Temporary files** from interrupted saves are swept from every present root on open (IMP-002).
 - **Explorer.** The vault and each linked root, in config order, is a collapsible section with its own tree; the vault's header is its folder name. An absent root is a greyed "missing on this machine" header with no tree. The root list is read from `config.toml` when the vault opens, on the UI thread, so the tree does not wait for the first index scan. Notes from any root open in tabs labelled `<name>/<path>`; paths outside every root are refused. Roots are machine-specific: `config.toml` lives in `.coeus/`, which never syncs (D-011). Only root 0 passes through the sync provider.
@@ -69,7 +70,12 @@ summary: One-line pitch
 ---
 ```
 
-The project board (§Project board) lists ideas by `stage`. "Promote" moves the note to `<vault>/projects/<codename>/README.md` (or into a new linked root the author chooses), prepends the four-field status header with `Status: Active`, and writes the standard's skeletons for FEATURES, ROADMAP, DECISIONS, CLAUDE and CHANGELOG. The original idea file is deleted only after the move succeeds.
+The project board (§Project board) lists ideas by `stage`. **Promote Idea…** (an idea row's right-click menu) asks for the codename (a folder name: letters, digits, spaces, `.`, `_`, `-`, not starting with `.`) and the place: `<vault>/projects/<codename>/`, or `<folder>/<codename>/` outside the vault, which becomes a linked root named for the codename (lower case, spaces as `-`). The folder must not exist or must be empty. Coeus then writes, through `AtomicWriter`:
+
+- `README.md`: the four-field status header (`Status: Active`, provenance naming the idea's path and the date, `Last reviewed` today), then the idea's own `# heading` (or `# <codename>`), its `summary` and `Repository: <repo>` if set, then the rest of its body. The frontmatter is dropped, because the header must open the file.
+- Skeletons for FEATURES, ROADMAP (a Phase 0 not started), DECISIONS, CLAUDE and CHANGELOG (`[Unreleased]` with one entry), with no register entries, so no ID is allocated.
+
+Only after every file is written is the idea note removed (its tab closed; an idea with unsaved changes is refused first). For a linked root, the root is then added to `config.toml` (§Linked roots) and the vault reopens. The new README opens in a tab. A refusal or failure is reported in the status bar.
 
 ## Project board
 
@@ -82,7 +88,9 @@ The Project Board dock (`Ctrl+Shift+J`, View menu, tool strip; below the editor,
 | Reviewed | Days since `Last reviewed` (`today`, `12 d`), amber past `review_threshold_days`; `no date` (amber) if it is not one | — |
 | Build | From ROADMAP.md: `<phase> — <title> · <its Status> (n of m complete)`, the current phase being the first whose Status does not open with `Complete` (`Feature-complete` does not count); `All m phases complete`; `no ROADMAP` | `summary` |
 | Unreleased | Top-level bullets under CHANGELOG.md `## [Unreleased]`, with the newest release and its date on hover; `—` without a CHANGELOG | — |
-| Git | Branch, `↑ahead ↓behind` against its upstream as of the last fetch (nothing is fetched), `●n` changed files under the project's folder; `not in Git` | `repo` |
+| Git | Branch, `↑ahead ↓behind` against its upstream as of the last fetch (Fetch, below), `●n` changed files under the project's folder; `not in Git` | `repo` |
+
+**Commands.** A project row's right-click menu offers **Open README** and **Refresh Header…**: after confirmation it sets `Last reviewed` to today, changing only that line. If the README is open, the change is made in its buffer as one undo step and saved through the editor's conflict check (AV-002); if the buffer already had unsaved edits, it is left unsaved for the author. An idea row offers **Open** and **Promote Idea…** (§Ideas). **Fetch** runs `git fetch --quiet` in each project's repository in turn (D-020), only when clicked, then reads the board again; failures go to the status bar and the button's tooltip, never to a dialog.
 
 ROADMAP.md and CHANGELOG.md are looked for in the project folder, then `docs/`, then `Docs/`. A phase is a `## Phase <n> — <title>` heading (outside fenced code) and its Status the first `**Status:**` line under it. The documents and Git are read on the Git worker, never the UI thread: when the dock is shown, a second after the index changes while it is shown, and when the window is activated. The header counts the projects and how many are past the review threshold.
 
@@ -510,7 +518,7 @@ In source mode a collapsible "Properties (N)" card sits above the editor (F-008)
 
 ## Git
 
-Coeus reads and commits through libgit2 (`git/GitRepository`); the only use of the `git` command is `git push` (D-020). Every libgit2 call runs on the Git worker, a one-thread pool owned by `MainWindow`, never the UI thread (AV-005). Nothing Coeus does with Git writes to the working tree: reading writes nothing, and a commit writes only the index and objects under `.git/`.
+Coeus reads and commits through libgit2 (`git/GitRepository`); the only uses of the `git` command are `git push` and `git fetch` (D-020). Every libgit2 call runs on the Git worker, a one-thread pool owned by `MainWindow`, never the UI thread (AV-005). Nothing Coeus does with Git writes to the working tree: reading writes nothing, and a commit writes only the index and objects under `.git/`.
 
 **Repository.** A note's repository is the non-bare one whose working tree contains it, found by searching upward from its folder: the vault, a folder inside it, a folder above it, or a linked root (F-034). Notes in different repositories show their own histories.
 

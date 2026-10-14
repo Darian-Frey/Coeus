@@ -1,4 +1,4 @@
-#include "git/GitPush.hpp"
+#include "git/GitCommand.hpp"
 
 #include <QProcess>
 #include <QProcessEnvironment>
@@ -29,7 +29,7 @@ QString lastLine(const QByteArray& output)
 
 } // namespace
 
-GitPush::GitPush(QObject* parent)
+GitCommand::GitCommand(QObject* parent)
     : QObject(parent)
     , m_process(new QProcess(this))
     , m_timeout(new QTimer(this))
@@ -38,7 +38,7 @@ GitPush::GitPush(QObject* parent)
     m_timeout->setInterval(kTimeoutMs);
     connect(m_timeout, &QTimer::timeout, this, [this] {
         m_process->kill();
-        emit finished(false, tr("git push took more than %1 s and was stopped").arg(kTimeoutMs / 1000));
+        emit finished(false, tr("git %1 took more than %2 s and was stopped").arg(m_process->arguments().value(2)).arg(kTimeoutMs / 1000));
     });
     connect(m_process, &QProcess::finished, this, [this](int code, QProcess::ExitStatus status) {
         if (!m_timeout->isActive())
@@ -46,11 +46,10 @@ GitPush::GitPush(QObject* parent)
         m_timeout->stop();
         const QByteArray output = m_process->readAllStandardError() + m_process->readAllStandardOutput();
         if (status == QProcess::NormalExit && code == 0) {
-            const QString summary = lastLine(output);
-            emit finished(true, summary.isEmpty() ? tr("Pushed") : tr("Pushed: %1").arg(summary));
+            emit finished(true, lastLine(output));
         } else {
             const QString reason = lastLine(output);
-            emit finished(false, reason.isEmpty() ? tr("git push failed (exit %1)").arg(code) : reason);
+            emit finished(false, reason.isEmpty() ? tr("git %1 failed (exit %2)").arg(m_process->arguments().value(2)).arg(code) : reason);
         }
     });
     connect(m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
@@ -61,7 +60,7 @@ GitPush::GitPush(QObject* parent)
     });
 }
 
-GitPush::~GitPush()
+GitCommand::~GitCommand()
 {
     if (m_process->state() != QProcess::NotRunning) {
         m_process->kill();
@@ -69,12 +68,12 @@ GitPush::~GitPush()
     }
 }
 
-bool GitPush::isRunning() const
+bool GitCommand::isRunning() const
 {
     return m_process->state() != QProcess::NotRunning;
 }
 
-bool GitPush::start(const QString& workdir)
+bool GitCommand::start(const QString& workdir, const QStringList& arguments)
 {
     if (isRunning())
         return false;
@@ -85,7 +84,7 @@ bool GitPush::start(const QString& workdir)
         env.insert(QStringLiteral("GIT_SSH_COMMAND"), QStringLiteral("ssh -o BatchMode=yes"));
     m_process->setProcessEnvironment(env);
     m_process->setProgram(QStringLiteral("git"));
-    m_process->setArguments({QStringLiteral("-C"), workdir, QStringLiteral("push")});
+    m_process->setArguments(QStringList{QStringLiteral("-C"), workdir} + arguments);
     m_process->setStandardInputFile(QProcess::nullDevice());
     m_timeout->start();
     m_process->start();

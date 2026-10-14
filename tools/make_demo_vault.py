@@ -259,6 +259,11 @@ def build_vault(vault: Path, linked: Path) -> None:
           reviewed in August), the phase its
           ROADMAP is in, what its CHANGELOG has not released, and its Git branch;
           below them the ideas by stage. Click a row to open it.
+        - Right-click pontus-notes, **Refresh Header…**: after you confirm, its Last
+          reviewed becomes today and the amber goes.
+        - Right-click the idea Theia, **Promote Idea…**: `projects/Theia/` appears
+          with a README (status header first) and empty FEATURES, ROADMAP,
+          DECISIONS, CLAUDE and CHANGELOG, and the idea note is gone.
 
         ## Index
         - File → **Verify Index**; File → **Rebuild Index**.

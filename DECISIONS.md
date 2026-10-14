@@ -443,7 +443,7 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - **B. Commit through libgit2; push by running `git push`.** Chosen. The push uses the author's credential helper, SSH agent, configuration and hooks exactly as a terminal does, and Coeus never sees a credential.
 - **C. Commit only; no push.** F-022 makes push optional, but the author pushes after nearly every commit.
 
-**Decision.** Option B. `git/GitPush` runs `git -C <workdir> push` as a `QProcess` beside the UI thread, with `GIT_TERMINAL_PROMPT=0` and, unless the author set one, `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential fails at once instead of waiting for input that never comes, stopped after 120 s. Its result goes to the status bar. Commits are made by libgit2 (SPEC.md §Git).
+**Decision.** Option B. `git/GitCommand` (first `GitPush`) runs `git -C <workdir> push` as a `QProcess` beside the UI thread, with `GIT_TERMINAL_PROMPT=0` and, unless the author set one, `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`, so a missing credential fails at once instead of waiting for input that never comes, stopped after 120 s. Its result goes to the status bar. Commits are made by libgit2 (SPEC.md §Git).
 
 **Consequences.**
 - Push needs `git` on the `PATH`; without it the status bar says so. Everything else works without it.
@@ -451,4 +451,6 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - Push output is parsed only for its first `fatal:`/`error:` line or its last line, in the C locale.
 
 **Reversal conditions.** Revisit if libgit2 gains support for Git's credential helpers, or if Coeus must run where no `git` binary is available (then option A, with credentials kept out of plaintext).
+
+**Amended 2026-10-14.** The author extended the decision to fetching: the project board's Fetch (F-032) runs `git fetch --quiet` in each project's repository, one after another, the same way and with the same environment, only when asked and never on a timer. Fetch updates only remote-tracking refs, never the working tree.
 

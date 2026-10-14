@@ -266,7 +266,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Entries with Last reviewed older than `review_threshold_days` are highlighted; "Refresh header" updates the date after confirmation (absorbs F-017)
 - "Promote idea" creates a project folder from the idea note and the standard's skeletons, allocating no IDs until the author adds entries
 - Build status per project derives from ROADMAP.md phase status and CHANGELOG.md `[Unreleased]`; nothing is maintained by hand
-**Status:** In progress (Phase 3): ideas are indexed and the board shows projects and ideas with freshness, build, unreleased and Git columns (2026-10-14; SPEC.md §Project board); Refresh header and Promote idea are next
+**Status:** Complete (Phase 3, 2026-10-14): ideas indexed; the board with freshness, build, unreleased and Git columns; Refresh header, Promote idea and Fetch by `git fetch` (D-020; SPEC.md §Project board, §Ideas)
 **Notes:** Decision D-010 provides the linked roots that let repos appear on the board.
 
 ### F-033 Coeus MCP server
