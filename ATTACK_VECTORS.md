@@ -55,7 +55,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-007 Mixed embedding spaces
 **Severity:** Major
 **Description.** Vectors from two different models or dimensions end up in the same vector table after a model change, making similarity scores meaningless without any error.
-**Detection.** Implemented for the index. `VectorStore::adopt`, run by the embedding worker and by `coeus --mcp` before they add or compare a vector, drops every vector when `meta.embed_model`/`embed_dim` name another model, and the search skips any vector whose length is not the query's; `tests/search/test_semantic.cpp` changes the recorded model and asserts the vectors are gone. Not implemented yet: the same check on sidecar import (F-035).
+**Detection.** Implemented for the index. `VectorStore::adopt`, run by the embedding worker and by `coeus --mcp` before they add or compare a vector, drops every vector when `meta.embed_model`/`embed_dim` name another model, and the search skips any vector whose length is not the query's; `tests/search/test_semantic.cpp` changes the recorded model and asserts the vectors are gone. The sidecar is held to the same model and dimension on import (`tests/search/test_sidecar.cpp`, `anotherModelIsNeverImported`).
 **Related decisions.** D-008, D-011.
 **History.** Identified during scaffolding 2026-09-25. The embeddings sidecar (D-011) is a second entry point for mixed vectors, 2026-10-12. Guarded in the index with D-008's model, 2026-10-14.
 
@@ -76,9 +76,9 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-011 Sidecar imports a stale or foreign vector
 **Severity:** Major
 **Description.** `embeddings.bin` carries a vector whose chunk hash matches but which came from a different model build, or a `.conflict-*` copy from Drive is silently dropped, losing the laptop's embeddings.
-**Detection.** not implemented (would require `tests/search/test_sidecar.cpp` covering model mismatch rejection, union import of conflict copies, and compaction correctness).
+**Detection.** Implemented in `tests/search/test_sidecar.cpp`: a sidecar of another model, of another dimension, or cut short is never imported, and a damaged one is replaced by the next export; a conflict copy is imported, folded into the sidecar with the vectors only it had, and removed, while an unreadable one is left; export keeps another machine's vectors until compaction, which keeps exactly the index's passages; only passages without a vector are imported; and the embedding worker imports before it embeds anything.
 **Related decisions.** D-011.
-**History.** Identified 2026-10-12.
+**History.** Identified 2026-10-12. Guarded with the sidecar's implementation (F-035), 2026-10-14.
 
 ## Security
 

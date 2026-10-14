@@ -256,6 +256,8 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 
 **Reversal conditions.** Revisit if the sidecar proves conflict-prone under Drive sync, in which case embeddings are rebuilt per machine and the laptop accepts the cost.
 
+**Amended 2026-10-14.** The sidecar is rewritten whole, atomically, as a union by hash, rather than appended to: an append in place could be copied half-written by the sync tool, and SPEC.md required atomic writes as well. It is rewritten when an embedding pass ends with something new, not after every batch. A machine's first compaction waits a full interval, so a newly set-up machine does not drop vectors of linked roots it lacks.
+
 ### D-012 Coeus exposes its index to AI sessions over MCP
 **Decided:** 2026-10-12
 **Recorded:** 2026-10-12

@@ -44,7 +44,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 3 — Differentiators
 **Goal:** The three features that make Coeus more than an Obsidian clone.
-**Status:** In progress. Order agreed 2026-10-13: registers (F-015, F-016), native Git (F-020–F-022), the project board (F-032), the MCP server (F-033), then semantic search (F-018, F-019, F-035) once D-008 is decided. Everything but semantic search is built (2026-10-14). D-008 was decided the same day: bge-small-en-v1.5, run on the CPU by llama.cpp inside Coeus; semantic search is under way
+**Status:** Built (2026-10-14). Order agreed 2026-10-13: registers (F-015, F-016), native Git (F-020–F-022), the project board (F-032), the MCP server (F-033), then semantic search (F-018, F-019, F-035) once D-008 was decided, which it was on 2026-10-14: bge-small-en-v1.5, run on the CPU by llama.cpp inside Coeus. Every deliverable is built; the acceptance below is the author's to confirm
 **Features delivered:** F-015, F-016, F-018, F-019, F-020, F-021, F-022, F-032, F-033, F-035
 **Deliverables:**
 - [x] Register parser and model over the scaffold document types (`src/parser/RegisterParser.cpp`, `src/index/ProjectResolver.cpp`; index schema 2)
@@ -56,7 +56,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [x] Chunking, embedding worker and vector storage (`src/search/Chunker.cpp`, `src/search/EmbeddingService.cpp`, `src/search/VectorStore.cpp`; index schema 5; F-018)
 - [x] Semantic and hybrid query modes in the search pane and MCP (F-018)
 - [x] Related-notes sidebar and MCP `related` (`src/ui/RelatedPanel.cpp`, `SemanticSearch::related`; F-019)
-- [ ] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`; F-035)
+- [x] Embeddings sidecar export, import and compaction (`src/search/Sidecar.cpp`; F-035)
 - [x] libgit2 wrapper, step 1: repository discovery, per-note history following renames, a file at a commit (`src/git/GitRepository.cpp`; F-020)
 - [x] History sidebar section and read-only versions (`src/ui/HistoryPanel.cpp`, `src/ui/VersionView.cpp`; F-020)
 - [x] libgit2 wrapper, step 2: diff of two texts, blame of a buffer (`src/git/GitRepository.cpp`; F-021)

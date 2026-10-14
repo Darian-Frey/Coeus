@@ -295,7 +295,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - `.coeus-shared/embeddings.bin` exported after each embedding batch, keyed by chunk hash and tagged with model and dimension
 - On startup, matching hashes are imported before any local embedding runs; mismatched model or dimension is ignored with a log line
 - A compaction command drops hashes no longer present in the vault
-**Status:** In progress (Phase 3): the model, bge-small-en-v1.5 run by llama.cpp, is chosen and running (D-008, 2026-10-14)
+**Status:** Complete (Phase 3, 2026-10-14): `search/Sidecar`; imported before embedding and exported, as a whole-file atomic union, when an embedding pass ends (SPEC.md §Embeddings sidecar); only vectors of the model in use (D-008) imported; conflict copies united and removed; File › Compact Embeddings Sidecar and a weekly compaction; `coeus --mcp` imports and exports too
 
 ## Candidate features (uncommitted)
 - GitHub API status: pull-request state and Actions results on the project board, via polling or webhook.

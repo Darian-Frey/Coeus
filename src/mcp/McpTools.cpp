@@ -12,6 +12,7 @@
 #include "registers/RegisterTemplates.hpp"
 #include "registers/ProjectOverview.hpp"
 #include "registers/Vocabulary.hpp"
+#include "search/Sidecar.hpp"
 #include "search/VectorStore.hpp"
 #include "vault/Vault.hpp"
 
@@ -181,6 +182,21 @@ int rootId(const McpTools::Context& context, const QString& name)
 {
     const IndexRoots::Root* root = rootNamed(context, name);
     return root ? root->info.id : -1;
+}
+
+// Vectors for whatever is missing: from the embeddings sidecar first, then
+// by embedding for at most kCatchUpMs; what was embedded is shared (F-035).
+std::expected<void, QString> catchUpVectors(Database& db, Embedder& embedder, const QString& vaultPath)
+{
+    if (auto adopted = VectorStore::adopt(db, embedder); !adopted)
+        return std::unexpected(adopted.error());
+    (void)Sidecar::import(db, vaultPath, embedder.modelName(), embedder.dim()); // optional: embedding covers a failure
+    const auto caught = VectorStore::catchUp(db, embedder, QDeadlineTimer(kCatchUpMs));
+    if (!caught)
+        return std::unexpected(caught.error());
+    if (*caught > 0)
+        (void)Sidecar::exportTo(db, vaultPath, embedder.modelName(), embedder.dim()); // the window or a later call retries
+    return {};
 }
 
 } // namespace
@@ -354,9 +370,7 @@ std::expected<QJsonObject, QString> McpTools::search(const Context& context, con
     auto db = Database::open(context.indexPath);
     if (!db)
         return std::unexpected(db.error());
-    if (auto adopted = VectorStore::adopt(*db, *embedder); !adopted)
-        return std::unexpected(adopted.error());
-    if (auto caught = VectorStore::catchUp(*db, *embedder, QDeadlineTimer(kCatchUpMs)); !caught)
+    if (auto caught = catchUpVectors(*db, *embedder, context.vaultPath); !caught)
         return std::unexpected(caught.error());
     const auto coverage = VectorStore::coverage(*db);
     const auto vector = embedder->embed({*query}, Embedder::Purpose::Query);
@@ -484,10 +498,8 @@ std::expected<QJsonObject, QString> McpTools::related(const Context& context, co
     // A note just written may have no vectors yet: embed what is missing first, briefly.
     QString why;
     if (Embedder* embedder = context.embedder ? context.embedder(&why) : nullptr) {
-        if (auto db = Database::open(context.indexPath)) {
-            if (VectorStore::adopt(*db, *embedder))
-                VectorStore::catchUp(*db, *embedder, QDeadlineTimer(kCatchUpMs));
-        }
+        if (auto db = Database::open(context.indexPath))
+            (void)catchUpVectors(*db, *embedder, context.vaultPath); // related works from what there is
     }
     const auto found = SemanticSearch::related(context.indexPath, *absolute, count);
     if (!found)

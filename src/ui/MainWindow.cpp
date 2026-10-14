@@ -380,6 +380,13 @@ void MainWindow::createActions()
             QMetaObject::invokeMethod(m_index, &IndexService::rebuild, Qt::QueuedConnection);
     });
 
+    m_compactSidecar = new QAction(tr("Compact &Embeddings Sidecar"), this);
+    m_compactSidecar->setEnabled(false);
+    connect(m_compactSidecar, &QAction::triggered, this, [this] {
+        if (m_embedding)
+            QMetaObject::invokeMethod(m_embedding, &EmbeddingService::compactSidecar, Qt::QueuedConnection);
+    });
+
     m_gitignoreAction = new QAction(tr("Add Coeus Files to .&gitignore"), this);
     m_gitignoreAction->setEnabled(false);
     connect(m_gitignoreAction, &QAction::triggered, this, [this] {
@@ -397,6 +404,7 @@ void MainWindow::createActions()
     fileMenu->addSeparator();
     fileMenu->addAction(m_verifyIndex);
     fileMenu->addAction(m_rebuildIndex);
+    fileMenu->addAction(m_compactSidecar);
     fileMenu->addAction(m_gitignoreAction);
     fileMenu->addSeparator();
     fileMenu->addAction(quit);
@@ -481,7 +489,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, today, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_gitignoreAction}) {
+    for (QAction* action : {openVault, today, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -689,6 +697,7 @@ void MainWindow::startIndex(const QString& vaultPath)
             statusBar()->showMessage(problems.front(), kStatusTimeoutMs * 2);
         m_verifyIndex->setEnabled(true);
         m_rebuildIndex->setEnabled(true);
+        m_compactSidecar->setEnabled(true);
         m_catalogue->reload();
         m_backlinks->refresh();
         m_tags->reload();
@@ -743,6 +752,9 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_relatedTimer->start(); // the note's new vectors may have landed (a save is re-embedded)
         emit embeddingProgress(embedded, total);
     });
+    connect(m_embedding, &EmbeddingService::sidecarReport, this, [this](const QString& message) {
+        statusBar()->showMessage(message, kStatusTimeoutMs * 2);
+    });
     connect(m_embedding, &EmbeddingService::unavailable, this, [this](const QString& why) {
         m_semanticLabel->setVisible(true);
         m_semanticLabel->setText(tr("no embedding model"));
@@ -784,6 +796,7 @@ void MainWindow::stopIndex()
     m_index = nullptr; // deleted on its own thread as it finished
     m_verifyIndex->setEnabled(false);
     m_rebuildIndex->setEnabled(false);
+    m_compactSidecar->setEnabled(false);
 }
 
 

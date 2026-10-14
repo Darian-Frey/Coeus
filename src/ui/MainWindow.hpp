@@ -274,6 +274,7 @@ private:
     IndexService* m_index = nullptr;
     QAction* m_verifyIndex = nullptr;
     QAction* m_rebuildIndex = nullptr;
+    QAction* m_compactSidecar = nullptr; // F-035
     QAction* m_gitignoreAction = nullptr;
     QAction* m_save = nullptr;
     QAction* m_toggleReading = nullptr;

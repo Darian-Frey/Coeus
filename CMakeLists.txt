@@ -82,6 +82,7 @@ add_library(coeus_core STATIC
     src/search/Embedder.cpp
     src/search/EmbeddingService.cpp
     src/search/VectorStore.cpp
+    src/search/Sidecar.cpp
     src/registers/Lint.cpp
     src/registers/LintCommand.cpp
     src/registers/NextId.cpp

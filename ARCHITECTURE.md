@@ -58,7 +58,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **registers/** — Domain model over index rows: status vocabularies (`Vocabulary`, in use by the properties panel since Phase 2), `RegisterTemplates` (register file names, file skeletons and entry skeletons per kind), `ProjectStatus` (a project's build status from its ROADMAP and CHANGELOG), `ProjectScaffold` (the text of a refreshed header and of a promoted idea's files), `EntryWriter` (a register entry written to the standard, and where it goes), the `NextId` allocator (SPEC.md §ID allocation; one `BEGIN IMMEDIATE` transaction on `index.db`, run off the UI thread), and `Lint`, the rules of SPEC.md §Lint rules as pure functions (unresolved references, superseded targets, invalid status, unidirectional cross-references).
 
-**search/** — Full-text search landed in `index/` as `SearchQuery` (parser) and `Search` (one SQL statement per query, with a `regexp` function registered on the read-only connection), since it is only queries over the index. Semantic search (F-018, D-008) lives here: `Chunker` splits notes into passages at index time (the `Indexer` calls it; no model needed), `Embedder` runs bge-small-en-v1.5 on the CPU through llama.cpp, `VectorStore` keeps one vector per distinct passage and embeds what is missing, `SemanticSearch` scans the vectors for a query and blends with the word search, and finds a note's related notes from its stored vectors alone, and `EmbeddingService` is the window's embedding worker on its own thread. `Sidecar` (F-035) is still to come.
+**search/** — Full-text search landed in `index/` as `SearchQuery` (parser) and `Search` (one SQL statement per query, with a `regexp` function registered on the read-only connection), since it is only queries over the index. Semantic search (F-018, D-008) lives here: `Chunker` splits notes into passages at index time (the `Indexer` calls it; no model needed), `Embedder` runs bge-small-en-v1.5 on the CPU through llama.cpp, `VectorStore` keeps one vector per distinct passage and embeds what is missing, `SemanticSearch` scans the vectors for a query and blends with the word search, and finds a note's related notes from its stored vectors alone, and `EmbeddingService` is the window's embedding worker on its own thread, which imports from and exports to `Sidecar` (F-035) around its passes.
 
 **git/** — Thin C++ wrapper over libgit2: repository discovery per path, per-file log, blob retrieval, diff, blame, staging, commit, push. `GitRepository` does discovery, per-note history (renames followed), a file at a commit, blame of a buffer, the diff of two texts, status, committing chosen paths, and ahead/behind against the upstream. Push and fetch are the exceptions to libgit2: `GitCommand` runs `git push` or `git fetch` as a `QProcess` so the author's credential helper applies (D-020). It blocks and is not thread-safe, so each task on the Git worker opens its own; callers get results through `QFutureWatcher`.
 
@@ -68,7 +68,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 
 **vault/Roots** — reads `[[roots]]` from `config.toml`, assigns `root_id`s, owns one `VaultWatcher` per present root, and marks absent roots without deleting their rows (D-010).
 
-**search/Sidecar** — exports and imports `.coeus-shared/embeddings.bin` (SPEC.md §Embeddings sidecar) so a second machine inherits vectors by content hash instead of recomputing (D-011).
+**search/Sidecar** — exports and imports `.coeus-shared/embeddings.bin` (SPEC.md §Embeddings sidecar) so a second machine inherits vectors by content hash instead of recomputing (D-011). It is written whole through `AtomicWriter` as a union with any conflict copies, and only vectors of the model in use are imported (AV-011).
 
 **Mnemosyne** — External subsystem providing local embeddings. Coeus links against it or talks to it over a local socket (open under D-008).
 
@@ -81,7 +81,7 @@ Data flows one way: filesystem → parser → index → UI. The UI writes back t
 5. **One vector space per index.** The embedding model name and dimension are stored in the index; a mismatch triggers a full re-embed, never a mixed table. (AV-007)
 6. **Parser is pure.** Same input text always yields the same structures; no filesystem or clock access inside `parser/`.
 7. **`.coeus/` never leaves the machine; `.coeus-shared/` holds only hash-keyed derived data.** The index is rebuilt per machine; only the embeddings sidecar syncs (D-011).
-8. **Every write path is the same write path.** UI save, template insertion, idea promotion and MCP write tools all go through `AtomicWriter`, and every ID through `NextId`. No module writes a vault file any other way (AV-012).
+8. **Every write path is the same write path.** UI save, template insertion, idea promotion, MCP write tools and the embeddings sidecar all go through `AtomicWriter`, and every ID through `NextId`. No module writes a vault file any other way (AV-012).
 
 ## Cross-cutting concerns
 

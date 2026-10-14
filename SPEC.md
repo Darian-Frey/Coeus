@@ -426,7 +426,15 @@ count      u64
 entries    count × { hash: 16 bytes (BLAKE2b-128 of chunk text), vec: dim × f32 }
 ```
 
-Export: after each embedding batch, append new entries; rewrite the header `count`. Import on startup: if `model`/`dim` match the live model, every entry whose hash exists in `chunks` and has no row in `vec` is inserted; others are skipped. Compaction (command and weekly timer): rewrite the file with only hashes present in `chunks`. Concurrent-edit safety: the file is written atomically (§Atomic write); if sync produces a `.conflict-*` sibling, both are imported (union by hash) and the conflict copy deleted.
+Entries are written in hash order, so the same vectors always make the same file. A file whose length does not match its header is rejected whole (`search/Sidecar`).
+
+**Import.** Before the embedding worker embeds anything, and before `coeus --mcp` embeds for a search, the sidecar and its conflict copies are read if they have changed since this index last read or wrote them (their names, sizes and times are kept in `meta.sidecar_stamp`). If a file's `model` and `dim` are the model in use, every entry whose hash is a passage in `chunks` without a vector is inserted; the rest are skipped. A file of another model or dimension, or one that cannot be read, is not imported, with a log line (`coeus.search`) and a status-bar message (AV-007, AV-011).
+
+**Export.** When an embedding pass ends having embedded anything, once after each opening of the vault, and whenever a conflict copy is present, the file is rewritten whole and atomically (§Atomic write) as the union by hash of itself, its conflict copies and the index's vectors, and only if that adds a vector or folds in a copy. Appending in place, as first specified, would let a sync tool copy a half-written file. The union keeps vectors this machine has no passage for (a note not yet synced here, a linked root it lacks) until compaction. A sidecar of another model, or one that cannot be read, is replaced. `coeus --mcp` exports after it has embedded something. On the author's 3,771 passages the file is about 5.8 MB, so a sync tool re-sends that after each edit is embedded.
+
+**Conflict copies** are files beside it whose names start `embeddings`, contain `conflict` and do not start with a dot (`embeddings.bin.conflict1`, `embeddings.conflict-2026-10-14.bin`). Each one that can be read is imported and folded into the next export, then deleted; one that cannot be read is left where it is.
+
+**Compaction** (File › Compact Embeddings Sidecar, and every `sidecar_compact_days` after the first opening, checked when an embedding pass ends) rewrites the file with only the hashes present in `chunks`, after the same union. The first opening starts the clock rather than compacting, so a machine that has just been given the vault does not drop the vectors of roots it lacks.
 
 ## Sync
 
@@ -612,7 +620,7 @@ A save, Load Disk Version or Discard removes the note's entry. On opening a vaul
 | `watcher_debounce_ms` | 200 | config.toml `[vault]` |
 | `allow_writes` | false | config.toml `[mcp]` |
 | `write_undo_s` | 10 | config.toml `[mcp]` |
-| `sidecar_compact_days` | 7 | config.toml `[semantic]` |
+| `sidecar_compact_days` | 7; 0 turns timed compaction off | config.toml `[semantic]` |
 | `gitignore_offer` | unset; `"declined"` after Don't Ask Again | config.toml `[vault]` |
 | `folder` | `daily` | config.toml `[daily]` |
 | `format` | `yyyy-MM-dd` | config.toml `[daily]` |
