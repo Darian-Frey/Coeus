@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(COEUS_BUILD_TESTS "Build the Coeus test suite" OFF)
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Concurrent Gui Network Widgets)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Core Concurrent Gui Network Pdf Widgets)
 find_package(md4c REQUIRED)        # D-014
 find_package(yaml-cpp REQUIRED)    # D-015
 find_package(SQLite3 3.40 REQUIRED) # D-018
@@ -77,6 +77,9 @@ add_library(coeus_core STATIC
     src/parser/HtmlRenderer.cpp
     src/parser/CodeHighlighter.cpp
     src/parser/Transclusion.cpp
+    src/render/MathsRenderer.cpp
+    src/render/MermaidRenderer.cpp
+    src/render/PdfPages.cpp
     src/parser/NoteParser.cpp
     src/parser/RegisterParser.cpp
     src/registers/EntryWriter.cpp
@@ -129,6 +132,7 @@ add_library(coeus_core STATIC
     src/ui/PromoteDialog.cpp
     src/ui/NewNoteDialog.cpp
     src/ui/BookmarksPanel.cpp
+    src/ui/RenderService.cpp
     src/ui/Shortcuts.cpp
     src/ui/ShortcutsDialog.cpp
     src/ui/Theme.cpp
@@ -148,8 +152,10 @@ target_include_directories(coeus_core PUBLIC src)
 qt_add_resources(coeus_core "icons" PREFIX "/icons" BASE resources/icons
     FILES resources/icons/explorer.svg resources/icons/search.svg resources/icons/board.svg
           resources/icons/tags.svg resources/icons/palette.svg resources/icons/sidebar.svg)
+# Mermaid's script, handed to a headless browser to draw diagrams (D-022).
+qt_add_resources(coeus_core "mermaid" PREFIX "/mermaid" BASE resources/mermaid FILES resources/mermaid/mermaid.min.js)
 target_link_libraries(coeus_core
-    PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Network Qt6::Widgets
+    PUBLIC Qt6::Core Qt6::Concurrent Qt6::Gui Qt6::Network Qt6::Pdf Qt6::Widgets
     PRIVATE md4c::md4c yaml-cpp::yaml-cpp SQLite::SQLite3 PkgConfig::sodium PkgConfig::libgit2 llama coeus_warnings)
 
 qt_add_executable(coeus src/app/main.cpp)

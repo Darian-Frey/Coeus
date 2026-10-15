@@ -116,6 +116,7 @@ private:
         case MD_BLOCK_CODE: {
             const auto* code = static_cast<MD_BLOCK_CODE_DETAIL*>(detail);
             const QString lang = attribute(code->lang);
+            m_codeStart = out().size(); // a drawn diagram replaces all of it
             out() += lang.isEmpty() ? QStringLiteral("<pre><code>")
                                     : QStringLiteral("<pre class=\"lang-%1\"><code>").arg(HtmlRenderer::escape(lang));
             ++m_codeDepth;
@@ -188,13 +189,22 @@ private:
         case MD_BLOCK_H:
             out() += QStringLiteral("</h%1>").arg(static_cast<MD_BLOCK_H_DETAIL*>(detail)->level);
             break;
-        case MD_BLOCK_CODE:
+        case MD_BLOCK_CODE: {
             if (m_codeText.endsWith(QLatin1Char('\n')))
                 m_codeText.chop(1);
-            out() += CodeHighlighter::toHtml(m_codeText, m_codeLanguage) + QStringLiteral("</code></pre>");
             m_codeBlock = false;
             --m_codeDepth;
+            if (m_codeLanguage.compare(QLatin1String("mermaid"), Qt::CaseInsensitive) == 0 && m_options.renderMermaid) {
+                const HtmlRenderer::Picture picture = m_options.renderMermaid(m_codeText);
+                if (!picture.url.isEmpty()) {
+                    out().truncate(m_codeStart);
+                    out() += QStringLiteral("<p class=\"diagram\">%1</p>").arg(img(picture, QStringLiteral("diagram")));
+                    break;
+                }
+            }
+            out() += CodeHighlighter::toHtml(m_codeText, m_codeLanguage) + QStringLiteral("</code></pre>");
             break;
+        }
         case MD_BLOCK_HTML:
             out() += QStringLiteral("</code></pre>");
             --m_codeDepth;
@@ -267,7 +277,9 @@ private:
             break;
         case MD_SPAN_LATEXMATH:
         case MD_SPAN_LATEXMATH_DISPLAY:
-            out() += QStringLiteral("<code class=\"math\">");
+            // Collected, then drawn if the caller can, else shown as code (D-022).
+            m_maths = true;
+            m_mathsText.clear();
             ++m_codeDepth;
             break;
         case MD_SPAN_A: {
@@ -309,11 +321,26 @@ private:
             out() += QStringLiteral("</s>");
             break;
         case MD_SPAN_CODE:
-        case MD_SPAN_LATEXMATH:
-        case MD_SPAN_LATEXMATH_DISPLAY:
             out() += QStringLiteral("</code>");
             --m_codeDepth;
             break;
+        case MD_SPAN_LATEXMATH:
+        case MD_SPAN_LATEXMATH_DISPLAY: {
+            m_maths = false;
+            --m_codeDepth;
+            const bool display = type == MD_SPAN_LATEXMATH_DISPLAY;
+            const HtmlRenderer::Picture picture =
+                m_options.renderMaths ? m_options.renderMaths(m_mathsText, display) : HtmlRenderer::Picture{};
+            if (!picture.url.isEmpty()) {
+                out() += display ? QStringLiteral("<br/>") + img(picture, m_mathsText) + QStringLiteral("<br/>")
+                                 : img(picture, m_mathsText, true);
+                break;
+            }
+            out() += QStringLiteral("<code class=\"math\">") + HtmlRenderer::escape(m_mathsText) + QStringLiteral("</code>");
+            if (!picture.error.isEmpty())
+                out() += QStringLiteral(" <span class=\"missing\">(%1)</span>").arg(HtmlRenderer::escape(picture.error));
+            break;
+        }
         case MD_SPAN_A:
         case MD_SPAN_WIKILINK:
             out() += QStringLiteral("</a>");
@@ -331,14 +358,41 @@ private:
         return 0;
     }
 
-    QString image(const QString& target, const QString& altHtml, bool wiki) const
+    // `inText`: centred on the line, as inline maths sits among words; a
+    // diagram or a page stands on its own line instead.
+    static QString img(const HtmlRenderer::Picture& picture, const QString& alt, bool inText = false)
     {
+        return QStringLiteral("<img src=\"%1\" width=\"%2\" height=\"%3\" alt=\"%4\"%5/>")
+            .arg(HtmlRenderer::escape(picture.url))
+            .arg(picture.width)
+            .arg(picture.height)
+            .arg(HtmlRenderer::escape(alt), inText ? QStringLiteral(" align=\"middle\"") : QString());
+    }
+
+    QString image(const QString& fullTarget, const QString& altHtml, bool wiki) const
+    {
+        // "file.pdf#page=3": the fragment chooses the page.
+        const qsizetype hash = fullTarget.indexOf(QLatin1Char('#'));
+        const QString target = hash < 0 ? fullTarget : fullTarget.left(hash);
+        const QString fragment = hash < 0 ? QString() : fullTarget.mid(hash + 1);
         const QString resolved = m_options.resolveImage ? m_options.resolveImage(target, wiki) : QString();
         if (resolved.isEmpty())
             return QStringLiteral("<span class=\"missing\">[%1]</span>").arg(HtmlRenderer::escape(target));
         static const QSet<QString> kPictures{QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("gif"),
                                              QStringLiteral("svg"), QStringLiteral("webp"), QStringLiteral("bmp")};
         const QString suffix = QFileInfo(target).suffix().toLower();
+        if (suffix == QLatin1String("pdf") && m_options.renderPdfPage) {
+            static const QRegularExpression kPage(QStringLiteral(R"(^page=(\d+)$)"));
+            const auto m = kPage.match(fragment);
+            const int page = m.hasMatch() ? m.captured(1).toInt() : 1;
+            const HtmlRenderer::Picture picture = m_options.renderPdfPage(resolved, page);
+            if (!picture.url.isEmpty())
+                return QStringLiteral("<br/><a class=\"attachment\" href=\"%1\">%2</a><br/>")
+                    .arg(HtmlRenderer::escape(resolved), img(picture, QFileInfo(target).fileName()));
+            if (!picture.error.isEmpty())
+                return QStringLiteral("<a class=\"attachment\" href=\"%1\">[PDF] %2</a> <span class=\"missing\">(%3)</span>")
+                    .arg(HtmlRenderer::escape(resolved), HtmlRenderer::escape(QFileInfo(target).fileName()), HtmlRenderer::escape(picture.error));
+        }
         if (!kPictures.contains(suffix)) {
             // A PDF, a recording, a canvas: a card that opens it (SPEC.md §Reading mode).
             static const QSet<QString> kSound{QStringLiteral("mp3"), QStringLiteral("wav"), QStringLiteral("ogg"), QStringLiteral("m4a")};
@@ -375,6 +429,10 @@ private:
     int text(MD_TEXTTYPE type, const MD_CHAR* data, MD_SIZE size)
     {
         const QString chunk = QString::fromUtf8(data, qsizetype(size));
+        if (m_maths) {
+            m_mathsText += type == MD_TEXT_SOFTBR || type == MD_TEXT_BR ? QStringLiteral(" ") : chunk;
+            return 0;
+        }
         if (m_codeBlock) {
             m_codeText += type == MD_TEXT_BR || type == MD_TEXT_SOFTBR ? QStringLiteral("\n")
                           : type == MD_TEXT_NULLCHAR                   ? QString(QChar(0xFFFD))
@@ -439,7 +497,7 @@ private:
     // section of it, is rendered in a framed block (transclusion, F-023).
     QString embed(const QString& target, const QString& alias) const
     {
-        if (isAttachmentTarget(target))
+        if (isAttachmentTarget(target.section(QLatin1Char('#'), 0, 0)))
             return image(target, HtmlRenderer::escape(alias.isEmpty() ? target : alias), true);
         const QString label = alias.isEmpty() ? target : alias;
         const auto asLink = [&](const QString& why) {
@@ -500,6 +558,9 @@ private:
     int m_linkDepth = 0;
     int m_paragraphDepth = 0;
     bool m_codeBlock = false;
+    qsizetype m_codeStart = 0;
+    bool m_maths = false;
+    QString m_mathsText;
     QString m_codeLanguage;
     QString m_codeText;
     QString m_sourcePath;

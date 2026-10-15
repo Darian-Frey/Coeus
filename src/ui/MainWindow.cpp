@@ -34,6 +34,7 @@
 #include "ui/Shortcuts.hpp"
 #include "ui/RegisterPanel.hpp"
 #include "ui/RelatedPanel.hpp"
+#include "ui/RenderService.hpp"
 #include "ui/WikilinkCompletion.hpp"
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
@@ -152,6 +153,16 @@ MainWindow::MainWindow(QWidget* parent)
     m_journalTimer->setInterval(kJournalIntervalMs);
     connect(m_journalTimer, &QTimer::timeout, this, &MainWindow::journalNow);
     m_journalTimer->start();
+    // Maths, diagrams and PDF pages, drawn off the UI thread (D-022).
+    m_render = new RenderService(this);
+    connect(m_render, &RenderService::rendered, this, [this] {
+        for (int i = 0; i < m_tabs->count(); ++i)
+            if (NoteView* view = viewAt(i))
+                view->refreshReading();
+    });
+    connect(m_render, &RenderService::unavailable, this, [this](const QString& why) {
+        statusBar()->showMessage(why, kStatusTimeoutMs * 3);
+    });
     m_recentTimer = new QTimer(this); // recents are written a moment after they settle (F-014)
     m_recentTimer->setSingleShot(true);
     m_recentTimer->setInterval(kRecentSaveDelayMs);
@@ -880,6 +891,7 @@ void MainWindow::openVault(const Vault& vault)
     m_explorer->setRoots(roots);
     saveRecent(); // the previous vault's, if any are pending
     m_recentList = RecentNotes::load(vault.rootPath());
+    m_render->setVault(vault.rootPath());
     m_bookmarkList = Bookmarks::load(vault.rootPath());
     presentBookmarks();
     setWindowTitle(QStringLiteral("%1 — Coeus").arg(vault.name()));
@@ -1559,6 +1571,7 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
     view->setProperty(kPathProperty, absolutePath);
     view->setStarred(isBookmarked(absolutePath));
     view->setIndexPath(IndexService::indexPath(m_vault->rootPath()));
+    view->setRenderService(m_render);
     connect(view, &NoteView::starToggled, this, [this, absolutePath] { toggleBookmark(absolutePath); });
     editor->setCatalogue(m_catalogue);
     editor->setContextActions({m_copyBlockLink});

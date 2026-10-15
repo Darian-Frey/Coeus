@@ -5,7 +5,7 @@ Verified 2026-10-12 on Linux Mint 22.3 (Ubuntu 24.04 base) with GCC 13.3, CMake 
 ## Dependencies
 
 ```bash
-sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-tools qt6-svg-dev \
+sudo apt install build-essential cmake ninja-build qt6-base-dev qt6-base-dev-tools qt6-svg-dev qt6-pdf-dev \
     libsqlite3-dev libmd4c-dev libyaml-cpp-dev libtomlplusplus-dev libsodium-dev libgit2-dev
 ```
 
@@ -15,7 +15,7 @@ All of these are required to build. CMake also downloads llama.cpp's source (rel
 |-------------|---------|-----|
 | GCC or Clang | GCC 13 / Clang 17 | C++23 with `std::expected` (D-013) |
 | CMake | 3.25 | |
-| Qt | 6.4 | Core, Concurrent, Gui, Widgets; Test for the test suite. Linked dynamically (D-009) |
+| Qt | 6.4 | Core, Concurrent, Gui, Pdf, Widgets; Test for the test suite. Linked dynamically (D-009); Pdf (`qt6-pdf-dev`, 5 MB) draws PDF pages in reading mode (D-022) |
 | SQLite | 3.40 | FTS5 and extension loading enabled; C API, not Qt SQL (D-018) |
 | md4c | 0.4.8 | Markdown parsing for the index and reading mode (D-014) |
 | yaml-cpp | 0.8 | Frontmatter (D-015) |
@@ -24,8 +24,10 @@ All of these are required to build. CMake also downloads llama.cpp's source (rel
 | libgit2 | 1.7 | `.gitignore` rules per root; Git history, diff, blame, status and commits |
 | git (run time, optional) | any | Only for push after a commit (D-020); everything else works without it |
 | llama.cpp | b10926 | Fetched and built by CMake; runs the embedding model (D-008) |
+| LaTeX and dvisvgm (run time, optional) | any | Draw `$maths$` in reading mode (D-022): `latex` and `dvisvgm` on PATH, as TeX Live provides (`sudo apt install texlive-latex-base dvisvgm`); without them maths shows as code |
+| Chrome or Chromium (run time, optional) | any | Draws ```` ```mermaid ```` diagrams in reading mode (D-022), headless, with the Mermaid 11.4.1 script vendored in `resources/mermaid/`; without one they show as code |
 
-Phase 3 adds a vendored `sqlite-vec` amalgamation.
+Vectors live in an ordinary SQLite table, not `sqlite-vec` (D-008 amended).
 
 ## Build
 

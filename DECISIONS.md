@@ -486,3 +486,32 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 
 **Reversal conditions.** Revisit if the author's notes must not leave the machine (then a local model becomes the client and the tools may need simpler results), or if Claude's web and desktop apps gain a way to reach a local stdio server.
 
+### D-022 Mermaid, maths and PDF pages in reading mode
+**Decided:** 2026-10-15
+**Recorded:** 2026-10-15
+**Status:** Accepted
+**Authors:** Shane Hartley (decision), Claude (measurements and recommendation, 2026-10-15)
+**Related:** F-023, F-025, D-002, D-009, D-021, SPEC.md §Reading mode
+
+**Context.** Reading mode is a `QTextBrowser`: Qt's rich-text HTML, no JavaScript, images through Qt's image plugins. F-025 asks for Mermaid diagrams and maths to render, and F-023 for PDF embeds to show inline; today they are shown as code, and a PDF as a card that opens it. Live preview, later in Phase 4, will reuse whatever reading mode does. Measured on the author's machine (Linux Mint 22.3, Qt 6.4.2), 2026-10-15:
+- Qt WebEngine 6.4.2 is in the archive: `qt6-webengine-dev` brings 21 new packages, 195 MB installed (the Chromium core alone 151 MB).
+- Qt PDF 6.4.2 is in the archive separately: `qt6-pdf-dev`, 4 packages, 5 MB.
+- Maths through LaTeX: `latex` and `dvisvgm` (both installed here; TeX Live 2023) turn a display formula into a 19 KB SVG in about 0.14 s cold, 0.13 s warm, and Qt's SVG plugin draws that SVG correctly, glyphs as paths.
+- Mermaid through a browser: headless Google Chrome (installed here) with Mermaid 11.4.1's 2.6 MB script renders a five-node flowchart in 0.84 s cold, 0.48 s warm, peaking at about 215 MB while it runs. Qt cannot draw Mermaid's SVG: it depends on CSS and `foreignObject`, and Qt's SVG plugin dropped every label and arrow. A diagram must come back as a picture.
+- No native C or C++ Mermaid renderer exists. MicroTeX, a C++ LaTeX renderer with a Qt backend (MIT), was last changed 2024-08-06 and has no releases.
+
+**Options.**
+- **A. Reading mode in Qt WebEngine.** The reading view becomes a web view with Mermaid, KaTeX and Chromium's PDF viewer: everything renders, exactly as on the web. 195 MB of dependencies, a Chromium process of a few hundred MB per open view, and reading mode, its links, themes and embeds rewritten for a browser; a much larger surface to keep secure and a heavier app to install on a second machine.
+- **B. Optional external renderers, cached, plus Qt PDF.** Recommended. Maths renders through `latex` and `dvisvgm` and Mermaid through a Chromium-family browser (Chrome or Chromium) in headless mode with a vendored copy of Mermaid's script (MIT), each only if the tool is on the machine; otherwise the block stays as highlighted code, as now. Renders run off the UI thread, show the code until ready, and are kept in `.coeus/render/` keyed by a hash of the source, the theme and the renderer's version, so each formula or diagram renders once per machine. LaTeX runs with `-no-shell-escape` in a temporary folder; the browser loads only the generated page and the vendored script. PDF pages render natively through Qt PDF (`![[file.pdf#page=3]]`, the first page by default), a 5 MB dependency that would be required, not optional.
+- **C. Native libraries only.** Qt PDF for PDFs and MicroTeX vendored for maths, no external programs. Maths would work on any machine, but MicroTeX's maintenance has stalled; Mermaid would stay as code, since nothing renders it natively.
+- **D. Leave them as code.** No cost; F-025's Mermaid and maths and F-023's inline PDF dropped from the acceptance. PDFs stay cards.
+
+**Decision.** Option B, chosen by the author 2026-10-15 from the measurements above: maths through `latex` and `dvisvgm` and Mermaid through a headless Chromium-family browser, each when the machine has it, rendered off the UI thread and cached in `.coeus/render/`; PDF pages through Qt PDF.
+
+**Consequences.**
+- Mermaid and maths render only on machines with the tools; on others they stay readable code, and a note never changes because of it. The status bar says once which tool is missing.
+- `qt6-pdf-dev` becomes a build dependency (BUILD.md), dynamically linked as Qt is (D-009); Mermaid's script is vendored under `resources/` with its licence.
+- The render cache is derived data in `.coeus/`, never synced (D-011), and safe to delete.
+- Live preview reuses the same rendered images.
+
+**Reversal conditions.** Revisit for Option A if live preview needs layout that `QTextBrowser` cannot do, or if renders through external tools prove too slow or fragile in daily use; for MicroTeX if it is maintained again and maths without TeX matters.

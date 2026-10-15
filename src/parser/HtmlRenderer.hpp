@@ -29,6 +29,15 @@ public:
     };
     static constexpr int kEmbedDepth = 3; // embeds within embeds, at most
 
+    // A drawn picture of maths, a diagram or a PDF page (D-022), as the
+    // caller has it: a URL to show, or an error, or neither while it is drawn.
+    struct Picture {
+        QString url;
+        int width = 0;
+        int height = 0;
+        QString error;
+    };
+
     struct Options {
         // Maps an image or embed target to a URL QTextBrowser can load, or
         // an empty string if it cannot be found. `wiki` is true for ![[…]].
@@ -36,6 +45,11 @@ public:
         // The note `target` (without #heading) names, written in the note at
         // `fromPath`; unset to show note embeds as links.
         std::function<Embedded(const QString& target, const QString& fromPath)> resolveNote;
+        // Pictures for $maths$, ```mermaid blocks and PDF pages; unset, or
+        // answering with no URL, leaves them as code, or a card for a PDF.
+        std::function<Picture(const QString& tex, bool display)> renderMaths;
+        std::function<Picture(const QString& source)> renderMermaid;
+        std::function<Picture(const QString& resolvedUrl, int page)> renderPdfPage;
         QString notePath;     // the note being rendered, absolute
         QString embedAccent;  // an embed's left rule; the light theme's accent if empty
     };

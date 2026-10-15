@@ -2,6 +2,7 @@
 
 #include "index/IndexQueries.hpp"
 
+#include "ui/RenderService.hpp"
 #include "ui/Theme.hpp"
 
 #include "parser/HtmlRenderer.hpp"
@@ -12,6 +13,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QApplication>
+
+#include <algorithm>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -147,6 +150,21 @@ void NoteView::render()
     if (!m_indexPath.isEmpty())
         options.resolveNote = [this](const QString& target, const QString& fromPath) { return resolveNote(target, fromPath); };
     options.notePath = m_path;
+    if (m_render) {
+        // Never wider than the view: a wide diagram is shown smaller, never cut off.
+        const int room = std::max(200, m_reader->viewport()->width() - 2 * int(m_reader->document()->documentMargin()) - 8);
+        const auto picture = [room](const RenderService::Picture& p) {
+            QSize size = p.size;
+            if (size.width() > room)
+                size = QSize(room, int(double(size.height()) * room / size.width()));
+            return HtmlRenderer::Picture{p.url, size.width(), size.height(), p.error};
+        };
+        options.renderMaths = [this, picture](const QString& tex, bool display) { return picture(m_render->maths(tex, display)); };
+        options.renderMermaid = [this, picture](const QString& source) { return picture(m_render->mermaid(source)); };
+        options.renderPdfPage = [this, picture](const QString& url, int page) {
+            return picture(m_render->pdfPage(QUrl(url).toLocalFile(), page));
+        };
+    }
     options.embedAccent = Theme::instance().colour(Theme::Colour::Accent).name();
     const int scroll = m_reader->verticalScrollBar()->value();
     m_reader->setHtml(HtmlRenderer::render(m_editor->toPlainText().toUtf8(), options));
@@ -182,6 +200,11 @@ void NoteView::goToHeading(int line, const QString& text, int occurrence, int in
         return;
     const qreal top = m_reader->document()->documentLayout()->blockBoundingRect(target).top();
     m_reader->verticalScrollBar()->setValue(int(top));
+}
+
+void NoteView::setRenderService(RenderService* service)
+{
+    m_render = service;
 }
 
 void NoteView::refreshReading()

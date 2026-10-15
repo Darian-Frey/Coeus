@@ -223,7 +223,8 @@ def build_vault(vault: Path, linked: Path) -> None:
 
         ## Reading mode
         - Open [[Markdown showcase]] and press `Ctrl+E`: code blocks are
-          coloured by language, and `![[Long note#Section 2]]` shows that
+          coloured by language, maths and the Mermaid diagram are drawn (with
+          LaTeX and Chrome or Chromium installed; code otherwise), and `![[Long note#Section 2]]` shows that
           section in place, with a link to the note it came from.
         - Put the cursor in any paragraph and press `Ctrl+Alt+L` (Copy Block
           Link): it gains a `^id` and `[[Note#^id]]` is on the clipboard, ready
@@ -495,6 +496,10 @@ def build_vault(vault: Path, linked: Path) -> None:
         An embedded block, from the Mnemosyne note: ![[Mnemosyne#^cache]]
 
         ![Diagram](../attachments/diagram.png) ![[attachments/logo.svg]]
+
+        Maths inline, $E = mc^2$, and on its own:
+
+        $$\\sum_{i=1}^{n} \\frac{x_i^2}{\\sqrt{1+\\alpha_i}}$$
 
         Raw HTML is shown, not run: <b>not bold</b>. Tags: #demo/showcase, not #42.
         """)

@@ -73,15 +73,15 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 4 — Rich Markdown and workspace
 **Goal:** Feature parity with the parts of Obsidian's core that Phase 2 deferred.
-**Status:** In progress (F-027, F-014 and F-024 built 2026-10-15; F-023 and F-025 in part). Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step, as a DECISIONS entry with measurements
+**Status:** In progress (F-027, F-014, F-023, F-024 and F-025 built 2026-10-15; next live preview, F-003). Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step: D-022, accepted 2026-10-15 (Option B)
 **Features delivered:** F-003 (live preview), F-012, F-014, F-023, F-024, F-025, F-026, F-027
 **Deliverables:**
 - [ ] Live-preview editing mode
 - [ ] Splits and native multi-window
-- [ ] Embeds, block references, callouts, Mermaid, maths, code highlighting
+- [x] Embeds, block references, callouts, Mermaid, maths, code highlighting
   - [x] Code highlighting by language and note and section embeds in reading mode (`src/parser/CodeHighlighter.cpp`, `src/parser/Transclusion.cpp`; F-025, F-023)
   - [x] Block references: links, completion, embeds and Copy Block Link (`src/parser/Transclusion.cpp`; F-024)
-  - [ ] Mermaid, maths and PDF pages inline, after their DECISIONS entry
+  - [x] Mermaid, maths and PDF pages inline: optional external renderers, cached, and Qt PDF (`src/render/`, `src/ui/RenderService.cpp`; D-022)
 - [ ] Graph view
 - [x] Themes and rebindable hotkeys (`src/ui/Theme.cpp`, `src/ui/Shortcuts.cpp`, `src/ui/ShortcutsDialog.cpp`; F-027)
 - [x] Bookmarks and recent notes (`src/vault/Bookmarks.cpp`, `src/vault/RecentNotes.cpp`, `src/ui/BookmarksPanel.cpp`; F-014)

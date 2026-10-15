@@ -205,6 +205,55 @@ private slots:
         QVERIFY(html("![[Plan#^gone]]\n").contains(QStringLiteral("(no block ^gone)")));
     }
 
+    void drawnPicturesReplaceCodeWhenTheCallerHasThem()
+    {
+        HtmlRenderer::Options options;
+        options.resolveImage = [](const QString& target, bool) { return QStringLiteral("file:///v/%1").arg(target); };
+        QStringList asked;
+        options.renderMaths = [&asked](const QString& tex, bool display) {
+            asked.append(tex + (display ? QStringLiteral(" [display]") : QString()));
+            if (tex.contains(QLatin1String("\\bad")))
+                return HtmlRenderer::Picture{{}, 0, 0, QStringLiteral("Undefined control sequence.")};
+            if (tex.contains(QLatin1String("later")))
+                return HtmlRenderer::Picture{}; // still being drawn
+            return HtmlRenderer::Picture{QStringLiteral("file:///c/m.png"), 40, 12, {}};
+        };
+        options.renderMermaid = [](const QString& source) {
+            return source.contains(QLatin1String("ready")) ? HtmlRenderer::Picture{QStringLiteral("file:///c/d.png"), 300, 120, {}}
+                                                           : HtmlRenderer::Picture{};
+        };
+        int pageAsked = 0;
+        options.renderPdfPage = [&pageAsked](const QString& url, int page) {
+            pageAsked = page;
+            return url.endsWith(QLatin1String("good.pdf")) ? HtmlRenderer::Picture{QStringLiteral("file:///c/p.png"), 640, 828, {}}
+                                                           : HtmlRenderer::Picture{{}, 0, 0, QStringLiteral("no page 9; it has 3")};
+        };
+        const auto html = [&](const char* markdown) { return HtmlRenderer::render(QByteArrayView(markdown), options); };
+
+        // Inline maths sits among words; display maths stands on its own line.
+        QString out = html("Energy is $E = mc^2$.\n\n$$\\sum x$$\n");
+        QVERIFY(out.contains(QStringLiteral("Energy is <img src=\"file:///c/m.png\" width=\"40\" height=\"12\" alt=\"E = mc^2\" align=\"middle\"/>.")));
+        QVERIFY(out.contains(QStringLiteral("<br/><img src=\"file:///c/m.png\" width=\"40\" height=\"12\" alt=\"\\sum x\"/><br/>")));
+        QCOMPARE(asked, (QStringList{QStringLiteral("E = mc^2"), QStringLiteral("\\sum x [display]")}));
+        // Not drawn yet, or not drawable: code, with LaTeX's reason.
+        QVERIFY(html("$later$\n").contains(QStringLiteral("<code class=\"math\">later</code>")));
+        QVERIFY(html("$\\bad$\n").contains(QStringLiteral("<code class=\"math\">\\bad</code> <span class=\"missing\">(Undefined control sequence.)</span>")));
+
+        // A drawn diagram replaces its code block; until then the code shows.
+        out = html("```mermaid\ngraph LR\n  ready --> go\n```\n");
+        QVERIFY(out.contains(QStringLiteral("<p class=\"diagram\"><img src=\"file:///c/d.png\" width=\"300\" height=\"120\" alt=\"diagram\"/></p>")));
+        QVERIFY(!out.contains(QStringLiteral("<pre")));
+        QVERIFY(html("```mermaid\ngraph LR\n  a --> b\n```\n").contains(QStringLiteral("<pre class=\"lang-mermaid\"><code>")));
+
+        // A PDF page by #page=N, the first by default, linked to the file.
+        out = html("![[good.pdf#page=2]]\n");
+        QCOMPARE(pageAsked, 2);
+        QVERIFY(out.contains(QStringLiteral("<a class=\"attachment\" href=\"file:///v/good.pdf\"><img src=\"file:///c/p.png\" width=\"640\" height=\"828\" alt=\"good.pdf\"/></a>")));
+        html("![[good.pdf]]\n");
+        QCOMPARE(pageAsked, 1);
+        QVERIFY(html("![[bad.pdf#page=9]]\n").contains(QStringLiteral("[PDF] bad.pdf</a> <span class=\"missing\">(no page 9; it has 3)</span>")));
+    }
+
     void attachmentsOtherThanPicturesAreCards()
     {
         const QString html = render("![[spec.pdf]] ![[talk.mp3]] ![[clip.mp4]] ![[board.canvas]] ![doc](paper.pdf)\n");

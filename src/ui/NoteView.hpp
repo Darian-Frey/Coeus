@@ -4,6 +4,7 @@
 #include "vault/Vault.hpp"
 
 #include <QUrl>
+#include <QPointer>
 #include <QWidget>
 
 class QLabel;
@@ -13,6 +14,8 @@ class QTimer;
 class QToolButton;
 
 namespace coeus {
+
+class RenderService;
 
 class Editor;
 class PropertiesPanel;
@@ -34,6 +37,8 @@ public:
     QString path() const { return m_path; }
     // The index embeds are resolved through (F-023); without it they show as links.
     void setIndexPath(const QString& indexPath) { m_indexPath = indexPath; }
+    // Draws maths, Mermaid and PDF pages (D-022); without it they stay code and cards.
+    void setRenderService(RenderService* service);
     // Renders the reading view again if it is showing, e.g. an embedded note changed.
     void refreshReading();
     // The ☆ in the header (F-014): filled while the note is bookmarked.
@@ -69,6 +74,7 @@ private:
 
     Vault m_root;
     QString m_indexPath;
+    QPointer<RenderService> m_render;
     QString m_path;
     Mode m_mode = Mode::Source;
     Editor* m_editor = nullptr;

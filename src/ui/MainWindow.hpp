@@ -46,6 +46,7 @@ class RelatedPanel;
 struct ProjectRef;
 class SearchPanel;
 class BookmarksPanel;
+class RenderService;
 class CommandPalette;
 class Editor;
 class NoteCatalogue;
@@ -83,6 +84,7 @@ public:
     const QList<Bookmark>& bookmarks() const { return m_bookmarkList; }
     const QList<RecentNotes::Note>& recentNotes() const { return m_recentList; }
     BookmarksPanel* bookmarksPanel() const { return m_bookmarks; }
+    RenderService* renderService() const { return m_render; }
     CommandPalette* recentPicker() const { return m_recentPicker; }
     // Creates the note at `absolutePath` from `templatePath` (empty for
     // blank), allocating any {{next:KIND}} first, and opens it. Never
@@ -308,6 +310,7 @@ private:
     QAction* m_compactSidecar = nullptr; // F-035
     QList<QAction*> m_themeActions;      // System, Light, Dark, Cassette (F-027)
     QAction* m_copyBlockLink = nullptr; // F-024; also in each editor's context menu
+    RenderService* m_render = nullptr;  // D-022
     // F-014.
     BookmarksPanel* m_bookmarks = nullptr;
     QDockWidget* m_bookmarksDock = nullptr;
