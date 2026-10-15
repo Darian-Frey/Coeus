@@ -1002,6 +1002,9 @@ void MainWindow::startIndex(const QString& vaultPath)
         setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), m_indexLabel->toolTip());
         m_catalogue->reload();
         m_backlinks->refresh();
+        for (int i = 0; i < m_tabs->count(); ++i) // an embedded note may have changed (F-023)
+            if (NoteView* view = viewAt(i))
+                view->refreshReading();
         m_tags->reload();
         m_search->refresh();
         emit indexUpdated(notes);
@@ -1548,6 +1551,7 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
     }
     view->setProperty(kPathProperty, absolutePath);
     view->setStarred(isBookmarked(absolutePath));
+    view->setIndexPath(IndexService::indexPath(m_vault->rootPath()));
     connect(view, &NoteView::starToggled, this, [this, absolutePath] { toggleBookmark(absolutePath); });
     editor->setCatalogue(m_catalogue);
     connect(editor, &Editor::blameRequested, this, [this, editor] { requestBlame(editor); });

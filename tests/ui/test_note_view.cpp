@@ -112,6 +112,28 @@ private slots:
         QCOMPARE(window.tabs()->count(), 3);
     }
 
+    void embedsResolveThroughTheIndexAndFollowChanges()
+    {
+        QTemporaryDir vault;
+        write(vault.filePath(QStringLiteral("host.md")), "# Host\n\n![[guide#Install]]\n");
+        write(vault.filePath(QStringLiteral("docs/guide.md")), "# Guide\n\n## Install\n\nRun the installer.\n\n## Use\n\nLater.\n");
+        MainWindow window;
+        QSignalSpy opened(&window, &MainWindow::indexOpened);
+        window.openVault(*Vault::open(vault.path()));
+        QVERIFY(opened.wait(5000));
+        window.openNote(vault.filePath(QStringLiteral("host.md")));
+        NoteView* view = window.currentView();
+        view->setMode(NoteView::Mode::Reading);
+        QString text = view->reader()->toPlainText();
+        QVERIFY2(text.contains(QStringLiteral("Run the installer.")), qPrintable(text));
+        QVERIFY(text.contains(QStringLiteral("guide › Install")));
+        QVERIFY(!text.contains(QStringLiteral("Later.")));
+
+        // The embedded note changes on disk: the reading view follows once it is indexed.
+        write(vault.filePath(QStringLiteral("docs/guide.md")), "# Guide\n\n## Install\n\nRun the new installer.\n");
+        QTRY_VERIFY_WITH_TIMEOUT(view->reader()->toPlainText().contains(QStringLiteral("Run the new installer.")), 5000);
+    }
+
     void ctrlETogglesTheCurrentTab()
     {
         QTemporaryDir vault;

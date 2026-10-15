@@ -198,7 +198,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Should
 **Acceptance:**
 - `![[Note]]`, `![[Note#Heading]]`, `![[image.png]]`, `![[doc.pdf]]` render inline in preview and reading modes
-**Status:** Not started (Phase 4)
+**Status:** In progress (Phase 4): note and section embeds render inline in reading mode, resolved through the index, nested three deep (2026-10-15); PDF, audio and video are cards that open the file, PDF pages inline waiting on the rendering decision with Mermaid and maths; preview mode with live preview (F-003)
 
 ### F-024 Block references
 **Priority:** Could
@@ -210,7 +210,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Should
 **Acceptance:**
 - `> [!note]` family renders as styled blocks; Mermaid diagrams and KaTeX-style maths render in preview; fenced code highlighted by language
-**Status:** Not started (Phase 4)
+**Status:** In progress (Phase 4): callouts styled (Phase 2); fenced code coloured by language in reading mode for 15 language families, in each theme's colours (2026-10-15); Mermaid and maths wait on a DECISIONS entry
 
 ### F-026 Graph view
 **Priority:** Could

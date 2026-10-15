@@ -1,5 +1,7 @@
 #include "ui/NoteView.hpp"
 
+#include "index/IndexQueries.hpp"
+
 #include "ui/Theme.hpp"
 
 #include "parser/HtmlRenderer.hpp"
@@ -142,6 +144,10 @@ void NoteView::render()
 {
     HtmlRenderer::Options options;
     options.resolveImage = [this](const QString& target, bool wiki) { return resolveImage(target, wiki); };
+    if (!m_indexPath.isEmpty())
+        options.resolveNote = [this](const QString& target, const QString& fromPath) { return resolveNote(target, fromPath); };
+    options.notePath = m_path;
+    options.embedAccent = Theme::instance().colour(Theme::Colour::Accent).name();
     const int scroll = m_reader->verticalScrollBar()->value();
     m_reader->setHtml(HtmlRenderer::render(m_editor->toPlainText().toUtf8(), options));
     m_reader->verticalScrollBar()->setValue(scroll);
@@ -176,6 +182,31 @@ void NoteView::goToHeading(int line, const QString& text, int occurrence, int in
         return;
     const qreal top = m_reader->document()->documentLayout()->blockBoundingRect(target).top();
     m_reader->verticalScrollBar()->setValue(int(top));
+}
+
+void NoteView::refreshReading()
+{
+    if (m_mode == Mode::Reading)
+        render();
+}
+
+HtmlRenderer::Embedded NoteView::resolveNote(const QString& target, const QString& fromPath) const
+{
+    // As a click on the link would: the index's resolution, never a guess (AV-006).
+    const auto found = IndexQueries::wikilinkTarget(m_indexPath, fromPath, target);
+    if (!found)
+        return {{}, {}, {}, found.error()};
+    if (!*found)
+        return {{}, {}, {}, tr("not indexed yet")};
+    if ((*found)->ambiguous)
+        return {{}, {}, {}, tr("matches more than one note")};
+    const QString path = (*found)->absolutePath;
+    if (path.isEmpty())
+        return {{}, {}, {}, tr("no such note")};
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return {{}, {}, {}, tr("cannot be read")};
+    return {path, QFileInfo(path).completeBaseName(), file.readAll(), {}};
 }
 
 QString NoteView::resolveImage(const QString& target, bool wiki) const
@@ -217,8 +248,18 @@ QString NoteView::styleSheet() const
                "td.key { color: %2; padding-right: 16px; }"
                "table.grid th { border-bottom: 1px solid %2; }"
                "table.callout { background-color: %3; margin: 6px 0; }"
-               "p.problem { color: %5; }")
-        .arg(accent, dim, tint, theme.colour(Theme::Colour::Highlight).name(), theme.colour(Theme::Colour::Error).name());
+               "p.problem { color: %5; }"
+               "table.embed { background-color: %3; margin: 6px 0; }"
+               "p.embed-title { margin-bottom: 4px; }"
+               "a.attachment { text-decoration: none; }"
+               "span.kw { color: %6; font-weight: bold; }"
+               "span.ty { color: %7; }"
+               "span.st { color: %8; }"
+               "span.cm { color: %2; font-style: italic; }"
+               "span.nu { color: %9; }")
+        .arg(accent, dim, tint, theme.colour(Theme::Colour::Highlight).name(), theme.colour(Theme::Colour::Error).name(),
+             theme.colour(Theme::Colour::CodeKeyword).name(), theme.colour(Theme::Colour::CodeType).name(),
+             theme.colour(Theme::Colour::CodeString).name(), theme.colour(Theme::Colour::CodeNumber).name());
 }
 
 } // namespace coeus

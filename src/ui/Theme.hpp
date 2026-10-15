@@ -32,6 +32,7 @@ public:
         Removed,   // diff: a translucent red
         Highlight, // ==marked== text
         Tint,      // behind code and callouts
+        CodeKeyword, CodeType, CodeString, CodeNumber, // fenced code by language (F-025); comments are dim
     };
 
     static Theme& instance();

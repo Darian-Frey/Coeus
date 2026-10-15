@@ -75,6 +75,8 @@ add_library(coeus_core STATIC
     src/index/Tags.cpp
     src/parser/Frontmatter.cpp
     src/parser/HtmlRenderer.cpp
+    src/parser/CodeHighlighter.cpp
+    src/parser/Transclusion.cpp
     src/parser/NoteParser.cpp
     src/parser/RegisterParser.cpp
     src/registers/EntryWriter.cpp

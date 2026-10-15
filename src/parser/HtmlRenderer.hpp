@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QByteArrayView>
 #include <QString>
 
@@ -19,10 +20,24 @@ namespace coeus {
 //   anything else                   an external link, unchanged
 class HtmlRenderer {
 public:
+    // A note an embed names, as the caller found it (F-023).
+    struct Embedded {
+        QString absolutePath;
+        QString title;
+        QByteArray text;  // the whole note, frontmatter and all
+        QString problem;  // why it cannot be shown (not found, ambiguous); empty if it can
+    };
+    static constexpr int kEmbedDepth = 3; // embeds within embeds, at most
+
     struct Options {
         // Maps an image or embed target to a URL QTextBrowser can load, or
         // an empty string if it cannot be found. `wiki` is true for ![[…]].
         std::function<QString(const QString& target, bool wiki)> resolveImage;
+        // The note `target` (without #heading) names, written in the note at
+        // `fromPath`; unset to show note embeds as links.
+        std::function<Embedded(const QString& target, const QString& fromPath)> resolveNote;
+        QString notePath;     // the note being rendered, absolute
+        QString embedAccent;  // an embed's left rule; the light theme's accent if empty
     };
 
     static QString render(QByteArrayView utf8, const Options& options = {});

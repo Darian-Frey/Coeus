@@ -79,6 +79,9 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 - [ ] Live-preview editing mode
 - [ ] Splits and native multi-window
 - [ ] Embeds, block references, callouts, Mermaid, maths, code highlighting
+  - [x] Code highlighting by language and note and section embeds in reading mode (`src/parser/CodeHighlighter.cpp`, `src/parser/Transclusion.cpp`; F-025, F-023)
+  - [ ] Block references (F-024)
+  - [ ] Mermaid, maths and PDF pages inline, after their DECISIONS entry
 - [ ] Graph view
 - [x] Themes and rebindable hotkeys (`src/ui/Theme.cpp`, `src/ui/Shortcuts.cpp`, `src/ui/ShortcutsDialog.cpp`; F-027)
 - [x] Bookmarks and recent notes (`src/vault/Bookmarks.cpp`, `src/vault/RecentNotes.cpp`, `src/ui/BookmarksPanel.cpp`; F-014)

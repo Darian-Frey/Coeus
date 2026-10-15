@@ -221,6 +221,11 @@ def build_vault(vault: Path, linked: Path) -> None:
           It is refused, since Save has it; press `Ctrl+Alt+N` instead. Reset
           puts `Ctrl+N` back.
 
+        ## Reading mode
+        - Open [[Markdown showcase]] and press `Ctrl+E`: code blocks are
+          coloured by language, and `![[Long note#Section 2]]` shows that
+          section in place, with a link to the note it came from.
+
         ## Bookmarks and recent notes
         - Click ☆ in a note's header (or `Ctrl+Alt+S`) and it joins the
           **Bookmarks** tab beside Search. In **Search**, type a query and click
@@ -471,9 +476,18 @@ def build_vault(vault: Path, linked: Path) -> None:
         int answer = 42;
         ```
 
+        ```python
+        def chunk(words, size=384):  # windows of a section
+            return [words[i:i + size] for i in range(0, len(words), size)]
+        ```
+
         ```mermaid
         graph LR; vault --> index
         ```
+
+        An embedded section, shown in place:
+
+        ![[Long note#Section 2]]
 
         ![Diagram](../attachments/diagram.png) ![[attachments/logo.svg]]
 

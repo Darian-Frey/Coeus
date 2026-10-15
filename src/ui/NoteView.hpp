@@ -1,5 +1,6 @@
 #pragma once
 
+#include "parser/HtmlRenderer.hpp"
 #include "vault/Vault.hpp"
 
 #include <QUrl>
@@ -31,6 +32,10 @@ public:
     PropertiesPanel* properties() const { return m_properties; }
     QTextBrowser* reader() const { return m_reader; }
     QString path() const { return m_path; }
+    // The index embeds are resolved through (F-023); without it they show as links.
+    void setIndexPath(const QString& indexPath) { m_indexPath = indexPath; }
+    // Renders the reading view again if it is showing, e.g. an embedded note changed.
+    void refreshReading();
     // The ☆ in the header (F-014): filled while the note is bookmarked.
     void setStarred(bool starred);
     QToolButton* starButton() const { return m_starButton; }
@@ -59,9 +64,11 @@ signals:
 
 private:
     QString resolveImage(const QString& target, bool wiki) const;
+    HtmlRenderer::Embedded resolveNote(const QString& target, const QString& fromPath) const;
     QString styleSheet() const;
 
     Vault m_root;
+    QString m_indexPath;
     QString m_path;
     Mode m_mode = Mode::Source;
     Editor* m_editor = nullptr;

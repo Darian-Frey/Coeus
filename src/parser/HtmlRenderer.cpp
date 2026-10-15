@@ -3,9 +3,14 @@
 #include "parser/Frontmatter.hpp"
 #include "parser/ParsedNote.hpp"
 #include "parser/Attachments.hpp"
+#include "parser/CodeHighlighter.hpp"
+#include "parser/Transclusion.hpp"
 
+#include <QFileInfo>
 #include <QHash>
 #include <QRegularExpression>
+#include <QSet>
+#include <QStringList>
 #include <QUrl>
 
 #include <md4c.h>
@@ -38,9 +43,13 @@ QString encodeTarget(const QString& target)
 
 class Writer {
 public:
-    Writer(QByteArrayView body, const HtmlRenderer::Options& options)
+    Writer(QByteArrayView body, const HtmlRenderer::Options& options, const QString& sourcePath, int depth,
+           const QStringList& ancestors)
         : m_body(body)
         , m_options(options)
+        , m_sourcePath(sourcePath)
+        , m_depth(depth)
+        , m_ancestors(ancestors)
     {
         m_out.emplace_back();
     }
@@ -110,6 +119,10 @@ private:
             out() += lang.isEmpty() ? QStringLiteral("<pre><code>")
                                     : QStringLiteral("<pre class=\"lang-%1\"><code>").arg(HtmlRenderer::escape(lang));
             ++m_codeDepth;
+            // Collected whole, then coloured: a string or comment may span lines (F-025).
+            m_codeBlock = true;
+            m_codeLanguage = lang;
+            m_codeText.clear();
             break;
         }
         case MD_BLOCK_HTML:
@@ -118,6 +131,7 @@ private:
             break;
         case MD_BLOCK_P:
             out() += QStringLiteral("<p>");
+            ++m_paragraphDepth;
             break;
         case MD_BLOCK_TABLE:
             out() += QStringLiteral("<table class=\"grid\" cellspacing=\"0\" cellpadding=\"4\">");
@@ -175,12 +189,19 @@ private:
             out() += QStringLiteral("</h%1>").arg(static_cast<MD_BLOCK_H_DETAIL*>(detail)->level);
             break;
         case MD_BLOCK_CODE:
+            if (m_codeText.endsWith(QLatin1Char('\n')))
+                m_codeText.chop(1);
+            out() += CodeHighlighter::toHtml(m_codeText, m_codeLanguage) + QStringLiteral("</code></pre>");
+            m_codeBlock = false;
+            --m_codeDepth;
+            break;
         case MD_BLOCK_HTML:
             out() += QStringLiteral("</code></pre>");
             --m_codeDepth;
             break;
         case MD_BLOCK_P:
             out() += QStringLiteral("</p>");
+            --m_paragraphDepth;
             break;
         case MD_BLOCK_TABLE:
             out() += QStringLiteral("</table>");
@@ -315,6 +336,21 @@ private:
         const QString resolved = m_options.resolveImage ? m_options.resolveImage(target, wiki) : QString();
         if (resolved.isEmpty())
             return QStringLiteral("<span class=\"missing\">[%1]</span>").arg(HtmlRenderer::escape(target));
+        static const QSet<QString> kPictures{QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("gif"),
+                                             QStringLiteral("svg"), QStringLiteral("webp"), QStringLiteral("bmp")};
+        const QString suffix = QFileInfo(target).suffix().toLower();
+        if (!kPictures.contains(suffix)) {
+            // A PDF, a recording, a canvas: a card that opens it (SPEC.md §Reading mode).
+            static const QSet<QString> kSound{QStringLiteral("mp3"), QStringLiteral("wav"), QStringLiteral("ogg"), QStringLiteral("m4a")};
+            static const QSet<QString> kFilm{QStringLiteral("mp4"), QStringLiteral("webm"), QStringLiteral("mov")};
+            // Words, not emoji: the reading view's fonts may have none.
+            const QString mark = suffix == QLatin1String("pdf") ? QStringLiteral("[PDF]")
+                                 : kSound.contains(suffix)      ? QStringLiteral("[audio]")
+                                 : kFilm.contains(suffix)       ? QStringLiteral("[video]")
+                                                                : QStringLiteral("[canvas]");
+            return QStringLiteral("<a class=\"attachment\" href=\"%1\">%2 %3</a>")
+                .arg(HtmlRenderer::escape(resolved), mark, HtmlRenderer::escape(QFileInfo(target).fileName()));
+        }
         return QStringLiteral("<img src=\"%1\" alt=\"%2\"/>").arg(HtmlRenderer::escape(resolved), altHtml);
     }
 
@@ -339,6 +375,12 @@ private:
     int text(MD_TEXTTYPE type, const MD_CHAR* data, MD_SIZE size)
     {
         const QString chunk = QString::fromUtf8(data, qsizetype(size));
+        if (m_codeBlock) {
+            m_codeText += type == MD_TEXT_BR || type == MD_TEXT_SOFTBR ? QStringLiteral("\n")
+                          : type == MD_TEXT_NULLCHAR                   ? QString(QChar(0xFFFD))
+                                                                       : chunk;
+            return 0;
+        }
         switch (type) {
         case MD_TEXT_NULLCHAR:
             out() += QChar(0xFFFD);
@@ -393,14 +435,51 @@ private:
         return html;
     }
 
-    // Images render inline; note embeds (transclusion, F-023) are links until Phase 4.
+    // Attachments render inline as images or cards; a note, or one heading's
+    // section of it, is rendered in a framed block (transclusion, F-023).
     QString embed(const QString& target, const QString& alias) const
     {
         if (isAttachmentTarget(target))
             return image(target, HtmlRenderer::escape(alias.isEmpty() ? target : alias), true);
         const QString label = alias.isEmpty() ? target : alias;
-        return QStringLiteral("<a class=\"embed\" href=\"coeus-wiki:%1\">↪ %2</a>")
-            .arg(HtmlRenderer::escape(wikiUrl(target)), HtmlRenderer::escape(label));
+        const auto asLink = [&](const QString& why) {
+            QString link = QStringLiteral("<a class=\"embed\" href=\"coeus-wiki:%1\">↪ %2</a>")
+                               .arg(HtmlRenderer::escape(wikiUrl(target)), HtmlRenderer::escape(label));
+            if (!why.isEmpty())
+                link += QStringLiteral(" <span class=\"missing\">(%1)</span>").arg(HtmlRenderer::escape(why));
+            return link;
+        };
+        const qsizetype hash = target.indexOf(QLatin1Char('#'));
+        const QString name = hash < 0 ? target : target.left(hash).trimmed();
+        const QString heading = hash < 0 ? QString() : target.mid(hash + 1).trimmed();
+        if (!m_options.resolveNote || heading.startsWith(QLatin1Char('^')))
+            return asLink({}); // block embeds arrive with F-024
+        if (m_depth >= HtmlRenderer::kEmbedDepth)
+            return asLink(QStringLiteral("embedded too deeply"));
+        const HtmlRenderer::Embedded note = m_options.resolveNote(name, m_sourcePath);
+        if (!note.problem.isEmpty())
+            return asLink(note.problem);
+        if (m_ancestors.contains(note.absolutePath))
+            return asLink(QStringLiteral("it embeds itself"));
+        QByteArray text;
+        if (heading.isEmpty()) {
+            text = Transclusion::body(note.text);
+        } else if (const auto section = Transclusion::section(note.text, heading)) {
+            text = *section;
+        } else {
+            return asLink(QStringLiteral("no heading “%1”").arg(heading));
+        }
+        const QString inner = Writer(text, m_options, note.absolutePath, m_depth + 1, m_ancestors + QStringList{note.absolutePath}).run();
+        const QString title = heading.isEmpty() ? note.title : note.title + QStringLiteral(" › ") + heading;
+        const QString block =
+            QStringLiteral("<table class=\"embed\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\"><tr>"
+                           "<td style=\"border-left: 3px solid %1;\"><p class=\"embed-title\"><a href=\"coeus-wiki:%2\">↪ %3</a></p>"
+                           "%4</td></tr></table>")
+                .arg(HtmlRenderer::escape(m_options.embedAccent.isEmpty() ? QStringLiteral("#1f7a70") : m_options.embedAccent),
+                     HtmlRenderer::escape(wikiUrl(target)),
+                     HtmlRenderer::escape(alias.isEmpty() ? title : alias), inner);
+        // A block cannot sit inside a paragraph: close it around the embed.
+        return m_paragraphDepth > 0 ? QStringLiteral("</p>") + block + QStringLiteral("<p>") : block;
     }
 
     QByteArrayView m_body;
@@ -409,6 +488,13 @@ private:
     std::vector<QString> m_images;
     int m_codeDepth = 0;
     int m_linkDepth = 0;
+    int m_paragraphDepth = 0;
+    bool m_codeBlock = false;
+    QString m_codeLanguage;
+    QString m_codeText;
+    QString m_sourcePath;
+    int m_depth = 0;
+    QStringList m_ancestors; // notes being embedded around this one, outermost first
 };
 
 QString propertiesTable(const ParsedNote& note)
@@ -442,7 +528,10 @@ QString HtmlRenderer::render(QByteArrayView utf8, const Options& options)
                           .arg(escape(note.frontmatterError->message))
                     : propertiesTable(note);
     }
-    return html + Writer(split.body, options).run();
+    const QStringList self = options.notePath.isEmpty() ? QStringList() : QStringList{options.notePath};
+    QString body = Writer(split.body, options, options.notePath, 0, self).run();
+    body.replace(QStringLiteral("<p></p>"), QString()); // left by an embed that stood alone in its paragraph
+    return html + body;
 }
 
 } // namespace coeus

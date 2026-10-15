@@ -268,6 +268,14 @@ QColor Theme::colour(Colour colour) const
             return QColor(0x5a, 0x3a, 0x00);
         case Colour::Tint:
             return QColor(0x24, 0x1a, 0x0d);
+        case Colour::CodeKeyword:
+            return QColor(0xff, 0x8c, 0x1a);
+        case Colour::CodeType:
+            return QColor(0xff, 0xd2, 0x6a);
+        case Colour::CodeString:
+            return QColor(0x9d, 0xc4, 0x3a); // phosphor green, the one cool note
+        case Colour::CodeNumber:
+            return QColor(0xff, 0xe0, 0x8a);
         }
     }
     const bool dark = isDark();
@@ -288,6 +296,14 @@ QColor Theme::colour(Colour colour) const
         return dark ? QColor(0x7a, 0x6a, 0x1c) : QColor(0xff, 0xec, 0x8a);
     case Colour::Tint:
         return dark ? QColor(0x2a, 0x2f, 0x33) : QColor(0xf1, 0xf3, 0xf4);
+    case Colour::CodeKeyword:
+        return dark ? QColor(0xc6, 0x92, 0xf0) : QColor(0x8a, 0x3f, 0xb8);
+    case Colour::CodeType:
+        return dark ? QColor(0x5f, 0xc4, 0xb8) : QColor(0x1f, 0x7a, 0x70);
+    case Colour::CodeString:
+        return dark ? QColor(0xe0, 0xa8, 0x6a) : QColor(0xa3, 0x51, 0x1a);
+    case Colour::CodeNumber:
+        return dark ? QColor(0x7f, 0xb8, 0xf0) : QColor(0x1f, 0x5f, 0xb0);
     }
     return {};
 }

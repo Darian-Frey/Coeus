@@ -37,7 +37,8 @@ private slots:
     {
         const QString html = render("`<b>#tag [[x]]</b>`\n\n```cpp\nif (a < b) { ==no== } // #nottag ![[img.png]]\n```\n");
         QVERIFY(html.contains(QStringLiteral("<code>&lt;b&gt;#tag [[x]]&lt;/b&gt;</code>")));
-        QVERIFY(html.contains(QStringLiteral("<pre class=\"lang-cpp\"><code>if (a &lt; b) { ==no== } // #nottag ![[img.png]]")));
+        QVERIFY(html.contains(QStringLiteral("<pre class=\"lang-cpp\"><code><span class=\"kw\">if</span> (a &lt; b) { ==no== } "
+                                             "<span class=\"cm\">// #nottag ![[img.png]]</span></code></pre>")));
         QVERIFY(!html.contains(QStringLiteral("coeus-tag")));
         QVERIFY(!html.contains(QStringLiteral("<img")));
     }
@@ -116,6 +117,82 @@ private slots:
     void mathsShowsAsCode()
     {
         QVERIFY(render("Energy $E = mc^2$.\n").contains(QStringLiteral("<code class=\"math\">E = mc^2</code>")));
+    }
+
+    void codeIsColouredByLanguage()
+    {
+        const QString html = render("```python\ndef f(x):\n    return \"a # b\"  # note\n```\n\n```\nplain <b>\n```\n");
+        QVERIFY(html.contains(QStringLiteral("<span class=\"kw\">def</span> f(x):\n    <span class=\"kw\">return</span> "
+                                             "<span class=\"st\">&quot;a # b&quot;</span>  <span class=\"cm\"># note</span>")));
+        QVERIFY(html.contains(QStringLiteral("<pre><code>plain &lt;b&gt;</code></pre>"))); // no language: plain
+    }
+
+    void notesAreEmbeddedInline()
+    {
+        HtmlRenderer::Options options;
+        options.notePath = QStringLiteral("/v/host.md");
+        options.embedAccent = QStringLiteral("#123456");
+        QStringList asked;
+        options.resolveNote = [&asked](const QString& target, const QString& from) {
+            asked.append(target + QStringLiteral(" from ") + from);
+            if (target == QLatin1String("Guide"))
+                return HtmlRenderer::Embedded{QStringLiteral("/v/guide.md"), QStringLiteral("guide"),
+                                              "---\ntags: [x]\n---\n# Guide\n\nIntro.\n\n## Install\n\nRun **it**.\n\n## Use\n\nThen this.\n", {}};
+            if (target == QLatin1String("Outer"))
+                return HtmlRenderer::Embedded{QStringLiteral("/v/outer.md"), QStringLiteral("outer"), "Outer has ![[Guide#Use]]\n", {}};
+            if (target == QLatin1String("Loop"))
+                return HtmlRenderer::Embedded{QStringLiteral("/v/loop.md"), QStringLiteral("loop"), "Loop: ![[Loop]]\n", {}};
+            if (target == QLatin1String("host"))
+                return HtmlRenderer::Embedded{QStringLiteral("/v/host.md"), QStringLiteral("host"), "x\n", {}};
+            return HtmlRenderer::Embedded{{}, {}, {}, QStringLiteral("no such note")};
+        };
+        const auto html = [&](const char* markdown) { return HtmlRenderer::render(QByteArrayView(markdown), options); };
+
+        // The whole note, without its frontmatter, in a framed block, out of the paragraph.
+        QString out = html("Before.\n\n![[Guide]]\n\nAfter.\n");
+        QVERIFY(out.contains(QStringLiteral("<table class=\"embed\"")));
+        QVERIFY(out.contains(QStringLiteral("border-left: 3px solid #123456;")));
+        QVERIFY(out.contains(QStringLiteral("<a href=\"coeus-wiki:Guide\">↪ guide</a>")));
+        QVERIFY(out.contains(QStringLiteral("<h1>Guide</h1>")));
+        QVERIFY(out.contains(QStringLiteral("<b>it</b>")));
+        QVERIFY(!out.contains(QStringLiteral("tags")));
+        QVERIFY(!out.contains(QStringLiteral("<p></p>")));
+        QCOMPARE(asked.front(), QStringLiteral("Guide from /v/host.md"));
+
+        // One heading's section: to the next heading of its level.
+        out = html("![[Guide#install]]\n");
+        QVERIFY(out.contains(QStringLiteral("↪ guide › install")));
+        QVERIFY(out.contains(QStringLiteral("Run <b>it</b>.")));
+        QVERIFY(!out.contains(QStringLiteral("Then this")));
+        QVERIFY(!out.contains(QStringLiteral("Intro")));
+
+        // Nested embeds resolve from the note they are written in.
+        asked.clear();
+        out = html("![[Outer]]\n");
+        QVERIFY(out.contains(QStringLiteral("Then this.")));
+        QVERIFY(asked.contains(QStringLiteral("Guide from /v/outer.md")));
+
+        // A note that embeds itself, or the note being read, stops at a link.
+        out = html("![[Loop]]\n");
+        QVERIFY(out.contains(QStringLiteral("(it embeds itself)")));
+        QCOMPARE(out.count(QStringLiteral("<table class=\"embed\"")), 1);
+        QVERIFY(html("![[host]]\n").contains(QStringLiteral("(it embeds itself)")));
+
+        // Not found, no such heading, and block embeds (F-024, later): links that say why.
+        QVERIFY(html("![[Nowhere]]\n").contains(QStringLiteral("↪ Nowhere</a> <span class=\"missing\">(no such note)</span>")));
+        QVERIFY(html("![[Guide#Nope]]\n").contains(QStringLiteral("(no heading “Nope”)")));
+        QVERIFY(html("![[Guide#^block]]\n").contains(QStringLiteral("<a class=\"embed\" href=\"coeus-wiki:Guide#%5Eblock\">")));
+    }
+
+    void attachmentsOtherThanPicturesAreCards()
+    {
+        const QString html = render("![[spec.pdf]] ![[talk.mp3]] ![[clip.mp4]] ![[board.canvas]] ![doc](paper.pdf)\n");
+        QVERIFY(html.contains(QStringLiteral("<a class=\"attachment\" href=\"file:///v/w/spec.pdf\">[PDF] spec.pdf</a>")));
+        QVERIFY(html.contains(QStringLiteral("[audio] talk.mp3")));
+        QVERIFY(html.contains(QStringLiteral("[video] clip.mp4")));
+        QVERIFY(html.contains(QStringLiteral("[canvas] board.canvas")));
+        QVERIFY(html.contains(QStringLiteral("href=\"file:///v/paper.pdf\">[PDF] paper.pdf</a>")));
+        QVERIFY(!html.contains(QStringLiteral("<img")));
     }
 };
 
