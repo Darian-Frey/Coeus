@@ -1,5 +1,7 @@
 #include "ui/DiffView.hpp"
 
+#include "ui/Theme.hpp"
+
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QHBoxLayout>
@@ -32,7 +34,7 @@ DiffView::DiffView(const QString& notePath, const QString& oldLabel, const QStri
     , m_text(new QPlainTextEdit(this))
 {
     m_text->setReadOnly(true);
-    m_text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    Theme::setMonospace(m_text);
     m_text->setLineWrapMode(QPlainTextEdit::NoWrap);
 
     // One block per diff line: "  12  13   text", " 12      − text", "      13 + text".
@@ -47,21 +49,13 @@ DiffView::DiffView(const QString& notePath, const QString& oldLabel, const QStri
     }
     m_text->setPlainText(text.join(QLatin1Char('\n')));
 
-    QList<QTextEdit::ExtraSelection> selections;
-    const QColor addedColour(0x2e, 0xa0, 0x43, 0x38);
-    const QColor removedColour(0xd3, 0x2f, 0x2f, 0x38);
     for (qsizetype i = 0; i < kinds.size(); ++i) {
-        if (kinds[i] == DiffLine::Kind::Context)
-            continue;
-        if (i == 0 || kinds[i - 1] == DiffLine::Kind::Context)
+        if (kinds[i] != DiffLine::Kind::Context && (i == 0 || kinds[i - 1] == DiffLine::Kind::Context))
             m_changeStarts.append(int(i));
-        QTextEdit::ExtraSelection selection;
-        selection.cursor = QTextCursor(m_text->document()->findBlockByNumber(int(i)));
-        selection.format.setBackground(kinds[i] == DiffLine::Kind::Added ? addedColour : removedColour);
-        selection.format.setProperty(QTextFormat::FullWidthSelection, true);
-        selections.append(selection);
     }
-    m_text->setExtraSelections(selections);
+    m_kinds = kinds;
+    paintChanges();
+    connect(&Theme::instance(), &Theme::changed, this, &DiffView::paintChanges);
 
     m_header->setText(summary());
     m_header->setTextFormat(Qt::PlainText);
@@ -133,6 +127,23 @@ bool DiffView::nextChange(bool forward)
     m_text->setTextCursor(cursor);
     m_text->centerCursor();
     return true;
+}
+
+void DiffView::paintChanges()
+{
+    QList<QTextEdit::ExtraSelection> selections;
+    const QColor added = Theme::instance().colour(Theme::Colour::Added);
+    const QColor removed = Theme::instance().colour(Theme::Colour::Removed);
+    for (qsizetype i = 0; i < m_kinds.size(); ++i) {
+        if (m_kinds[i] == DiffLine::Kind::Context)
+            continue;
+        QTextEdit::ExtraSelection selection;
+        selection.cursor = QTextCursor(m_text->document()->findBlockByNumber(int(i)));
+        selection.format.setBackground(m_kinds[i] == DiffLine::Kind::Added ? added : removed);
+        selection.format.setProperty(QTextFormat::FullWidthSelection, true);
+        selections.append(selection);
+    }
+    m_text->setExtraSelections(selections);
 }
 
 } // namespace coeus

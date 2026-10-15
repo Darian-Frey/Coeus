@@ -213,6 +213,14 @@ def build_vault(vault: Path, linked: Path) -> None:
         - **Properties**: open `ideas/theia.md` - `status: Done` is flagged, not
           changed; pick *Active*. `ideas/broken frontmatter.md` is read-only.
 
+        ## Themes and shortcuts
+        - **View › Theme**: *Dark*, *Light*, *Cassette* (an amber CRT terminal)
+          or *System*. Everything follows at once, an open note's highlighting
+          and reading view included.
+        - **View › Keyboard Shortcuts…**: pick *New Note* and press `Ctrl+S`.
+          It is refused, since Save has it; press `Ctrl+Alt+N` instead. Reset
+          puts `Ctrl+N` back.
+
         ## Daily notes and templates
         - `Ctrl+D` opens today's note, creating it from `templates/Daily.md` if it
           does not exist yet; press it again and the same note opens, untouched.

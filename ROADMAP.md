@@ -73,14 +73,14 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 4 — Rich Markdown and workspace
 **Goal:** Feature parity with the parts of Obsidian's core that Phase 2 deferred.
-**Status:** Not started
+**Status:** In progress (F-027 built 2026-10-15). Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step, as a DECISIONS entry with measurements
 **Features delivered:** F-003 (live preview), F-012, F-014, F-023, F-024, F-025, F-026, F-027
 **Deliverables:**
 - [ ] Live-preview editing mode
 - [ ] Splits and native multi-window
 - [ ] Embeds, block references, callouts, Mermaid, maths, code highlighting
 - [ ] Graph view
-- [ ] Themes and rebindable hotkeys
+- [x] Themes and rebindable hotkeys (`src/ui/Theme.cpp`, `src/ui/Shortcuts.cpp`, `src/ui/ShortcutsDialog.cpp`; F-027)
 **Acceptance:** A note using every rich construct renders identically in live preview and reading mode; two windows on two monitors keep independent dock layouts.
 
 ## Phase 5 — Sync

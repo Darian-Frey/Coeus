@@ -222,7 +222,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Should
 **Acceptance:**
 - Light and dark themes; user QSS snippets; all actions rebindable
-**Status:** Not started (Phase 4)
+**Status:** Complete (Phase 4, 2026-10-15): System, Light, Dark and Cassette (an amber CRT terminal, at the author's request) themes that every view follows, live; style snippets from `~/.config/coeus/snippets/`; every registered command rebindable in View › Keyboard Shortcuts…, conflicts refused (SPEC.md §Themes and shortcuts)
 
 ### Sync
 

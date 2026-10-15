@@ -1,5 +1,7 @@
 #include "ui/MarkdownHighlighter.hpp"
 
+#include "ui/Theme.hpp"
+
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QPalette>
@@ -8,26 +10,23 @@
 
 namespace coeus {
 
-namespace {
-
-bool isDark()
-{
-    return QGuiApplication::palette().color(QPalette::Base).lightness() < 128;
-}
-
-QColor accent()
-{
-    return isDark() ? QColor(0x5f, 0xc4, 0xb8) : QColor(0x1f, 0x7a, 0x70); // teal, as in the mockup
-}
-
-} // namespace
-
 MarkdownHighlighter::MarkdownHighlighter(QTextDocument* document)
     : QSyntaxHighlighter(document)
 {
+    restyle();
+    connect(&Theme::instance(), &Theme::changed, this, [this] {
+        restyle();
+        rehighlight();
+    });
+}
+
+void MarkdownHighlighter::restyle()
+{
+    const Theme& theme = Theme::instance();
     const QPalette palette = QGuiApplication::palette();
     const QColor dim = palette.color(QPalette::PlaceholderText);
-    const QColor tint = isDark() ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 14);
+    const QColor accent = theme.colour(Theme::Colour::Accent);
+    const QColor tint = theme.isDark() ? QColor(255, 255, 255, 18) : QColor(0, 0, 0, 14);
 
     auto& heading = m_formats[int(Kind::Heading)];
     heading.setFontWeight(QFont::Bold);
@@ -37,24 +36,24 @@ MarkdownHighlighter::MarkdownHighlighter(QTextDocument* document)
     m_formats[int(Kind::Emphasis)].setFontItalic(true);
     m_formats[int(Kind::Strong)].setFontWeight(QFont::Bold);
     m_formats[int(Kind::Strike)].setFontStrikeOut(true);
-    m_formats[int(Kind::Highlight)].setBackground(isDark() ? QColor(0x7a, 0x6a, 0x1c) : QColor(0xff, 0xec, 0x8a));
+    m_formats[int(Kind::Highlight)].setBackground(theme.colour(Theme::Colour::Highlight));
 
     auto& code = m_formats[int(Kind::Code)];
     code.setFontFamilies({QFontDatabase::systemFont(QFontDatabase::FixedFont).family()});
     code.setBackground(tint);
 
-    m_formats[int(Kind::Link)].setForeground(accent());
+    m_formats[int(Kind::Link)].setForeground(accent);
     m_formats[int(Kind::Url)].setForeground(dim);
-    m_formats[int(Kind::Tag)].setForeground(accent());
+    m_formats[int(Kind::Tag)].setForeground(accent);
     m_formats[int(Kind::BlockId)].setForeground(dim);
     m_formats[int(Kind::Quote)].setForeground(dim);
     auto& callout = m_formats[int(Kind::Callout)];
-    callout.setForeground(accent());
+    callout.setForeground(accent);
     callout.setFontWeight(QFont::Bold);
-    m_formats[int(Kind::ListMarker)].setForeground(accent());
+    m_formats[int(Kind::ListMarker)].setForeground(accent);
     m_formats[int(Kind::Frontmatter)].setForeground(dim);
     auto& maths = m_formats[int(Kind::Maths)];
-    maths.setForeground(accent());
+    maths.setForeground(accent);
     maths.setBackground(tint);
 }
 

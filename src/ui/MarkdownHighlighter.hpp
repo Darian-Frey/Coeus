@@ -29,6 +29,8 @@ protected:
 private:
     enum State { Normal = -1, Frontmatter = 1, FenceBacktick = 2, FenceTilde = 3, MathsBlock = 4 };
 
+    // The formats' colours, from the theme (F-027); again when it changes.
+    void restyle();
     void highlightInline(const QString& text, int from);
     void apply(int start, int length, Kind kind);
 

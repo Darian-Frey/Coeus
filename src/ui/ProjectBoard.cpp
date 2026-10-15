@@ -1,5 +1,7 @@
 #include "ui/ProjectBoard.hpp"
 
+#include "ui/Theme.hpp"
+
 #include "git/GitCommand.hpp"
 #include "registers/Lint.hpp"
 #include "registers/Vocabulary.hpp"
@@ -26,7 +28,6 @@ namespace {
 
 constexpr int kPathRole = Qt::UserRole + 1;
 constexpr int kIdeaRole = Qt::UserRole + 2; // index into m_ideas, on idea rows
-const QColor kStale(0xc0, 0x7a, 0x00);
 
 int orderOf(const QStringList& vocabulary, const QString& value)
 {
@@ -90,6 +91,7 @@ ProjectBoard::ProjectBoard(const NoteCatalogue* catalogue, QThreadPool* pool, QW
     layout->addLayout(header);
     layout->addWidget(m_tree, 1);
     present({}, {}, Lint::kDefaultReviewThresholdDays);
+    connect(&Theme::instance(), &Theme::changed, this, &ProjectBoard::refresh); // stale reviews' colour
 }
 
 QTreeWidgetItem* ProjectBoard::projectsGroup() const
@@ -246,11 +248,11 @@ void ProjectBoard::present(const QList<ProjectRow>& unsorted, const QList<IdeaRe
         // Freshness (F-017): days since Last reviewed, amber past the threshold.
         if (row.reviewedDaysAgo < 0) {
             item->setText(Reviewed, tr("no date"));
-            item->setForeground(Reviewed, QBrush(kStale));
+            item->setForeground(Reviewed, QBrush(Theme::instance().colour(Theme::Colour::Warning)));
         } else {
             item->setText(Reviewed, row.reviewedDaysAgo == 0 ? tr("today") : tr("%1 d").arg(row.reviewedDaysAgo));
             if (row.reviewedDaysAgo > threshold) {
-                item->setForeground(Reviewed, QBrush(kStale));
+                item->setForeground(Reviewed, QBrush(Theme::instance().colour(Theme::Colour::Warning)));
                 ++stale;
             }
         }
@@ -299,7 +301,7 @@ void ProjectBoard::present(const QList<ProjectRow>& unsorted, const QList<IdeaRe
         item->setToolTip(Name, idea.notePath);
         item->setText(Status, idea.stage);
         if (!Vocabulary::termOf(Vocabulary::ideaStage(), idea.stage))
-            item->setForeground(Status, QBrush(kStale));
+            item->setForeground(Status, QBrush(Theme::instance().colour(Theme::Colour::Warning)));
         item->setText(Build, idea.summary);
         item->setText(Git, idea.repo);
         item->setForeground(Git, muted);

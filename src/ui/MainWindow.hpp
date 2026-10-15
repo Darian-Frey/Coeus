@@ -70,6 +70,8 @@ public:
     void insertTemplate(const QString& templatePath);
     // File › New Note… (F-036): the dialog, then createNote().
     void newNote();
+    // View › Keyboard Shortcuts… (F-027).
+    void editShortcuts();
     // Creates the note at `absolutePath` from `templatePath` (empty for
     // blank), allocating any {{next:KIND}} first, and opens it. Never
     // overwrites; emits noteCreated() once it is written.
@@ -286,6 +288,7 @@ private:
     QAction* m_verifyIndex = nullptr;
     QAction* m_rebuildIndex = nullptr;
     QAction* m_compactSidecar = nullptr; // F-035
+    QList<QAction*> m_themeActions;      // System, Light, Dark (F-027)
     QAction* m_gitignoreAction = nullptr;
     QAction* m_save = nullptr;
     QAction* m_toggleReading = nullptr;

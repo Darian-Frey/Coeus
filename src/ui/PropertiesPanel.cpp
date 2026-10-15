@@ -1,5 +1,7 @@
 #include "ui/PropertiesPanel.hpp"
 
+#include "ui/Theme.hpp"
+
 #include "parser/Frontmatter.hpp"
 #include "registers/Vocabulary.hpp"
 #include "ui/Editor.hpp"
@@ -51,7 +53,7 @@ QLabel* errorLabel(const QString& text, QWidget* parent)
 {
     auto* label = new QLabel(text, parent);
     label->setWordWrap(true);
-    label->setStyleSheet(QStringLiteral("color: #c0392b;"));
+    label->setStyleSheet(Theme::instance().errorStyle());
     return label;
 }
 
@@ -77,7 +79,7 @@ PropertiesPanel::PropertiesPanel(Editor* editor, QWidget* parent)
         m_body->setVisible(open);
         m_header->setArrowType(open ? Qt::DownArrow : Qt::RightArrow);
     });
-    m_status->setStyleSheet(QStringLiteral("color: #c0392b;"));
+    m_status->setStyleSheet(Theme::instance().errorStyle());
     m_add->setText(tr("+ Add"));
     m_add->setAutoRaise(true);
     m_newKey->setPlaceholderText(tr("property name, then Enter"));
@@ -203,7 +205,7 @@ void PropertiesPanel::rebuild()
                 }
                 case PropertyType::Number:
                     if (!numberPattern().match(text).hasMatch()) {
-                        line->setStyleSheet(QStringLiteral("color: #c0392b;"));
+                        line->setStyleSheet(Theme::instance().errorStyle());
                         line->setToolTip(tr("Not a number; nothing was changed."));
                         return;
                     }
@@ -211,7 +213,7 @@ void PropertiesPanel::rebuild()
                     break;
                 case PropertyType::Date:
                     if (!isIsoDate(text)) {
-                        line->setStyleSheet(QStringLiteral("color: #c0392b;"));
+                        line->setStyleSheet(Theme::instance().errorStyle());
                         line->setToolTip(tr("Dates are YYYY-MM-DD; nothing was changed."));
                         return;
                     }

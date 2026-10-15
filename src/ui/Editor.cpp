@@ -1,5 +1,7 @@
 #include "ui/Editor.hpp"
 
+#include "ui/Theme.hpp"
+
 #include "index/ContentHash.hpp"
 #include "ui/MarkdownHighlighter.hpp"
 #include "ui/NoteCatalogue.hpp"
@@ -61,7 +63,7 @@ Editor::Editor(const Vault& root, const QString& absolutePath, QWidget* parent)
     , m_path(absolutePath)
     , m_highlighter(new MarkdownHighlighter(document()))
 {
-    setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    Theme::setMonospace(this);
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
     setTabChangesFocus(false);
     connect(document(), &QTextDocument::modificationChanged, this, &Editor::modificationChanged);
@@ -227,9 +229,9 @@ void Editor::applyProblems()
         selection.cursor.setPosition(block.position() + int(start));
         selection.cursor.setPosition(block.position() + int(start + length), QTextCursor::KeepAnchor);
         selection.format.setUnderlineStyle(QTextCharFormat::WaveUnderline);
-        selection.format.setUnderlineColor(problem.level == QLatin1String("error")     ? QColor(0xd3, 0x2f, 0x2f)
-                                           : problem.level == QLatin1String("warning") ? QColor(0xe6, 0x8a, 0x00)
-                                                                                       : QColor(0x19, 0x76, 0xd2));
+        selection.format.setUnderlineColor(Theme::instance().colour(problem.level == QLatin1String("error")     ? Theme::Colour::Error
+                                                                    : problem.level == QLatin1String("warning") ? Theme::Colour::Warning
+                                                                                                                : Theme::Colour::Info));
         selection.format.setToolTip(problem.message);
         selections.append(selection);
     }

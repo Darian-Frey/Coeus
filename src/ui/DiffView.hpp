@@ -34,7 +34,9 @@ private:
     QString m_notePath;
     QString m_oldLabel;
     QString m_newLabel;
+    void paintChanges(); // added and removed lines, in the theme's colours
     QList<int> m_changeStarts; // block numbers where a run of changes begins
+    QList<DiffLine::Kind> m_kinds; // per block
     int m_added = 0;
     int m_removed = 0;
     QLabel* m_header = nullptr;

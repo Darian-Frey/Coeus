@@ -9,7 +9,13 @@ Severity vocabulary: low | medium | high.
 
 ## Open
 
-_None._
+### BUG-010: A status message is drawn over the note's path
+**Status:** open
+**Severity:** low
+**Found:** 2026-10-15 (screenshots of F-027's themes on the demo vault, in every theme)
+**Location:** `src/ui/MainWindow.cpp` (`createStatusBar`, `m_noteLabel`)
+**Description.** With a note open in a vault that has a missing linked root, the bottom-left of the status bar shows the "Linked root … is missing" message and the note's path (`projects/coeus/DECISIONS.md`) on top of each other, both unreadable. `m_noteLabel` is a normal (not permanent) status-bar widget, which `QStatusBar` hides while a message shows, so something shows it again or sets its text in a way that keeps it visible; not yet investigated. Seen in System, Dark and Cassette alike, so it predates F-027.
+**Fix.** Not yet fixed.
 
 ## Fixed
 

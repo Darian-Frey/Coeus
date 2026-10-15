@@ -1,5 +1,7 @@
 #include "ui/NoteView.hpp"
 
+#include "ui/Theme.hpp"
+
 #include "parser/HtmlRenderer.hpp"
 #include "ui/Editor.hpp"
 #include "ui/PropertiesPanel.hpp"
@@ -74,6 +76,11 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     m_reader->setOpenExternalLinks(false);
     m_reader->setFrameShape(QFrame::NoFrame);
     m_reader->document()->setDefaultStyleSheet(styleSheet());
+    connect(&Theme::instance(), &Theme::changed, this, [this] {
+        m_reader->document()->setDefaultStyleSheet(styleSheet());
+        if (mode() == Mode::Reading)
+            render();
+    });
     m_reader->document()->setDocumentMargin(16);
     connect(m_reader, &QTextBrowser::anchorClicked, this, &NoteView::linkActivated);
 
@@ -182,11 +189,10 @@ QString NoteView::resolveImage(const QString& target, bool wiki) const
 
 QString NoteView::styleSheet() const
 {
-    const QPalette palette = QGuiApplication::palette();
-    const bool dark = palette.color(QPalette::Base).lightness() < 128;
-    const QString accent = dark ? QStringLiteral("#5fc4b8") : QStringLiteral("#1f7a70");
-    const QString dim = palette.color(QPalette::PlaceholderText).name();
-    const QString tint = dark ? QStringLiteral("#2a2f33") : QStringLiteral("#f1f3f4");
+    const Theme& theme = Theme::instance();
+    const QString accent = theme.colour(Theme::Colour::Accent).name();
+    const QString dim = QGuiApplication::palette().color(QPalette::PlaceholderText).name();
+    const QString tint = theme.colour(Theme::Colour::Tint).name();
     return QStringLiteral(
                "a { color: %1; text-decoration: none; }"
                "a.tag { color: %1; }"
@@ -199,8 +205,8 @@ QString NoteView::styleSheet() const
                "td.key { color: %2; padding-right: 16px; }"
                "table.grid th { border-bottom: 1px solid %2; }"
                "table.callout { background-color: %3; margin: 6px 0; }"
-               "p.problem { color: #c0392b; }")
-        .arg(accent, dim, tint, dark ? QStringLiteral("#7a6a1c") : QStringLiteral("#ffec8a"));
+               "p.problem { color: %5; }")
+        .arg(accent, dim, tint, theme.colour(Theme::Colour::Highlight).name(), theme.colour(Theme::Colour::Error).name());
 }
 
 } // namespace coeus

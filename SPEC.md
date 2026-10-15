@@ -611,6 +611,16 @@ base: <hex ContentHash of the base, empty for a note that did not exist>
 
 A save, Load Disk Version or Discard removes the note's entry. On opening a vault, entries whose text equals the note on disk are deleted; every other entry is offered for recovery: Recover opens each as an unsaved buffer on top of its recorded base (so a note changed since conflicts on save rather than being overwritten), Discard deletes them, Later keeps them. Entries older than their note, or for notes deleted since, are offered too, flagged, because they may hold the only copy of unsaved work (AV-002); SPEC previously offered only entries newer than the note.
 
+## Themes and shortcuts
+
+Both are per-user preferences, kept in Coeus's settings file (`~/.config/coeus/coeus.ini`), never in a vault (F-027).
+
+**Themes.** View › Theme offers **System** (the default: the desktop's own style and palette), **Light**, **Dark** and **Cassette**, which use Qt's Fusion style with Coeus's palettes so they look the same on any desktop (`ui/Theme`, `appearance/theme`). **Cassette** is cassette futurism as an amber CRT terminal: warm near-black panels, amber phosphor text, burnt-orange accents and rules, square corners, and the fixed-pitch font throughout, set by a style sheet of its own that comes before the user's snippets, so they can override it. Leaving it gives every widget back its inherited font, except those always fixed-pitch (the editor, version and diff views, the commit message). A change applies at once, without a restart. Views do not hold colours of their own: the editor's highlighting, the reading view's style sheet, diff lines, lint underlines, the project board's stale reviews and error messages all take them from the theme's semantic colours (accent, error, warning, info, added, removed, highlight, tint), chosen for the theme (Cassette has its own) or for whether the palette in use is dark, and are redrawn when it changes; lists that colour their rows when filled (Problems, Registers, Related, History, Tags) are filled again.
+
+**Style snippets.** Every `*.qss` file in `~/.config/coeus/snippets/` (`$XDG_CONFIG_HOME/coeus/snippets/`) is applied, in name order, as the application's Qt style sheet, Coeus's counterpart of Obsidian's CSS snippets. They are read when Coeus starts and by View › Theme › Reload Style Snippets, which names the files applied; Open Snippets Folder makes and opens the folder. A file that cannot be read is named and left out.
+
+**Keyboard shortcuts.** Every command registered with the command palette can be given a shortcut, or none, in View › Keyboard Shortcuts… (`ui/ShortcutsDialog`): a filterable list of commands with their shortcut and default; choose one and press keys. A shortcut another command has is refused with that command's name, so no two commands share one; Clear removes one, Reset restores the default, Reset All every default. A choice applies at once and is saved under `[shortcuts]`, keyed by the command's name (`New Note`, `Toggle Blame`); one equal to the default is not saved, so changing a default later reaches everyone who kept it.
+
 ## Constants
 
 | Name | Default | Where |

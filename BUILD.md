@@ -103,7 +103,7 @@ Without it everything else works, and `test_embedder` skips.
 ./build/coeus --verbose ~/notes
 ```
 
-`Ctrl+P` opens the command palette. Window geometry and dock layout are saved to `~/.config/coeus/coeus.ini` on exit; delete that file to reset the layout.
+`Ctrl+P` opens the command palette. Window geometry and dock layout are saved to `~/.config/coeus/coeus.ini` on exit, with the theme and any shortcuts you change (View › Theme, View › Keyboard Shortcuts…); delete that file to reset them all. Qt style snippets go in `~/.config/coeus/snippets/*.qss`.
 
 ## MCP server
 

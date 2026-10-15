@@ -27,6 +27,9 @@
 #include "ui/ProjectBoard.hpp"
 #include "ui/NewNoteDialog.hpp"
 #include "ui/PromoteDialog.hpp"
+#include "ui/Theme.hpp"
+#include "ui/ShortcutsDialog.hpp"
+#include "ui/Shortcuts.hpp"
 #include "ui/RegisterPanel.hpp"
 #include "ui/RelatedPanel.hpp"
 #include "ui/WikilinkCompletion.hpp"
@@ -59,6 +62,7 @@
 #include <QLineEdit>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QActionGroup>
 #include <QPushButton>
 #include <QSettings>
 #include <QStatusBar>
@@ -93,6 +97,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_tabs(new QTabWidget(this))
     , m_palette(new CommandPalette(this))
 {
+    Theme::instance().initialise(); // the saved theme and snippets, before any widget is styled (F-027)
     setWindowTitle(QStringLiteral("Coeus"));
     setDockOptions(AnimatedDocks | AllowNestedDocks | AllowTabbedDocks);
 
@@ -168,6 +173,15 @@ MainWindow::MainWindow(QWidget* parent)
     createActions();
     createStatusBar();
     restoreLayout();
+
+    // Lists that colour their rows when filled are filled again in the new theme (F-027).
+    connect(&Theme::instance(), &Theme::changed, this, [this] {
+        m_problems->refresh();
+        m_registers->refresh();
+        m_related->refresh();
+        m_history->refresh();
+        m_tags->reload();
+    });
 }
 
 void MainWindow::createDocks()
@@ -426,6 +440,40 @@ void MainWindow::createActions()
     viewMenu->addAction(toggleExplorer);
     viewMenu->addAction(toggleSidebar);
 
+    // Appearance and keys (F-027).
+    QMenu* themeMenu = viewMenu->addMenu(tr("T&heme"));
+    auto* themes = new QActionGroup(this);
+    for (const auto& [mode, label] : {std::pair{Theme::Mode::System, tr("System")}, std::pair{Theme::Mode::Light, tr("Light")},
+                                      std::pair{Theme::Mode::Dark, tr("Dark")}, std::pair{Theme::Mode::Cassette, tr("Cassette")}}) {
+        auto* action = new QAction(tr("Theme: %1").arg(label), themes);
+        action->setCheckable(true);
+        action->setChecked(Theme::instance().mode() == mode);
+        connect(action, &QAction::triggered, this, [mode] { Theme::instance().setMode(mode); });
+        themeMenu->addAction(action);
+        m_themeActions.append(action);
+    }
+    themeMenu->addSeparator();
+    auto* reloadSnippets = new QAction(tr("Reload Style Snippets"), this);
+    connect(reloadSnippets, &QAction::triggered, this, [this] {
+        statusBar()->showMessage(Theme::instance().reloadSnippets().join(QStringLiteral("; ")), kStatusTimeoutMs * 2);
+    });
+    auto* openSnippets = new QAction(tr("Open Snippets Folder"), this);
+    connect(openSnippets, &QAction::triggered, this, [] {
+        QDir().mkpath(Theme::snippetsFolder());
+        QDesktopServices::openUrl(QUrl::fromLocalFile(Theme::snippetsFolder()));
+    });
+    themeMenu->addAction(reloadSnippets);
+    themeMenu->addAction(openSnippets);
+    auto* shortcuts = new QAction(tr("&Keyboard Shortcuts…"), this);
+    connect(shortcuts, &QAction::triggered, this, &MainWindow::editShortcuts);
+    viewMenu->addAction(shortcuts);
+    for (QAction* action : std::as_const(m_themeActions))
+        registerAction(action);
+    for (QAction* action : {reloadSnippets, openSnippets, shortcuts}) {
+        addAction(action);
+        registerAction(action);
+    }
+
     // Git (F-021): the current note against HEAD, and the blame gutter.
     auto* diffHead = new QAction(tr("&Diff with HEAD"), this);
     diffHead->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_D));
@@ -557,10 +605,20 @@ void MainWindow::updateProblemsButton()
     m_problemsButton->show();
 }
 
+void MainWindow::editShortcuts()
+{
+    auto* dialog = new ShortcutsDialog(m_actions, this);
+    dialog->setObjectName(QStringLiteral("shortcutsDialog"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dialog, &QDialog::finished, this, [this] { m_palette->setActions(m_actions); }); // shows the new keys
+    dialog->open();
+}
+
 void MainWindow::registerAction(QAction* action)
 {
     if (!action || m_actions.contains(action))
         return;
+    Shortcuts::adopt(action); // the author's choice of shortcut, if any (F-027)
     m_actions.append(action);
     m_palette->setActions(m_actions);
 }

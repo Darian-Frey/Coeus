@@ -1,5 +1,7 @@
 #include "ui/CommitDialog.hpp"
 
+#include "ui/Theme.hpp"
+
 #include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFileInfo>
@@ -51,7 +53,7 @@ CommitDialog::CommitDialog(QWidget* parent)
     m_unsaved->setForegroundRole(QPalette::PlaceholderText);
     connect(m_saveAll, &QPushButton::clicked, this, [this] { emit saveAllRequested(m_workdir); });
 
-    m_message->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    Theme::setMonospace(m_message);
     m_message->setPlaceholderText(tr("Summary in one line\n\nThen why, in as many paragraphs as it takes."));
     m_message->setTabChangesFocus(true);
     connect(m_message, &QPlainTextEdit::textChanged, this, &CommitDialog::updateCommitButton);
@@ -61,7 +63,7 @@ CommitDialog::CommitDialog(QWidget* parent)
 
     m_error->setWordWrap(true);
     m_error->setTextFormat(Qt::PlainText);
-    m_error->setStyleSheet(QStringLiteral("color: #d32f2f;"));
+    m_error->setStyleSheet(Theme::instance().errorStyle());
     m_error->hide();
 
     m_commit->setDefault(true);

@@ -124,6 +124,9 @@ add_library(coeus_core STATIC
     src/ui/ProblemsPanel.cpp
     src/ui/PromoteDialog.cpp
     src/ui/NewNoteDialog.cpp
+    src/ui/Shortcuts.cpp
+    src/ui/ShortcutsDialog.cpp
+    src/ui/Theme.cpp
     src/ui/ProjectBoard.cpp
     src/ui/RegisterPanel.cpp
     src/ui/RelatedPanel.cpp

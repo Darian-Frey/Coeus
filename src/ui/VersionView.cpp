@@ -1,5 +1,7 @@
 #include "ui/VersionView.hpp"
 
+#include "ui/Theme.hpp"
+
 #include "ui/MarkdownHighlighter.hpp"
 
 #include <QFileInfo>
@@ -27,7 +29,7 @@ VersionView::VersionView(const QString& notePath, const GitCommit& commit, const
     m_header->setToolTip(commit.message);
 
     m_text->setReadOnly(true);
-    m_text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+    Theme::setMonospace(m_text);
     m_text->setPlainText(text);
     new MarkdownHighlighter(m_text->document());
 
