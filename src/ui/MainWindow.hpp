@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/NoteView.hpp"
+#include "ui/Workspace.hpp"
 #include "vault/Bookmarks.hpp"
 #include "vault/RecentNotes.hpp"
 #include "vault/Vault.hpp"
@@ -181,7 +182,7 @@ public:
 
     const std::optional<Vault>& vault() const { return m_vault; }
     ExplorerPanel* explorer() const { return m_explorer; }
-    QTabWidget* tabs() const { return m_tabs; }
+    Workspace* tabs() const { return m_tabs; }
     CommandPalette* commandPalette() const { return m_palette; }
     NoteCatalogue* catalogue() const { return m_catalogue; }
 
@@ -285,7 +286,7 @@ private:
     std::vector<LinkedRoot> m_linkedRoots; // present linked roots from config.toml (F-034)
     QList<QAction*> m_actions;
 
-    QTabWidget* m_tabs = nullptr;
+    Workspace* m_tabs = nullptr; // every pane's tabs, one index across them (F-012)
     QDockWidget* m_explorerDock = nullptr;
     QDockWidget* m_sidebarDock = nullptr;
     ExplorerPanel* m_explorer = nullptr;

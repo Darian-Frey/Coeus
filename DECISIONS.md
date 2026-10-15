@@ -515,3 +515,28 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - Live preview reuses the same rendered images.
 
 **Reversal conditions.** Revisit for Option A if live preview needs layout that `QTextBrowser` cannot do, or if renders through external tools prove too slow or fragile in daily use; for MicroTeX if it is maintained again and maths without TeX matters.
+
+### D-023 Panes and windows restructure the shell
+**Decided:** 2026-10-15
+**Recorded:** 2026-10-15
+**Status:** Accepted
+**Authors:** Shane Hartley (decision), Claude (options, 2026-10-15)
+**Related:** F-012, D-002, D-012, SPEC.md §Panes
+
+**Context.** F-012 asks for horizontal and vertical splits, and for a note to be torn off into a window of its own with its own docks, two windows on two monitors keeping independent layouts. The window had one `QTabWidget` as its central widget, used in 56 places and 31 test checks, and owned the vault's whole session: the index service, the embedding worker, the MCP link, the catalogue and the render service. CLAUDE.md said later features are panels, docks or commands, never a restructured shell; F-012 cannot be any of those.
+
+**Options.**
+- **A. A workspace of panes, then a shared session.** Chosen. Step 1: a `Workspace` of tab areas in splitters replaces the single tab widget, answering the calls the window made of it with one index across every pane, so the rest of the window and its tests are unchanged. Step 2: the vault's session moves out of the window into an object several windows share, each window with its own panes, docks and saved layout.
+- **B. Splits only.** Step 1 alone; no tear-off. Cheaper, but F-012's multi-window half is dropped.
+- **C. Notes as dock widgets.** Qt's docks already tab, split and float. But floating docks belong to one window's layout, are not windows with docks of their own, and every panel would share them; the acceptance test cannot be met.
+- **D. A process per window.** Two processes would index and embed the same vault into the same database at once, and only one may serve MCP; rejected.
+
+**Decision.** Option A, in two steps, committed separately. A note is open in one place at a time: opening a note already open in another pane (or, later, window) shows it there, so no two editors ever hold separate buffers of one note. Split Right and Split Down move the current tab into the new pane when its pane keeps another tab; otherwise the new pane starts empty and takes the next note opened.
+
+**Consequences.**
+- CLAUDE.md's rule against restructuring the shell is amended: panes and windows are the shell's own business, decided here; panels, docks and commands remain how features join it.
+- The window's code keeps calling `m_tabs` as before; only splitting, moving and focusing panes are new.
+- The open panes are not restored on restart, as tabs are not.
+- Step 2 moves the index service, embedding worker, MCP link, catalogue and render service out of `MainWindow`.
+
+**Reversal conditions.** Revisit if the author wants the same note side by side in two panes, which needs editors sharing one buffer and live preview's folding made per view; or if step 2's session split proves too disruptive, in which case Option B stands and the tear-off is withdrawn from F-012.

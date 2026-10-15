@@ -592,6 +592,15 @@ Each tab has a Source | Live | Reading switch (§Live preview); `Ctrl+E` toggles
 
 Links carry their kind in the URL scheme. Clicking `coeus-wiki:` opens the note the index resolved the wikilink to (SPEC §Wikilink resolution, read through `IndexQueries`), and reports ambiguous, unresolved or not-yet-indexed links in the status bar rather than guessing. `coeus-file:` opens the Markdown link's path relative to the note. `coeus-tag:` is reserved for the tag pane. Any other scheme opens in the desktop's handler.
 
+## Panes
+
+The window's central area is a workspace of panes (F-012, D-023; `ui/Workspace`): tab areas side by side or one above another, in splitters that may nest. One pane is current: the one last focused or whose tab bar was clicked; new tabs open in it, and the sidebar, outline, history and status bar follow its current tab. A note is open in one place at a time: opening one already open shows it in its pane and makes that pane current.
+
+- **Split Right** (`Ctrl+\`) and **Split Down** (`Ctrl+Shift+\`) add a pane beside or below the current one, sharing its space, and make it current; the current tab moves into it if its pane keeps another tab, otherwise the new pane starts empty.
+- **Move Tab to Next Pane** (`Ctrl+Alt+M`) moves the current tab to the next pane in order (left to right, top to bottom, as split) and **Focus Next Pane** (`Ctrl+Alt+O`) moves the focus there.
+- A pane emptied by closing or moving its last tab goes, unless it is the only one; a splitter left with one pane gives way to it.
+- Panes are not restored on restart, as tabs are not.
+
 ## Live preview
 
 Live (F-003) edits the same buffer as Source, in the same `Editor`, with the same undo, saving, journal, completion, lint underlines and blame gutter, but reads as rendered: the line with the cursor, or every line of the selection, shows its Markdown; every other line shows what it says (`ui/LivePreview`, the highlighter's live mode). Nothing is written: hiding is the highlighter's formatting, folding the layout's, and a note toggled between modes is never marked changed.

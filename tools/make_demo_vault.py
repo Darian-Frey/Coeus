@@ -222,6 +222,13 @@ def build_vault(vault: Path, linked: Path) -> None:
         - **View › Default Mode** chooses Source, Live or Reading for opening
           notes; `Ctrl+E` goes to reading mode and back to the mode you were in.
 
+        ## Panes
+        - Open two notes, then **View › Split Right** (`Ctrl+\\`): the current
+          one moves to a new pane beside the first. **Split Down**
+          (`Ctrl+Shift+\\`) stacks another. Click into a pane and the sidebar
+          follows it; `Ctrl+Alt+O` hops between panes and `Ctrl+Alt+M` carries a
+          tab across. Opening a note that is already open goes to its pane.
+
         ## Reading mode
         - `Ctrl+E` here, then open [[Markdown showcase]] and toggle it: callouts,
           tables, tasks, highlights, images, code that never turns into links.

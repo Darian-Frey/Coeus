@@ -36,6 +36,7 @@
 #include "ui/RelatedPanel.hpp"
 #include "ui/RenderService.hpp"
 #include "ui/WikilinkCompletion.hpp"
+#include "ui/Workspace.hpp"
 #include "ui/SearchPanel.hpp"
 #include "ui/SidebarPanel.hpp"
 #include "ui/TagPanel.hpp"
@@ -100,19 +101,16 @@ const char* const kVersionProperty = "coeusVersion"; // "<absolute path>@<commit
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent)
-    , m_tabs(new QTabWidget(this))
+    , m_tabs(new Workspace(this))
     , m_palette(new CommandPalette(this))
 {
     Theme::instance().initialise(); // the saved theme and snippets, before any widget is styled (F-027)
     setWindowTitle(QStringLiteral("Coeus"));
     setDockOptions(AnimatedDocks | AllowNestedDocks | AllowTabbedDocks);
 
-    m_tabs->setDocumentMode(true);
-    m_tabs->setTabsClosable(true);
-    m_tabs->setMovable(true);
-    setCentralWidget(m_tabs);
+    setCentralWidget(m_tabs); // panes of tabs in splitters (F-012)
 
-    connect(m_tabs, &QTabWidget::tabCloseRequested, this, [this](int index) { closeTab(index); });
+    connect(m_tabs, &Workspace::tabCloseRequested, this, [this](int index) { closeTab(index); });
 
     m_catalogue = new NoteCatalogue(this);
 
@@ -167,8 +165,8 @@ MainWindow::MainWindow(QWidget* parent)
     m_recentTimer->setSingleShot(true);
     m_recentTimer->setInterval(kRecentSaveDelayMs);
     connect(m_recentTimer, &QTimer::timeout, this, &MainWindow::saveRecent);
-    connect(m_tabs, &QTabWidget::currentChanged, this, &MainWindow::updateStatus);
-    connect(m_tabs, &QTabWidget::currentChanged, this, [this] {
+    connect(m_tabs, &Workspace::currentChanged, this, &MainWindow::updateStatus);
+    connect(m_tabs, &Workspace::currentChanged, this, [this] {
         Editor* editor = currentEditor();
         if (editor)
             noteRecent(editor->path());
@@ -520,6 +518,30 @@ void MainWindow::createActions()
     viewMenu->addSeparator();
     viewMenu->addAction(toggleExplorer);
     viewMenu->addAction(toggleSidebar);
+
+    // Panes (F-012): tabs side by side or one above another.
+    auto* splitRight = new QAction(tr("Split &Right"), this);
+    splitRight->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Backslash));
+    connect(splitRight, &QAction::triggered, this, [this] { m_tabs->split(Qt::Horizontal); });
+    auto* splitDown = new QAction(tr("Split &Down"), this);
+    splitDown->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Backslash));
+    connect(splitDown, &QAction::triggered, this, [this] { m_tabs->split(Qt::Vertical); });
+    auto* moveTab = new QAction(tr("&Move Tab to Next Pane"), this);
+    moveTab->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_M));
+    connect(moveTab, &QAction::triggered, this, [this] {
+        if (!m_tabs->moveToNextPane())
+            statusBar()->showMessage(tr("Split the window first (Ctrl+\\)"), kStatusTimeoutMs);
+    });
+    auto* nextPane = new QAction(tr("Focus &Next Pane"), this);
+    nextPane->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O));
+    connect(nextPane, &QAction::triggered, this, [this] { m_tabs->focusNextPane(); });
+    viewMenu->addSeparator();
+    for (QAction* action : {splitRight, splitDown, moveTab, nextPane}) {
+        viewMenu->addAction(action);
+        addAction(action);
+        registerAction(action);
+    }
+    viewMenu->addSeparator();
 
     // Appearance and keys (F-027).
     QMenu* themeMenu = viewMenu->addMenu(tr("T&heme"));
