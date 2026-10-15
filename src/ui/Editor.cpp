@@ -1,19 +1,23 @@
 #include "ui/Editor.hpp"
 
-#include "ui/Theme.hpp"
-
 #include "index/ContentHash.hpp"
+#include "parser/Transclusion.hpp"
 #include "ui/MarkdownHighlighter.hpp"
 #include "ui/NoteCatalogue.hpp"
+#include "ui/Theme.hpp"
 #include "ui/WikilinkCompleter.hpp"
 
+#include <QContextMenuEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QHelpEvent>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QPainter>
+#include <QRandomGenerator>
 #include <QScrollBar>
+#include <QSet>
 #include <QTextBlock>
 #include <QTimer>
 #include <QToolTip>
@@ -204,6 +208,54 @@ void Editor::setProblems(const QList<ProblemRef>& problems)
 {
     m_problems = problems;
     applyProblems();
+}
+
+QString Editor::ensureBlockId(bool* added)
+{
+    if (added)
+        *added = false;
+    const QByteArray text = toPlainText().toUtf8();
+    const auto block = Transclusion::blockAt(text, textCursor().blockNumber() + 1);
+    if (!block)
+        return {};
+    if (!block->id.isEmpty())
+        return block->id;
+    // Six letters and digits, not already an ID in this note.
+    QSet<QString> taken;
+    for (const Transclusion::Block& named : Transclusion::blocks(text))
+        taken.insert(named.id);
+    static const QString kAlphabet = QStringLiteral("abcdefghijklmnopqrstuvwxyz0123456789");
+    QString id;
+    do {
+        id.clear();
+        for (int i = 0; i < 6; ++i)
+            id += kAlphabet.at(QRandomGenerator::global()->bounded(int(kAlphabet.size())));
+    } while (taken.contains(id));
+    const QTextBlock last = document()->findBlockByNumber(block->lastLine - 1);
+    QString line = last.text();
+    qsizetype keep = line.size();
+    while (keep > 0 && line.at(keep - 1).isSpace())
+        --keep;
+    QTextCursor cursor(last);
+    cursor.beginEditBlock();
+    cursor.setPosition(last.position() + int(keep));
+    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    cursor.insertText(QStringLiteral(" ^") + id);
+    cursor.endEditBlock();
+    if (added)
+        *added = true;
+    return id;
+}
+
+void Editor::contextMenuEvent(QContextMenuEvent* event)
+{
+    QMenu* menu = createStandardContextMenu(event->pos());
+    if (!m_contextActions.isEmpty()) {
+        menu->addSeparator();
+        menu->addActions(m_contextActions);
+    }
+    menu->exec(event->globalPos());
+    delete menu;
 }
 
 void Editor::applyProblems()

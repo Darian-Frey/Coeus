@@ -1,10 +1,12 @@
 #include "ui/WikilinkCompleter.hpp"
 
+#include "parser/Transclusion.hpp"
 #include "ui/NoteCatalogue.hpp"
 #include "ui/WikilinkCompletion.hpp"
 
 #include <QAbstractItemView>
 #include <QCompleter>
+#include <QFile>
 #include <QKeyEvent>
 #include <QPlainTextEdit>
 #include <QRegularExpression>
@@ -126,7 +128,25 @@ void WikilinkCompleter::refresh()
             }
             headingsOf = note->rootPath + QLatin1Char('/') + note->path;
         }
-        completions = WikilinkCompletion::headings(typed.mid(hash + 1), m_catalogue->headings(headingsOf));
+        const QString anchor = typed.mid(hash + 1);
+        if (anchor.startsWith(QLatin1Char('^'))) {
+            // Block IDs (F-024), read from the text: this note's buffer, unsaved
+            // ones included, or the other note's file.
+            QByteArray text;
+            if (headingsOf == m_notePath) {
+                text = m_editor->toPlainText().toUtf8();
+            } else {
+                QFile file(headingsOf);
+                if (file.open(QIODevice::ReadOnly))
+                    text = file.readAll();
+            }
+            QList<QPair<QString, QString>> blocks;
+            for (const Transclusion::Block& block : Transclusion::blocks(text))
+                blocks.append({block.id, QString::fromUtf8(block.text)});
+            completions = WikilinkCompletion::blocks(anchor.mid(1), blocks);
+        } else {
+            completions = WikilinkCompletion::headings(anchor, m_catalogue->headings(headingsOf));
+        }
         m_replaceFrom = cursor.position() - int(typed.size() - hash - 1);
     } else {
         completions = WikilinkCompletion::rank(typed, m_catalogue->notes(), here.rootName, here.folder);

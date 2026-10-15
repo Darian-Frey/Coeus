@@ -184,6 +184,27 @@ private slots:
         QVERIFY(html("![[Guide#^block]]\n").contains(QStringLiteral("<a class=\"embed\" href=\"coeus-wiki:Guide#%5Eblock\">")));
     }
 
+    void blocksAreEmbeddedInline()
+    {
+        HtmlRenderer::Options options;
+        options.notePath = QStringLiteral("/v/host.md");
+        options.resolveNote = [](const QString& target, const QString&) {
+            if (target == QLatin1String("Plan"))
+                return HtmlRenderer::Embedded{QStringLiteral("/v/plan.md"), QStringLiteral("Plan"),
+                                              "# Plan\n\nIntro.\n\nShip it **soon**. ^ship\n\n- a task ^task\n", {}};
+            return HtmlRenderer::Embedded{{}, {}, {}, QStringLiteral("no such note")};
+        };
+        const auto html = [&](const char* markdown) { return HtmlRenderer::render(QByteArrayView(markdown), options); };
+        QString out = html("![[Plan#^ship]]\n");
+        QVERIFY(out.contains(QStringLiteral("↪ Plan › ^ship")));
+        QVERIFY(out.contains(QStringLiteral("Ship it <b>soon</b>.")));
+        QVERIFY(!out.contains(QStringLiteral("Intro")));
+        QVERIFY(!out.contains(QStringLiteral("^ship</p>")));
+        out = html("![[Plan^task]]\n"); // the form without '#'
+        QVERIFY(out.contains(QStringLiteral("a task")));
+        QVERIFY(html("![[Plan#^gone]]\n").contains(QStringLiteral("(no block ^gone)")));
+    }
+
     void attachmentsOtherThanPicturesAreCards()
     {
         const QString html = render("![[spec.pdf]] ![[talk.mp3]] ![[clip.mp4]] ![[board.canvas]] ![doc](paper.pdf)\n");

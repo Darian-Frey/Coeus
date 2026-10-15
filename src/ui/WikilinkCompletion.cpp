@@ -130,4 +130,20 @@ QList<Completion> WikilinkCompletion::headings(const QString& query, const QStri
     return result;
 }
 
+QList<Completion> WikilinkCompletion::blocks(const QString& query, const QList<QPair<QString, QString>>& blocks)
+{
+    constexpr int kPreview = 60;
+    QList<Completion> result;
+    for (const auto& [id, text] : blocks) {
+        const QString flat = text.simplified();
+        if (!query.isEmpty() && !fuzzyScore(query, id) && !flat.contains(query, Qt::CaseInsensitive))
+            continue;
+        result.append({QLatin1Char('^') + id, flat.size() > kPreview ? flat.left(kPreview - 1) + QStringLiteral("…") : flat,
+                       QLatin1Char('^') + id});
+        if (result.size() == kMaxResults)
+            break;
+    }
+    return result;
+}
+
 } // namespace coeus

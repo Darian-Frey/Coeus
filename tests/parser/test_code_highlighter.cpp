@@ -89,6 +89,49 @@ private slots:
         QVERIFY(Transclusion::section(note, QStringLiteral("Top"))->contains("not kept")); // level 1 runs to the end
         QVERIFY(!Transclusion::section(note, QStringLiteral("Missing")));
     }
+
+    void blocksAndAnchors()
+    {
+        const QByteArray note = "---\ntags: [x]\n---\n"          // 1-3
+                                "# Title\n"                      // 4
+                                "\n"                             // 5
+                                "First paragraph\n"              // 6
+                                "runs on. ^para-1\n"             // 7
+                                "\n"                             // 8
+                                "- one item ^item\n"             // 9
+                                "- two item\n"                   // 10
+                                "  continued\n"                  // 11
+                                "\n"                             // 12
+                                "```\n"                          // 13
+                                "code ^not-a-block\n"            // 14
+                                "```\n"                          // 15
+                                "## Later\n"                     // 16
+                                "Last ^end\n";                   // 17
+        const QList<Transclusion::Block> named = Transclusion::blocks(note);
+        QCOMPARE(named.size(), 3);
+        QCOMPARE(named[0].id, QStringLiteral("para-1"));
+        QCOMPARE(named[0].firstLine, 6);
+        QCOMPARE(named[0].lastLine, 7);
+        QCOMPARE(named[0].text, QByteArray("First paragraph\nruns on."));
+        QCOMPARE(named[1].text, QByteArray("- one item"));
+        QCOMPARE(named[2].id, QStringLiteral("end"));
+        QVERIFY(!Transclusion::block(note, QStringLiteral("not-a-block"))); // in code
+        QCOMPARE(Transclusion::block(note, QStringLiteral("item"))->firstLine, 9);
+
+        // The block under a line, ID or not: what Copy Block Link names.
+        const auto two = Transclusion::blockAt(note, 11);
+        QVERIFY(two);
+        QCOMPARE(two->firstLine, 10);
+        QCOMPARE(two->lastLine, 11);
+        QVERIFY(two->id.isEmpty());
+        QVERIFY(!Transclusion::blockAt(note, 5));  // blank
+        QVERIFY(!Transclusion::blockAt(note, 4));  // a heading
+        QVERIFY(!Transclusion::blockAt(note, 14)); // code
+        QVERIFY(!Transclusion::blockAt(note, 2));  // frontmatter
+
+        QCOMPARE(Transclusion::headingLine(note, QStringLiteral(" later ")), 16);
+        QVERIFY(!Transclusion::headingLine(note, QStringLiteral("Missing")));
+    }
 };
 
 QTEST_GUILESS_MAIN(TestCodeHighlighter)

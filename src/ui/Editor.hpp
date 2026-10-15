@@ -26,6 +26,13 @@ class Editor : public QPlainTextEdit {
     Q_OBJECT
 
 public:
+    // The ID of the paragraph or list item at the cursor (F-024), giving it
+    // a new one at the end of its last line, as one undo step, if it has none;
+    // empty if the cursor is not in such a block. `added` says which.
+    QString ensureBlockId(bool* added = nullptr);
+    // Commands added to the editor's context menu, after its own.
+    void setContextActions(const QList<QAction*>& actions) { m_contextActions = actions; }
+
     enum class SaveResult { Saved, Conflict, Failed };
     enum class DiskState { Unchanged, Reloaded, Conflict, Deleted };
 
@@ -84,6 +91,7 @@ public:
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
+    void contextMenuEvent(QContextMenuEvent* event) override;
     bool viewportEvent(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
@@ -107,6 +115,7 @@ private:
     MarkdownHighlighter* m_highlighter = nullptr;
     WikilinkCompleter* m_completer = nullptr;
     QList<ProblemRef> m_problems;
+    QList<QAction*> m_contextActions;
     bool m_blameOn = false;
     QList<BlameLine> m_blame;
     BlameGutter* m_blameGutter = nullptr;

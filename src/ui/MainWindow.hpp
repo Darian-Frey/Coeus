@@ -138,6 +138,12 @@ public:
     CommandPalette* templatePicker() const { return m_templatePicker; }
     // Opens a note with the cursor on `line` (1-based), e.g. from a backlink.
     void openNoteAt(const QString& absolutePath, int line);
+    // Opens the note at `anchor`: a heading's text, or ^block (F-024); at the
+    // top, saying so, if the note has no such anchor.
+    void openAnchor(const QString& absolutePath, const QString& anchor);
+    // Copy Block Link (F-024): [[Note#^id]] for the paragraph or list item at
+    // the cursor, which gets an ID first if it has none.
+    void copyBlockLink();
     BacklinksPanel* backlinks() const { return m_backlinks; }
     OutlinePanel* outline() const { return m_outline; }
     TagPanel* tags() const { return m_tags; }
@@ -301,6 +307,7 @@ private:
     QAction* m_rebuildIndex = nullptr;
     QAction* m_compactSidecar = nullptr; // F-035
     QList<QAction*> m_themeActions;      // System, Light, Dark, Cassette (F-027)
+    QAction* m_copyBlockLink = nullptr; // F-024; also in each editor's context menu
     // F-014.
     BookmarksPanel* m_bookmarks = nullptr;
     QDockWidget* m_bookmarksDock = nullptr;

@@ -225,6 +225,9 @@ def build_vault(vault: Path, linked: Path) -> None:
         - Open [[Markdown showcase]] and press `Ctrl+E`: code blocks are
           coloured by language, and `![[Long note#Section 2]]` shows that
           section in place, with a link to the note it came from.
+        - Put the cursor in any paragraph and press `Ctrl+Alt+L` (Copy Block
+          Link): it gains a `^id` and `[[Note#^id]]` is on the clipboard, ready
+          to paste. Type `[[Mnemosyne#^` to see its blocks offered.
 
         ## Bookmarks and recent notes
         - Click ☆ in a note's header (or `Ctrl+Alt+S`) and it joins the
@@ -439,7 +442,7 @@ def build_vault(vault: Path, linked: Path) -> None:
         `embed(texts)`, `model_name()`, `dim()`.
 
         ## Notes
-        Chunks are hashed; unchanged chunks are not re-embedded.
+        Chunks are hashed; unchanged chunks are not re-embedded. ^cache
         """)
     write(vault / "reference/Markdown showcase.md", """
         ---
@@ -488,6 +491,8 @@ def build_vault(vault: Path, linked: Path) -> None:
         An embedded section, shown in place:
 
         ![[Long note#Section 2]]
+
+        An embedded block, from the Mnemosyne note: ![[Mnemosyne#^cache]]
 
         ![Diagram](../attachments/diagram.png) ![[attachments/logo.svg]]
 

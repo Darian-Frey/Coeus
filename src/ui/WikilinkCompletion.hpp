@@ -32,6 +32,9 @@ public:
 
     // Headings of a note matching `query`, as `#Heading` completions.
     static QList<Completion> headings(const QString& query, const QStringList& headings);
+    // [[Note#^… (F-024): the note's block IDs whose ID or text match `query`
+    // (without the '^'), each shown with the start of its text.
+    static QList<Completion> blocks(const QString& query, const QList<QPair<QString, QString>>& blocks);
 };
 
 } // namespace coeus

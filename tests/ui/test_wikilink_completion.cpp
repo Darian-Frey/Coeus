@@ -83,6 +83,20 @@ private slots:
         QCOMPARE(WikilinkCompletion::headings(QString(), headings).size(), 3);
     }
 
+    void blocksMatchIdOrText()
+    {
+        const QList<QPair<QString, QString>> blocks{{QStringLiteral("ship"), QStringLiteral("Ship it\nsoon.")},
+                                                   {QStringLiteral("abc123"), QStringLiteral("A long paragraph about the index cache that goes on and on past sixty characters")}};
+        const QList<Completion> all = WikilinkCompletion::blocks(QString(), blocks);
+        QCOMPARE(all.size(), 2);
+        QCOMPARE(all[0].label, QStringLiteral("^ship"));
+        QCOMPARE(all[0].insert, QStringLiteral("^ship"));
+        QCOMPARE(all[0].detail, QStringLiteral("Ship it soon."));
+        QVERIFY(all[1].detail.endsWith(QStringLiteral("…")));
+        QCOMPARE(WikilinkCompletion::blocks(QStringLiteral("cache"), blocks).size(), 1); // by its text
+        QCOMPARE(WikilinkCompletion::blocks(QStringLiteral("shp"), blocks).front().label, QStringLiteral("^ship")); // by its ID, fuzzily
+    }
+
     void tenThousandNotesRankQuickly()
     {
         QList<NoteEntry> notes;

@@ -204,7 +204,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Could
 **Acceptance:**
 - `^block-id` suffixes are indexed and linkable; unnamed blocks get an ID on demand
-**Status:** Not started (Phase 4)
+**Status:** Complete (Phase 4, 2026-10-15): block and heading links open at their line; `[[Note#^` completes block IDs; block embeds render inline; Copy Block Link gives a paragraph or list item an ID on demand (SPEC.md §Block references)
 
 ### F-025 Callouts, Mermaid, LaTeX, code highlighting
 **Priority:** Should

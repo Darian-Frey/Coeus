@@ -20,6 +20,7 @@
 #include "index/IndexService.hpp"
 #include "search/EmbeddingService.hpp"
 #include "parser/RegisterParser.hpp"
+#include "parser/Transclusion.hpp"
 #include "registers/Lint.hpp"
 #include "registers/NextId.hpp"
 #include "registers/ProjectScaffold.hpp"
@@ -57,6 +58,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFutureWatcher>
@@ -390,6 +392,10 @@ void MainWindow::createActions()
     m_nextIdPicker->setPlaceholder(tr("Which register?"));
     m_nextIdPicker->setKeepsOrder(true); // the current register's kind first
 
+    m_copyBlockLink = new QAction(tr("Copy &Block Link"), this);
+    m_copyBlockLink->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
+    connect(m_copyBlockLink, &QAction::triggered, this, &MainWindow::copyBlockLink);
+
     auto* toggleBookmarkAction = new QAction(tr("Toggle &Bookmark"), this);
     toggleBookmarkAction->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_S));
     connect(toggleBookmarkAction, &QAction::triggered, this, [this] {
@@ -484,6 +490,7 @@ void MainWindow::createActions()
     fileMenu->addAction(openRecentAction);
     fileMenu->addMenu(m_recentMenu);
     fileMenu->addAction(toggleBookmarkAction);
+    fileMenu->addAction(m_copyBlockLink);
     fileMenu->addAction(insertTemplateAction);
     fileMenu->addAction(insertNextIdAction);
     fileMenu->addAction(m_save);
@@ -617,7 +624,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, newNoteAction, today, openRecentAction, toggleBookmarkAction, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
+    for (QAction* action : {openVault, newNoteAction, today, openRecentAction, toggleBookmarkAction, m_copyBlockLink, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -1554,6 +1561,7 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
     view->setIndexPath(IndexService::indexPath(m_vault->rootPath()));
     connect(view, &NoteView::starToggled, this, [this, absolutePath] { toggleBookmark(absolutePath); });
     editor->setCatalogue(m_catalogue);
+    editor->setContextActions({m_copyBlockLink});
     connect(editor, &Editor::blameRequested, this, [this, editor] { requestBlame(editor); });
     connect(editor, &Editor::blameShownChanged, this, [this, editor](bool shown) {
         if (editor == currentEditor())
@@ -1630,9 +1638,12 @@ void MainWindow::followLink(NoteView* view, const QUrl& url)
     }
     if (scheme == QLatin1String("coeus-wiki")) {
         // As the index resolved it; the index never guesses (AV-006).
-        QString target = url.path();
-        if (const qsizetype caret = target.indexOf(QLatin1Char('^')); caret >= 0)
+        QString target = url.path(QUrl::FullyDecoded);
+        QString anchor = url.fragment(QUrl::FullyDecoded); // a heading, or ^block (F-024)
+        if (const qsizetype caret = target.indexOf(QLatin1Char('^')); caret >= 0) {
+            anchor = target.mid(caret); // [[Note^block]]
             target.truncate(caret);
+        }
         const auto result = IndexQueries::wikilinkTarget(IndexService::indexPath(m_vault->rootPath()), view->path(), target);
         if (!result) {
             statusBar()->showMessage(result.error(), kStatusTimeoutMs);
@@ -1643,13 +1654,45 @@ void MainWindow::followLink(NoteView* view, const QUrl& url)
         } else if ((*result)->absolutePath.isEmpty()) {
             statusBar()->showMessage(tr("No note matches [[%1]]").arg(target), kStatusTimeoutMs);
         } else {
-            openNote((*result)->absolutePath);
+            openAnchor((*result)->absolutePath, anchor);
         }
         return;
     }
     if (url.isRelative() && url.hasFragment())
         return; // an in-page anchor
     QDesktopServices::openUrl(url); // external: the desktop decides
+}
+
+void MainWindow::openAnchor(const QString& absolutePath, const QString& anchor)
+{
+    if (anchor.trimmed().isEmpty()) {
+        openNote(absolutePath);
+        return;
+    }
+    // The note as it is now: the open buffer if it is open, else the file.
+    QByteArray text;
+    if (const Editor* open = editorFor(absolutePath)) {
+        text = open->toPlainText().toUtf8();
+    } else {
+        QFile file(absolutePath);
+        if (file.open(QIODevice::ReadOnly))
+            text = file.readAll();
+    }
+    std::optional<int> line;
+    if (anchor.startsWith(QLatin1Char('^'))) {
+        if (const auto block = Transclusion::block(text, anchor.mid(1)))
+            line = block->firstLine;
+    } else {
+        line = Transclusion::headingLine(text, anchor);
+    }
+    if (line) {
+        openNoteAt(absolutePath, *line);
+        return;
+    }
+    openNote(absolutePath);
+    statusBar()->showMessage(tr("%1 has no %2 %3").arg(displayPath(absolutePath),
+                                                        anchor.startsWith(QLatin1Char('^')) ? tr("block") : tr("heading"), anchor),
+                             kStatusTimeoutMs * 2);
 }
 
 Editor* MainWindow::editorFor(const QString& absolutePath) const
@@ -2546,6 +2589,32 @@ void MainWindow::resizeEvent(QResizeEvent* event)
 {
     QMainWindow::resizeEvent(event);
     layoutToasts();
+}
+
+void MainWindow::copyBlockLink()
+{
+    Editor* editor = currentEditor();
+    if (!editor) {
+        statusBar()->showMessage(tr("Open a note to link to one of its paragraphs"), kStatusTimeoutMs);
+        return;
+    }
+    bool added = false;
+    const QString id = editor->ensureBlockId(&added);
+    if (id.isEmpty()) {
+        statusBar()->showMessage(tr("Put the cursor in a paragraph or list item to link to it"), kStatusTimeoutMs * 2);
+        return;
+    }
+    // Written as the completer would write it from the vault, so it resolves anywhere.
+    QString name;
+    for (const NoteEntry& note : m_catalogue->notes())
+        if (note.rootPath + QLatin1Char('/') + note.path == editor->path())
+            name = WikilinkCompletion::linkText(note, m_catalogue->notes(), QStringLiteral("vault"));
+    if (name.isEmpty())
+        name = QFileInfo(editor->path()).completeBaseName(); // not indexed yet
+    const QString link = QStringLiteral("[[%1#^%2]]").arg(name, id);
+    QGuiApplication::clipboard()->setText(link);
+    statusBar()->showMessage(added ? tr("Copied %1; save the note to keep ^%2").arg(link, id) : tr("Copied %1").arg(link),
+                             kStatusTimeoutMs * 2);
 }
 
 void MainWindow::linkHere(const QString& absolutePath)

@@ -449,11 +449,16 @@ private:
                 link += QStringLiteral(" <span class=\"missing\">(%1)</span>").arg(HtmlRenderer::escape(why));
             return link;
         };
-        const qsizetype hash = target.indexOf(QLatin1Char('#'));
+        // Note#Heading, Note#^block, or Note^block.
+        qsizetype hash = target.indexOf(QLatin1Char('#'));
+        if (hash < 0)
+            hash = target.indexOf(QLatin1Char('^'));
         const QString name = hash < 0 ? target : target.left(hash).trimmed();
-        const QString heading = hash < 0 ? QString() : target.mid(hash + 1).trimmed();
-        if (!m_options.resolveNote || heading.startsWith(QLatin1Char('^')))
-            return asLink({}); // block embeds arrive with F-024
+        QString heading = hash < 0 ? QString() : target.mid(hash).trimmed();
+        if (heading.startsWith(QLatin1Char('#')))
+            heading = heading.mid(1).trimmed();
+        if (!m_options.resolveNote)
+            return asLink({});
         if (m_depth >= HtmlRenderer::kEmbedDepth)
             return asLink(QStringLiteral("embedded too deeply"));
         const HtmlRenderer::Embedded note = m_options.resolveNote(name, m_sourcePath);
@@ -464,6 +469,11 @@ private:
         QByteArray text;
         if (heading.isEmpty()) {
             text = Transclusion::body(note.text);
+        } else if (heading.startsWith(QLatin1Char('^'))) {
+            const auto block = Transclusion::block(note.text, heading.mid(1));
+            if (!block)
+                return asLink(QStringLiteral("no block %1").arg(heading));
+            text = block->text;
         } else if (const auto section = Transclusion::section(note.text, heading)) {
             text = *section;
         } else {
