@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ui/NoteView.hpp"
 #include "vault/Bookmarks.hpp"
 #include "vault/RecentNotes.hpp"
 #include "vault/Vault.hpp"
@@ -76,6 +77,9 @@ public:
     void newNote();
     // View › Keyboard Shortcuts… (F-027).
     void editShortcuts();
+    // View › Default Mode (F-003): the mode notes open in, kept per user; Live at first.
+    NoteView::Mode defaultMode() const;
+    void setDefaultMode(NoteView::Mode mode);
     // Bookmarks and recent notes (F-014).
     void toggleBookmark(const QString& absolutePath);
     bool isBookmarked(const QString& absolutePath) const;

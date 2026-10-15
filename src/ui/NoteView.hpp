@@ -27,7 +27,9 @@ class NoteView : public QWidget {
     Q_OBJECT
 
 public:
-    enum class Mode { Source, Reading };
+    // Source shows the Markdown, Live the Markdown as it reads (F-003),
+    // Reading the rendered note; Source and Live edit the same buffer.
+    enum class Mode { Source, Live, Reading };
 
     NoteView(const Vault& root, const QString& absolutePath, const QString& displayPath, QWidget* parent = nullptr);
 
@@ -47,7 +49,11 @@ public:
 
     Mode mode() const { return m_mode; }
     void setMode(Mode mode);
+    // Reading, or back to the editing mode last used.
     void toggleMode();
+    // The editor, in the editing mode last used, if reading mode is showing.
+    void showEditor();
+    QToolButton* liveButton() const { return m_liveButton; }
 
     // Renders the buffer into the reading view now.
     void render();
@@ -83,6 +89,8 @@ private:
     QStackedWidget* m_stack = nullptr;
     QToolButton* m_starButton = nullptr;
     QToolButton* m_sourceButton = nullptr;
+    QToolButton* m_liveButton = nullptr;
+    Mode m_editMode = Mode::Source; // the editing mode Ctrl+E returns to
     QToolButton* m_readingButton = nullptr;
     QTimer* m_renderTimer = nullptr;
 };

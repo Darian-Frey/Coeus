@@ -2,6 +2,7 @@
 
 #include "index/IndexQueries.hpp"
 
+#include "ui/LivePreview.hpp"
 #include "ui/RenderService.hpp"
 #include "ui/Theme.hpp"
 
@@ -68,9 +69,9 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     setStarred(false);
 
     m_sourceButton = modeButton(tr("Source"), header);
-    QToolButton* live = modeButton(tr("Live"), header);
-    live->setEnabled(false);
-    live->setToolTip(tr("Live preview arrives in Phase 4"));
+    m_liveButton = modeButton(tr("Live"), header);
+    m_liveButton->setToolTip(tr("Live preview: the note as it reads, its Markdown shown on the line you are editing"));
+    QToolButton* live = m_liveButton;
     m_readingButton = modeButton(tr("Reading"), header);
     auto* group = new QButtonGroup(this);
     group->setExclusive(true);
@@ -80,6 +81,7 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     }
     m_sourceButton->setChecked(true);
     connect(m_sourceButton, &QToolButton::clicked, this, [this] { setMode(Mode::Source); });
+    connect(m_liveButton, &QToolButton::clicked, this, [this] { setMode(Mode::Live); });
     connect(m_readingButton, &QToolButton::clicked, this, [this] { setMode(Mode::Reading); });
 
     m_reader->setOpenLinks(false);
@@ -93,6 +95,8 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     });
     m_reader->document()->setDocumentMargin(16);
     connect(m_reader, &QTextBrowser::anchorClicked, this, &NoteView::linkActivated);
+    connect(m_editor, &Editor::linkActivated, this, &NoteView::linkActivated); // Ctrl+click (F-003)
+    m_editor->live()->setImageResolver([this](const QString& target, bool wiki) { return resolveImage(target, wiki); });
 
     m_stack->addWidget(m_editor);
     m_stack->addWidget(m_reader);
@@ -120,11 +124,15 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
 void NoteView::setMode(Mode mode)
 {
     m_sourceButton->setChecked(mode == Mode::Source);
+    m_liveButton->setChecked(mode == Mode::Live);
     m_readingButton->setChecked(mode == Mode::Reading);
+    if (mode != Mode::Reading)
+        m_editMode = mode;
+    m_editor->setLive(mode == Mode::Live);
     if (m_mode == mode)
         return;
     m_mode = mode;
-    m_properties->setVisible(mode == Mode::Source);
+    m_properties->setVisible(mode != Mode::Reading);
     if (mode == Mode::Reading) {
         render();
         m_stack->setCurrentWidget(m_reader);
@@ -138,9 +146,15 @@ void NoteView::setMode(Mode mode)
     emit modeChanged(mode);
 }
 
+void NoteView::showEditor()
+{
+    if (m_mode == Mode::Reading)
+        setMode(m_editMode);
+}
+
 void NoteView::toggleMode()
 {
-    setMode(m_mode == Mode::Source ? Mode::Reading : Mode::Source);
+    setMode(m_mode == Mode::Reading ? m_editMode : Mode::Reading);
 }
 
 void NoteView::render()
@@ -173,7 +187,7 @@ void NoteView::render()
 
 void NoteView::goToHeading(int line, const QString& text, int occurrence, int index)
 {
-    if (m_mode == Mode::Source) {
+    if (m_mode != Mode::Reading) { // Source and Live: the editor
         const QTextBlock block = m_editor->document()->findBlockByNumber(line - 1);
         if (!block.isValid())
             return;
@@ -205,6 +219,7 @@ void NoteView::goToHeading(int line, const QString& text, int occurrence, int in
 void NoteView::setRenderService(RenderService* service)
 {
     m_render = service;
+    m_editor->live()->setRenderService(service);
 }
 
 void NoteView::refreshReading()

@@ -545,6 +545,19 @@ void MainWindow::createActions()
     });
     themeMenu->addAction(reloadSnippets);
     themeMenu->addAction(openSnippets);
+    // The mode a note opens in (F-003): Live unless the author chose otherwise.
+    QMenu* modeMenu = viewMenu->addMenu(tr("Default &Mode"));
+    auto* modes = new QActionGroup(this);
+    for (const auto& [mode, label] : {std::pair{NoteView::Mode::Source, tr("Source")}, std::pair{NoteView::Mode::Live, tr("Live")},
+                                      std::pair{NoteView::Mode::Reading, tr("Reading")}}) {
+        auto* action = new QAction(tr("Default Mode: %1").arg(label), modes);
+        action->setCheckable(true);
+        action->setChecked(defaultMode() == mode);
+        connect(action, &QAction::triggered, this, [this, mode] { setDefaultMode(mode); });
+        modeMenu->addAction(action);
+        registerAction(action);
+    }
+
     auto* shortcuts = new QAction(tr("&Keyboard Shortcuts…"), this);
     connect(shortcuts, &QAction::triggered, this, &MainWindow::editShortcuts);
     viewMenu->addAction(shortcuts);
@@ -842,6 +855,21 @@ void MainWindow::chooseRecent()
     }
     m_recentPicker->setActions(actions);
     m_recentPicker->popup();
+}
+
+NoteView::Mode MainWindow::defaultMode() const
+{
+    const QString name = QSettings().value(QStringLiteral("editor/defaultMode"), QStringLiteral("live")).toString();
+    return name == QLatin1String("source") ? NoteView::Mode::Source
+           : name == QLatin1String("reading") ? NoteView::Mode::Reading
+                                              : NoteView::Mode::Live;
+}
+
+void MainWindow::setDefaultMode(NoteView::Mode mode)
+{
+    QSettings().setValue(QStringLiteral("editor/defaultMode"), mode == NoteView::Mode::Source    ? QStringLiteral("source")
+                                                               : mode == NoteView::Mode::Reading ? QStringLiteral("reading")
+                                                                                                 : QStringLiteral("live"));
 }
 
 void MainWindow::editShortcuts()
@@ -1331,7 +1359,7 @@ void MainWindow::createNote(const QString& absolutePath, const QString& template
         }
         openNote(absolutePath);
         if (NoteView* view = currentView())
-            view->setMode(NoteView::Mode::Source);
+            view->showEditor();
         if (!error.isEmpty())
             statusBar()->showMessage(error, kStatusTimeoutMs * 2);
         else if (!rendered.unsupported.isEmpty())
@@ -1376,7 +1404,7 @@ void MainWindow::applyTemplate(Editor* editor, const QString& templatePath, cons
     cursor.setPosition(std::min(caret, int(editor->document()->characterCount()) - 1));
     editor->setTextCursor(cursor);
     if (NoteView* view = currentView())
-        view->setMode(NoteView::Mode::Source);
+        view->showEditor();
     editor->setFocus();
     if (!rendered.unsupported.isEmpty())
         statusBar()->showMessage(tr("Left as written: %1 ({{next:…}} needs a note inside a project)")
@@ -1464,7 +1492,7 @@ void MainWindow::insertNextId(const QString& kind)
         if (!target)
             return;
         if (NoteView* view = currentView())
-            view->setMode(NoteView::Mode::Source);
+            view->showEditor();
 
         // Append the entry, a blank line apart, and select its title to type over.
         const QString text = target->toPlainText();
@@ -1570,6 +1598,7 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
     }
     view->setProperty(kPathProperty, absolutePath);
     view->setStarred(isBookmarked(absolutePath));
+    view->setMode(defaultMode());
     view->setIndexPath(IndexService::indexPath(m_vault->rootPath()));
     view->setRenderService(m_render);
     connect(view, &NoteView::starToggled, this, [this, absolutePath] { toggleBookmark(absolutePath); });

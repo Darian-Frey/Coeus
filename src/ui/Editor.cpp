@@ -2,11 +2,16 @@
 
 #include "index/ContentHash.hpp"
 #include "parser/Transclusion.hpp"
+#include "ui/LivePreview.hpp"
 #include "ui/MarkdownHighlighter.hpp"
 #include "ui/NoteCatalogue.hpp"
 #include "ui/Theme.hpp"
 #include "ui/WikilinkCompleter.hpp"
 
+#include <QApplication>
+#include <QCursor>
+#include <QMouseEvent>
+#include <QRegularExpression>
 #include <QContextMenuEvent>
 #include <QFile>
 #include <QFileInfo>
@@ -68,6 +73,8 @@ Editor::Editor(const Vault& root, const QString& absolutePath, QWidget* parent)
     , m_highlighter(new MarkdownHighlighter(document()))
 {
     Theme::setMonospace(this);
+    m_live = new LivePreview(this);
+    viewport()->setMouseTracking(true); // Ctrl over a link shows a pointing hand
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
     setTabChangesFocus(false);
     connect(document(), &QTextDocument::modificationChanged, this, &Editor::modificationChanged);
@@ -287,7 +294,122 @@ void Editor::applyProblems()
         selection.format.setToolTip(problem.message);
         selections.append(selection);
     }
-    setExtraSelections(selections);
+    m_problemSelections = selections;
+    showSelections();
+}
+
+void Editor::setLiveSelections(const QList<QTextEdit::ExtraSelection>& selections)
+{
+    m_liveSelections = selections;
+    showSelections();
+}
+
+void Editor::showSelections()
+{
+    // Tints first, so the lint's underlines are drawn over them.
+    setExtraSelections(m_liveSelections + m_problemSelections);
+}
+
+void Editor::setLive(bool live)
+{
+    if (live == isLive())
+        return;
+    // Live reads as prose, in the interface's font; source keeps fixed pitch.
+    if (live) {
+        setProperty("coeusMonospace", false);
+        setFont(QApplication::font());
+    } else {
+        Theme::setMonospace(this);
+    }
+    m_highlighter->setLive(live);
+    m_live->setEnabled(live);
+}
+
+bool Editor::isLive() const
+{
+    return m_live->isEnabled();
+}
+
+QRectF Editor::blockRect(const QTextBlock& block) const
+{
+    return blockBoundingGeometry(block).translated(contentOffset());
+}
+
+void Editor::paintEvent(QPaintEvent* event)
+{
+    QPlainTextEdit::paintEvent(event);
+    if (isLive()) {
+        QPainter painter(viewport());
+        m_live->paint(painter, event->rect());
+    }
+}
+
+QUrl Editor::linkAt(int position) const
+{
+    const QTextBlock block = document()->findBlock(position);
+    const QString text = block.text();
+    const int at = position - block.position();
+    static const QRegularExpression kWikilink(QStringLiteral(R"(!?\[\[([^\[\]\n]+)\]\])"));
+    static const QRegularExpression kMarkdown(QStringLiteral(R"(\[[^\]\n]*\]\(([^)\s]+)\))"));
+    static const QRegularExpression kAddress(QStringLiteral(R"(\bhttps?://[^\s)>\]]+)"));
+    static const QRegularExpression kScheme(QStringLiteral(R"(^[A-Za-z][A-Za-z0-9+.-]*:)"));
+    const auto encode = [](const QString& part) { return QString::fromLatin1(QUrl::toPercentEncoding(part, "/:^")); };
+    for (auto it = kWikilink.globalMatch(text); it.hasNext();) {
+        const auto m = it.next();
+        if (at < m.capturedStart() || at > m.capturedEnd())
+            continue;
+        const QString target = m.captured(1).section(QLatin1Char('|'), 0, 0).trimmed();
+        const qsizetype hash = target.indexOf(QLatin1Char('#'));
+        const QString name = hash < 0 ? target : target.left(hash);
+        QUrl url(QStringLiteral("coeus-wiki:") + encode(name));
+        if (hash >= 0)
+            url.setFragment(target.mid(hash + 1));
+        return url;
+    }
+    for (auto it = kMarkdown.globalMatch(text); it.hasNext();) {
+        const auto m = it.next();
+        if (at < m.capturedStart() || at > m.capturedEnd())
+            continue;
+        const QString href = m.captured(1);
+        return kScheme.match(href).hasMatch() ? QUrl(href) : QUrl(QStringLiteral("coeus-file:") + href);
+    }
+    for (auto it = kAddress.globalMatch(text); it.hasNext();) {
+        const auto m = it.next();
+        if (at >= m.capturedStart() && at <= m.capturedEnd())
+            return QUrl(m.captured(0));
+    }
+    return {};
+}
+
+void Editor::updateLinkCursor(Qt::KeyboardModifiers modifiers, const QPoint& at)
+{
+    const bool link = modifiers.testFlag(Qt::ControlModifier) && !linkAt(cursorForPosition(at).position()).isEmpty();
+    viewport()->setCursor(link ? Qt::PointingHandCursor : Qt::IBeamCursor);
+}
+
+void Editor::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton && event->modifiers().testFlag(Qt::ControlModifier)) {
+        if (const QUrl url = linkAt(cursorForPosition(event->position().toPoint()).position()); !url.isEmpty()) {
+            emit linkActivated(url);
+            event->accept();
+            return;
+        }
+    }
+    QPlainTextEdit::mousePressEvent(event);
+}
+
+void Editor::mouseMoveEvent(QMouseEvent* event)
+{
+    updateLinkCursor(event->modifiers(), event->position().toPoint());
+    QPlainTextEdit::mouseMoveEvent(event);
+}
+
+void Editor::keyReleaseEvent(QKeyEvent* event)
+{
+    if (event->key() == Qt::Key_Control)
+        updateLinkCursor(event->modifiers(), viewport()->mapFromGlobal(QCursor::pos()));
+    QPlainTextEdit::keyReleaseEvent(event);
 }
 
 QString Editor::problemAt(int position) const
@@ -317,6 +439,8 @@ bool Editor::viewportEvent(QEvent* event)
 
 void Editor::keyPressEvent(QKeyEvent* event)
 {
+    if (event->key() == Qt::Key_Control)
+        updateLinkCursor(event->modifiers() | Qt::ControlModifier, viewport()->mapFromGlobal(QCursor::pos()));
     if (m_completer && m_completer->handleKeyPress(event))
         return;
     QPlainTextEdit::keyPressEvent(event);

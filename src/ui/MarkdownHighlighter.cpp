@@ -6,6 +6,9 @@
 #include <QGuiApplication>
 #include <QPalette>
 #include <QRegularExpression>
+#include <QTextBlock>
+#include <QSet>
+#include <QFontMetrics>
 #include <QTextDocument>
 
 namespace coeus {
@@ -57,8 +60,65 @@ void MarkdownHighlighter::restyle()
     maths.setBackground(tint);
 }
 
+void MarkdownHighlighter::setLive(bool live)
+{
+    if (live == m_live)
+        return;
+    m_live = live;
+    rehighlight();
+}
+
+void MarkdownHighlighter::setRevealed(int first, int last)
+{
+    if (first == m_revealFirst && last == m_revealLast)
+        return;
+    const int oldFirst = m_revealFirst;
+    const int oldLast = m_revealLast;
+    m_revealFirst = first;
+    m_revealLast = last;
+    if (!m_live)
+        return;
+    // Only the lines that change between shown and hidden.
+    for (const auto& [from, to] : {std::pair{oldFirst, oldLast}, std::pair{first, last}}) {
+        for (int n = std::max(0, from); n <= to; ++n) {
+            const QTextBlock block = document()->findBlockByNumber(n);
+            if (block.isValid())
+                rehighlightBlock(block);
+        }
+    }
+}
+
+void MarkdownHighlighter::setTallLines(const QHash<int, int>& heights)
+{
+    if (heights == m_tall)
+        return;
+    QSet<int> changed;
+    for (auto it = m_tall.cbegin(); it != m_tall.cend(); ++it)
+        if (heights.value(it.key(), -1) != it.value())
+            changed.insert(it.key());
+    for (auto it = heights.cbegin(); it != heights.cend(); ++it)
+        if (m_tall.value(it.key(), -1) != it.value())
+            changed.insert(it.key());
+    m_tall = heights;
+    if (!m_live)
+        return;
+    for (int n : std::as_const(changed)) {
+        const QTextBlock block = document()->findBlockByNumber(n);
+        if (block.isValid())
+            rehighlightBlock(block);
+    }
+}
+
+void MarkdownHighlighter::hideLive(int start, int length)
+{
+    if (length > 0)
+        m_hidden.append({start, length});
+}
+
 void MarkdownHighlighter::apply(int start, int length, Kind kind)
 {
+    if (kind == Kind::Markup)
+        hideLive(start, length);
     // Formats combine, so a link inside bold text is both.
     for (int i = start; i < start + length; ++i) {
         QTextCharFormat merged = QSyntaxHighlighter::format(i);
@@ -68,6 +128,56 @@ void MarkdownHighlighter::apply(int start, int length, Kind kind)
 }
 
 void MarkdownHighlighter::highlightBlock(const QString& text)
+{
+    m_hidden.clear();
+    m_headingLevel = 0;
+    highlightSource(text);
+    if (!m_live)
+        return;
+    const int number = currentBlock().blockNumber();
+    const QFont base = document()->defaultFont();
+    if (const auto tall = m_tall.constFind(number); tall != m_tall.cend() && !isRevealed(number)) {
+        // The line stands for a picture: as tall as it, its text out of sight.
+        QFont font = base;
+        int pixels = std::max(8, *tall);
+        font.setPixelSize(pixels);
+        // Line spacing is a little more than the pixel size; shrink to fit.
+        const int spacing = QFontMetrics(font).lineSpacing();
+        font.setPixelSize(std::max(4, int(double(pixels) * pixels / std::max(1, spacing))));
+        font.setStretch(1);
+        QTextCharFormat tallFormat;
+        tallFormat.setFont(font, QTextCharFormat::FontPropertiesSpecifiedOnly);
+        tallFormat.setForeground(Qt::transparent);
+        setFormat(0, int(text.size()), tallFormat);
+        return;
+    }
+    if (m_headingLevel > 0) {
+        // Headings read as headings, shown or not.
+        static constexpr double kScale[] = {1.0, 1.8, 1.5, 1.3, 1.15, 1.05, 1.0};
+        const double size = (base.pointSizeF() > 0 ? base.pointSizeF() : 10.0) * kScale[m_headingLevel];
+        for (int i = 0; i < text.size(); ++i) {
+            QTextCharFormat sized = QSyntaxHighlighter::format(i);
+            sized.setFontPointSize(size);
+            setFormat(i, 1, sized);
+        }
+    }
+    if (isRevealed(number))
+        return;
+    QFont tiny = base;
+    tiny.setPixelSize(1);
+    tiny.setStretch(1);
+    QTextCharFormat hidden;
+    hidden.setFont(tiny, QTextCharFormat::FontPropertiesSpecifiedOnly);
+    hidden.setForeground(Qt::transparent);
+    for (const auto& [start, length] : std::as_const(m_hidden))
+        for (int i = start; i < start + length && i < text.size(); ++i) {
+            QTextCharFormat merged = QSyntaxHighlighter::format(i);
+            merged.merge(hidden);
+            setFormat(i, 1, merged);
+        }
+}
+
+void MarkdownHighlighter::highlightSource(const QString& text)
 {
     static const QRegularExpression kFence(QStringLiteral(R"(^\s{0,3}(`{3,}|~{3,}))"));
     const int previous = previousBlockState();
@@ -115,9 +225,13 @@ void MarkdownHighlighter::highlightBlock(const QString& text)
     if (const auto heading = kHeading.match(text); heading.hasMatch()) {
         apply(0, int(text.size()), Kind::Heading);
         apply(0, int(heading.capturedLength(1)), Kind::Markup);
+        hideLive(0, int(heading.capturedEnd(0))); // the marker and its space
+        m_headingLevel = int(heading.capturedLength(1));
         inlineFrom = int(heading.capturedEnd(0));
     } else if (const auto quote = kQuote.match(text); quote.hasMatch()) {
         apply(0, int(text.size()), Kind::Quote);
+        if (quote.capturedLength(2) == 0)
+            hideLive(0, int(quote.capturedEnd(0))); // a plain quote's ">"; a callout keeps its [!kind]
         if (quote.capturedLength(2) > 0)
             apply(int(quote.capturedStart(2)), int(quote.capturedLength(2)), Kind::Callout);
         inlineFrom = int(quote.capturedEnd(0));
@@ -168,6 +282,9 @@ void MarkdownHighlighter::highlightInline(const QString& text, int from)
         apply(start, length, Kind::Link);
         apply(start, open, Kind::Markup);
         apply(start + length - 2, 2, Kind::Markup);
+        // [[target|alias]] reads as its alias.
+        if (const qsizetype pipe = text.indexOf(QLatin1Char('|'), start); pipe > start && pipe < start + length - 2)
+            hideLive(start + open, int(pipe - start - open + 1));
     }
     for (auto it = kMarkdownLink.globalMatch(text, from); it.hasNext();) {
         const auto m = it.next();
@@ -176,6 +293,7 @@ void MarkdownHighlighter::highlightInline(const QString& text, int from)
         apply(int(m.capturedStart(3)), int(m.capturedLength(3)), Kind::Markup);
         apply(int(m.capturedStart(4)), int(m.capturedLength(4)), Kind::Url);
         apply(int(m.capturedStart(5)), int(m.capturedLength(5)), Kind::Markup);
+        hideLive(int(m.capturedStart(4)), int(m.capturedLength(4))); // [text](url) reads as its text
     }
     for (auto it = kTag.globalMatch(text, from); it.hasNext();) {
         const auto m = it.next();
@@ -183,16 +301,26 @@ void MarkdownHighlighter::highlightInline(const QString& text, int from)
         if (std::any_of(name.begin(), name.end(), [](QChar c) { return !c.isDigit(); }))
             apply(int(m.capturedStart()), int(m.capturedLength()), Kind::Tag);
     }
-    if (const auto m = kBlockId.match(text, from); m.hasMatch())
+    if (const auto m = kBlockId.match(text, from); m.hasMatch()) {
         apply(int(m.capturedStart(1)), int(m.capturedLength(1)), Kind::BlockId);
+        hideLive(int(m.capturedStart(1)), int(m.capturedLength(1)));
+    }
     for (auto it = kMaths.globalMatch(text, from); it.hasNext();) {
         const auto m = it.next();
         apply(int(m.capturedStart()), int(m.capturedLength()), Kind::Maths);
+        hideLive(int(m.capturedStart()), 1);
+        hideLive(int(m.capturedEnd()) - 1, 1);
     }
     // Code last, replacing anything matched inside it: code is never mined.
     for (auto it = kCode.globalMatch(text, from); it.hasNext();) {
         const auto m = it.next();
         setFormat(int(m.capturedStart()), int(m.capturedLength()), m_formats[int(Kind::Code)]);
+        // Nothing inside code is hidden but its backticks.
+        const int start = int(m.capturedStart());
+        const int end = int(m.capturedEnd());
+        m_hidden.removeIf([start, end](const QPair<int, int>& r) { return r.first >= start && r.first < end; });
+        hideLive(start, int(m.capturedLength(1)));
+        hideLive(end - int(m.capturedLength(1)), int(m.capturedLength(1)));
     }
 }
 

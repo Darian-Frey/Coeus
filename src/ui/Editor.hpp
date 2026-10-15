@@ -6,12 +6,15 @@
 
 #include <QByteArray>
 #include <QPlainTextEdit>
+#include <QUrl>
 #include <QTimer>
 #include <QString>
 
 #include <expected>
 
 namespace coeus {
+
+class LivePreview;
 
 class BlameGutter;
 class MarkdownHighlighter;
@@ -26,6 +29,19 @@ class Editor : public QPlainTextEdit {
     Q_OBJECT
 
 public:
+    // Live preview (F-003): the text styled as it reads, its syntax hidden
+    // away from the cursor, pictures drawn in place. Off is source mode.
+    void setLive(bool live);
+    bool isLive() const;
+    LivePreview* live() const { return m_live; }
+    // Background tints live preview adds (code blocks), kept with the lint's underlines.
+    void setLiveSelections(const QList<QTextEdit::ExtraSelection>& selections);
+    // A line's rectangle in the viewport's coordinates.
+    QRectF blockRect(const QTextBlock& block) const;
+    // The link at `position` as a URL in HtmlRenderer's schemes (coeus-wiki:,
+    // coeus-file:, or the address), or empty if there is none.
+    QUrl linkAt(int position) const;
+
     // The ID of the paragraph or list item at the cursor (F-024), giving it
     // a new one at the end of its last line, as one undo step, if it has none;
     // empty if the cursor is not in such a block. `added` says which.
@@ -91,7 +107,11 @@ public:
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
+    void keyReleaseEvent(QKeyEvent* event) override;
     void contextMenuEvent(QContextMenuEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
     bool viewportEvent(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
@@ -99,6 +119,8 @@ signals:
     void modificationChanged(bool modified);
     void blameRequested();
     void blameShownChanged(bool shown);
+    // Ctrl+click on a link (F-003): `url` as linkAt() gives it.
+    void linkActivated(const QUrl& url);
     void conflictChanged(bool conflict);
 
 private:
@@ -116,6 +138,11 @@ private:
     WikilinkCompleter* m_completer = nullptr;
     QList<ProblemRef> m_problems;
     QList<QAction*> m_contextActions;
+    QList<QTextEdit::ExtraSelection> m_problemSelections;
+    QList<QTextEdit::ExtraSelection> m_liveSelections;
+    LivePreview* m_live = nullptr;
+    void showSelections();
+    void updateLinkCursor(Qt::KeyboardModifiers modifiers, const QPoint& at);
     bool m_blameOn = false;
     QList<BlameLine> m_blame;
     BlameGutter* m_blameGutter = nullptr;

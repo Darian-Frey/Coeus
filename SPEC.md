@@ -577,7 +577,7 @@ Coeus reads and commits through libgit2 (`git/GitRepository`); the only uses of 
 
 ## Reading mode
 
-Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and reading; Live is Phase 4). Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.
+Each tab has a Source | Live | Reading switch (§Live preview); `Ctrl+E` toggles between reading and the editing mode the tab last used. Reading mode shows the editor's buffer, unsaved changes included, rendered by `parser/HtmlRenderer` from md4c's callbacks (D-014), and follows the buffer 250 ms after it changes. It never changes the buffer.
 
 - **Frontmatter** becomes a key/value properties table; invalid YAML shows a one-line problem instead.
 - **Soft line breaks** render as line breaks, as Obsidian does (CommonMark renders them as spaces).
@@ -591,6 +591,17 @@ Each tab has a Source | Live | Reading switch (`Ctrl+E` toggles source and readi
 - **Tables** follow md4c: a delimiter cell with a single dash (`:-`) is not recognised; `:--` or longer is.
 
 Links carry their kind in the URL scheme. Clicking `coeus-wiki:` opens the note the index resolved the wikilink to (SPEC §Wikilink resolution, read through `IndexQueries`), and reports ambiguous, unresolved or not-yet-indexed links in the status bar rather than guessing. `coeus-file:` opens the Markdown link's path relative to the note. `coeus-tag:` is reserved for the tag pane. Any other scheme opens in the desktop's handler.
+
+## Live preview
+
+Live (F-003) edits the same buffer as Source, in the same `Editor`, with the same undo, saving, journal, completion, lint underlines and blame gutter, but reads as rendered: the line with the cursor, or every line of the selection, shows its Markdown; every other line shows what it says (`ui/LivePreview`, the highlighter's live mode). Nothing is written: hiding is the highlighter's formatting, folding the layout's, and a note toggled between modes is never marked changed.
+
+- **Font.** The interface's font, as prose; code keeps the fixed-pitch font. Source keeps fixed pitch throughout.
+- **Lines away from the cursor.** Headings are sized by level (1.8, 1.5, 1.3, 1.15, 1.05 and 1 times the text) and lose their `#`s; `**`, `*`, `~~` and `==` vanish around what they style; a wikilink shows its alias, or its target without brackets; a Markdown link shows its text; backticks, `$` around inline maths, a plain quote's `>` and a block ID are hidden. Headings keep their size on the cursor's line too.
+- **Constructs** (`parser/LiveBlocks`), revealed whole when the cursor is anywhere in them: frontmatter folds away (the Properties panel shows it); a code fence's ``` lines fold and its code is tinted; `$$…$$` maths, a ```` ```mermaid ```` diagram and a line holding only an image or PDF embed (`![[pic.png]]`, `![](img.jpg)`, `![[doc.pdf#page=2]]`) are drawn in place, through the same renderers and cache as reading mode (§Rendered blocks), on a line made as tall as the picture with the construct's other lines folded. While a picture is being drawn, or cannot be, its source shows. Pictures are never wider than the editor.
+- **Links.** Ctrl+click on a wikilink, Markdown link or web address follows it as a click in reading mode would; with Ctrl held, the pointer becomes a hand over a link. A plain click places the cursor. Ctrl+click works in Source too.
+- **Default mode.** View › Default Mode chooses the mode notes open in, Source, Live or Reading, kept per user in Coeus's settings (`editor/defaultMode`); Live at first, as in Obsidian.
+- **Not yet** (step 2): tables, callouts and note embeds are shown as their Markdown in Live, styled.
 
 ## Rendered blocks
 

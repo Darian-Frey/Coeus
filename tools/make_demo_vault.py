@@ -180,6 +180,12 @@ def build_vault(vault: Path, linked: Path) -> None:
         5. Edit `daily/2026-10-11.md` outside Coeus while it is open in a clean tab:
            the tab follows within a second.
 
+        ## Live preview
+        - Notes open in **Live**: the note reads as rendered and the line with
+          the cursor shows its Markdown. Open [[Markdown showcase]] and move
+          down through it; Ctrl+click a link to follow it. View › Default Mode
+          switches back to Source if you prefer.
+
         ## Reading mode
         - `Ctrl+E` here, then open [[Markdown showcase]] and toggle it: callouts,
           tables, tasks, highlights, images, code that never turns into links.
@@ -221,11 +227,12 @@ def build_vault(vault: Path, linked: Path) -> None:
           It is refused, since Save has it; press `Ctrl+Alt+N` instead. Reset
           puts `Ctrl+N` back.
 
-        ## Reading mode
+        ## Rich rendering
         - Open [[Markdown showcase]] and press `Ctrl+E`: code blocks are
           coloured by language, maths and the Mermaid diagram are drawn (with
-          LaTeX and Chrome or Chromium installed; code otherwise), and `![[Long note#Section 2]]` shows that
-          section in place, with a link to the note it came from.
+          LaTeX and Chrome or Chromium installed; code otherwise), and
+          `![[Long note#Section 2]]` shows that section in place, with a link to
+          the note it came from.
         - Put the cursor in any paragraph and press `Ctrl+Alt+L` (Copy Block
           Link): it gains a `^id` and `[[Note#^id]]` is on the clipboard, ready
           to paste. Type `[[Mnemosyne#^` to see its blocks offered.

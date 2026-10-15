@@ -37,7 +37,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Source, live-preview, and reading modes switchable per tab
 - Syntax highlighting for CommonMark plus wikilinks, tags, frontmatter, callouts
 - Saves are atomic (AV-002); unsaved changes survive a crash via an autosave journal
-**Status:** In progress: the Phase 2 part is complete (2026-10-13): source mode with highlighting, atomic save, autosave journal and reading mode. Live preview is Phase 4
+**Status:** In progress: Phase 2's part complete (2026-10-13); live preview step 1 built (Phase 4, 2026-10-15): the cursor's lines shown as written, the rest styled with its syntax hidden, frontmatter and fences folded, pictures (images, PDF pages, maths, Mermaid) drawn in place, Ctrl+click on links, and View › Default Mode, Live at first. Step 2: tables, callouts and note embeds (SPEC.md §Live preview)
 **Notes:** Live preview is the single most expensive feature in the project. D-004 records the decision to start with source and reading modes and add live preview once the shell is stable.
 
 ### F-004 Wikilinks with autocomplete

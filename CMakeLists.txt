@@ -77,6 +77,7 @@ add_library(coeus_core STATIC
     src/parser/HtmlRenderer.cpp
     src/parser/CodeHighlighter.cpp
     src/parser/Transclusion.cpp
+    src/parser/LiveBlocks.cpp
     src/render/MathsRenderer.cpp
     src/render/MermaidRenderer.cpp
     src/render/PdfPages.cpp
@@ -133,6 +134,7 @@ add_library(coeus_core STATIC
     src/ui/NewNoteDialog.cpp
     src/ui/BookmarksPanel.cpp
     src/ui/RenderService.cpp
+    src/ui/LivePreview.cpp
     src/ui/Shortcuts.cpp
     src/ui/ShortcutsDialog.cpp
     src/ui/Theme.cpp
