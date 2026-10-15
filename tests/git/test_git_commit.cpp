@@ -46,6 +46,7 @@ private slots:
         git.stage({QStringLiteral("staged.md")});
         git.write(QStringLiteral("build/out.md"), "ignored\n");
         git.write(QStringLiteral(".coeus/index.db"), "derived\n");
+        git.write(QStringLiteral(".coeus-shared/embeddings.bin"), "vectors\n"); // BUG-008
         git.write(QStringLiteral("notes/.new.md.coeus-tmp-1a2b"), "temp\n");
 
         const auto changes = GitRepository::discover(dir.path())->status();
@@ -97,6 +98,7 @@ private slots:
         QVERIFY(!repo->commit({QStringLiteral("first.md")}, QStringLiteral("   \n")));      // no message
         QVERIFY(!repo->commit({}, QStringLiteral("Nothing")));                             // nothing chosen
         QVERIFY(!repo->commit({QStringLiteral(".coeus/index.db")}, QStringLiteral("No"))); // Coeus's own
+        QVERIFY(!repo->commit({QStringLiteral(".coeus-shared/embeddings.bin")}, QStringLiteral("No")));
         QVERIFY(!repo->commit({QStringLiteral("../outside.md")}, QStringLiteral("No")));   // outside the tree
         const auto first = repo->commit({QStringLiteral("first.md")}, QStringLiteral("Begin"));
         QVERIFY2(first, first ? "" : qPrintable(first.error()));

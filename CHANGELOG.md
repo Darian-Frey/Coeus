@@ -3,6 +3,9 @@
 Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
+### Fixed
+- BUG-008: in a vault that is a Git repository, the embeddings sidecar counted as a changed file and appeared in every commit dialog; `.coeus-shared/` is now one of Coeus's own files, like `.coeus/`.
+
 ### Added
 - Embeddings sidecar (F-035): `.coeus-shared/embeddings.bin` carries passage vectors between machines by hash (D-011), so a second machine embeds only what changed. The embedding worker imports from it before embedding anything and rewrites it, atomically and as a union, when a pass ends with something new; `coeus --mcp` does the same. Vectors of another model or dimension, or from a damaged file, are never imported (AV-007, AV-011). A sync tool's conflict copies are united and removed. File › Compact Embeddings Sidecar drops passages the vault no longer has, as does a weekly compaction (`[semantic] sidecar_compact_days`). Test `test_sidecar`.
 - Related notes (F-019): a Related section in the sidebar lists the five notes nearest in meaning to the current note that it does not already link to, with the passage that matched; clicking opens it there and Link here inserts a wikilink at the cursor, written as the completer would. It is worked out off the UI thread from stored vectors, and again after saves and as embedding progresses. Each match is discounted by how typical the note's passage is across the vault, so scaffold boilerplate shared by every project no longer decides the list. MCP gains `related`. Tests: `test_semantic` (boilerplate case), `test_semantic_window`, `test_mcp_server`.

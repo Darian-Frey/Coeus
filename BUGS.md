@@ -13,6 +13,15 @@ _None._
 
 ## Fixed
 
+### BUG-008: The embeddings sidecar counted as a change in Git vaults
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-10-15 (F-036 and F-037, `test_commit_dialog` failing on a machine with the model)
+**Fixed:** 2026-10-15
+**Location:** `src/git/GitRepository.cpp` (`isCoeusFile`)
+**Description.** In a vault that is a Git repository, the embedding worker's `.coeus-shared/embeddings.bin` (F-035) was an untracked file like any other: the status bar's changed-files count went up after the first embedding pass and again after every edit was embedded, and the commit dialog listed it each time. Introduced with F-035 (773ef39); its tests passed because `test_commit_dialog` usually finished before the worker wrote the sidecar, and the suite runs without the model elsewhere.
+**Fix.** `.coeus-shared/` joins `.coeus/` as Coeus's own: never counted, listed or committed by Coeus. It still travels by the sync provider; committing it by hand is the author's choice. `test_git_commit` gains the sidecar in status and as a refused commit; both fail with the old code.
+
 ### BUG-007: A root whose own README is a project could not be indexed
 **Status:** fixed
 **Severity:** high

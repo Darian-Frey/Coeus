@@ -44,11 +44,15 @@ using Index = Owned<git_index, git_index_free>;
 using StatusList = Owned<git_status_list, git_status_list_free>;
 using Signature = Owned<git_signature, git_signature_free>;
 
-// Coeus's own files, never offered for a commit (D-011).
+// Coeus's own files, never offered for a commit (D-011): the index, and the
+// embeddings sidecar, which syncs by the sync provider and is rewritten after
+// every embedding pass (BUG-008).
 bool isCoeusFile(const QString& path)
 {
-    if (path == QLatin1String(".coeus") || path.startsWith(QLatin1String(".coeus/")) || path.contains(QLatin1String("/.coeus/")))
-        return true;
+    for (const QLatin1String folder : {QLatin1String(".coeus"), QLatin1String(".coeus-shared")}) {
+        if (path == folder || path.startsWith(folder + QLatin1Char('/')) || path.contains(QLatin1Char('/') + folder + QLatin1Char('/')))
+            return true;
+    }
     const QString name = path.section(QLatin1Char('/'), -1);
     return name.startsWith(QLatin1Char('.')) && name.contains(QLatin1String(".coeus-tmp-"));
 }
