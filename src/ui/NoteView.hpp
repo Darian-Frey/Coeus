@@ -31,6 +31,9 @@ public:
     PropertiesPanel* properties() const { return m_properties; }
     QTextBrowser* reader() const { return m_reader; }
     QString path() const { return m_path; }
+    // The ☆ in the header (F-014): filled while the note is bookmarked.
+    void setStarred(bool starred);
+    QToolButton* starButton() const { return m_starButton; }
 
     Mode mode() const { return m_mode; }
     void setMode(Mode mode);
@@ -51,6 +54,8 @@ signals:
     // A link in the reading view was clicked (scheme as HtmlRenderer documents).
     void linkActivated(const QUrl& url);
     void modeChanged(Mode mode);
+    // The ☆ was clicked: star or unstar this note.
+    void starToggled();
 
 private:
     QString resolveImage(const QString& target, bool wiki) const;
@@ -63,6 +68,7 @@ private:
     PropertiesPanel* m_properties = nullptr;
     QTextBrowser* m_reader = nullptr;
     QStackedWidget* m_stack = nullptr;
+    QToolButton* m_starButton = nullptr;
     QToolButton* m_sourceButton = nullptr;
     QToolButton* m_readingButton = nullptr;
     QTimer* m_renderTimer = nullptr;

@@ -13,6 +13,8 @@ Authoritative technical reference for Coeus. FEATURES.md says what; this says ho
 │   ├── index.db            # SQLite, derived, safe to delete
 │   ├── config.toml         # per-vault, per-machine settings
 │   ├── journal/            # autosave journal (§Autosave journal)
+│   ├── bookmarks.json      # starred notes and searches (§Bookmarks and recent notes)
+│   ├── recent.json         # notes opened most recently (same)
 │   └── logs/
 ├── .coeus-shared/          # synced, hash-keyed derived data (D-011)
 │   └── embeddings.bin      # §Embeddings sidecar
@@ -610,6 +612,14 @@ base: <hex ContentHash of the base, empty for a note that did not exist>
 ```
 
 A save, Load Disk Version or Discard removes the note's entry. On opening a vault, entries whose text equals the note on disk are deleted; every other entry is offered for recovery: Recover opens each as an unsaved buffer on top of its recorded base (so a note changed since conflicts on save rather than being overwritten), Discard deletes them, Later keeps them. Entries older than their note, or for notes deleted since, are offered too, flagged, because they may hold the only copy of unsaved work (AV-002); SPEC previously offered only entries newer than the note.
+
+## Bookmarks and recent notes
+
+Both are kept per vault and per machine, in `.coeus/` (F-014): a laptop has its own stars and recents, as it has its own index (D-011). Each is written through `AtomicWriter` as JSON (`version`, then the list); a file that cannot be read is treated as empty, and an entry that cannot be read is skipped, never the rest.
+
+**Bookmarks** (`bookmarks.json`, `vault/Bookmarks`) are notes and searches, in the order they were starred. A note is named by its root (`vault` or a linked root's name) and its path within it, so it survives the root moving on disk; a search by its text and mode (`words`, `meaning`, `both`). A note is starred or unstarred by the ☆ in its header or Toggle Bookmark (`Ctrl+Alt+S`); a search by the ☆ beside the Search pane's query, which is filled while that text in that mode is starred. The **Bookmarks** pane, a left-dock tab beside Explorer, Tags, Search and Registers (View › Toggle Bookmarks, `Ctrl+Shift+K`), lists them: `★ <file name>` with the note's display path, or `⌕ <query>` with its mode. Activating a note opens it; a search fills the Search pane in its mode and runs. A note no longer there stays listed, struck through, until removed. The context menu opens, moves up, moves down or removes one; Delete removes the selected one.
+
+**Recent notes** (`recent.json`, `vault/RecentNotes`) are the 30 notes most recently made the current tab, newest first, each once, by root and path; they are written two seconds after they settle and when the window closes. Open Recent Note… (`Ctrl+R`) shows them in a palette, in that order, with the fuzzy filter, except that the note already in front goes last, so Enter opens the one before it; File › Open Recent lists them as a menu. Notes no longer there, or in a root missing on this machine, are left out.
 
 ## Themes and shortcuts
 

@@ -117,7 +117,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Could
 **Acceptance:**
 - Star any note or search; recents list in the command palette
-**Status:** Not started (Phase 4)
+**Status:** Complete (Phase 4, 2026-10-15): ☆ in each note's header and beside the Search pane's query, Toggle Bookmark, a Bookmarks pane, Open Recent Note… in a palette and File › Open Recent; kept per vault and machine in `.coeus/` (SPEC.md §Bookmarks and recent notes)
 
 ### Scaffold-aware registers
 

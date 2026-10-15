@@ -101,6 +101,8 @@ add_library(coeus_core STATIC
     src/vault/TempSweeper.cpp
     src/vault/Templates.cpp
     src/vault/NewNote.cpp
+    src/vault/Bookmarks.cpp
+    src/vault/RecentNotes.cpp
     src/vault/Vault.cpp
     src/vault/VaultConfig.cpp
     src/vault/VaultLogging.cpp
@@ -124,6 +126,7 @@ add_library(coeus_core STATIC
     src/ui/ProblemsPanel.cpp
     src/ui/PromoteDialog.cpp
     src/ui/NewNoteDialog.cpp
+    src/ui/BookmarksPanel.cpp
     src/ui/Shortcuts.cpp
     src/ui/ShortcutsDialog.cpp
     src/ui/Theme.cpp

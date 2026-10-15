@@ -1,5 +1,7 @@
 #pragma once
 
+#include "vault/Bookmarks.hpp"
+#include "vault/RecentNotes.hpp"
 #include "vault/Vault.hpp"
 
 #include <QHash>
@@ -43,6 +45,7 @@ class RegisterPanel;
 class RelatedPanel;
 struct ProjectRef;
 class SearchPanel;
+class BookmarksPanel;
 class CommandPalette;
 class Editor;
 class NoteCatalogue;
@@ -72,6 +75,15 @@ public:
     void newNote();
     // View › Keyboard Shortcuts… (F-027).
     void editShortcuts();
+    // Bookmarks and recent notes (F-014).
+    void toggleBookmark(const QString& absolutePath);
+    bool isBookmarked(const QString& absolutePath) const;
+    void openBookmark(int index);
+    void chooseRecent();
+    const QList<Bookmark>& bookmarks() const { return m_bookmarkList; }
+    const QList<RecentNotes::Note>& recentNotes() const { return m_recentList; }
+    BookmarksPanel* bookmarksPanel() const { return m_bookmarks; }
+    CommandPalette* recentPicker() const { return m_recentPicker; }
     // Creates the note at `absolutePath` from `templatePath` (empty for
     // blank), allocating any {{next:KIND}} first, and opens it. Never
     // overwrites; emits noteCreated() once it is written.
@@ -288,7 +300,24 @@ private:
     QAction* m_verifyIndex = nullptr;
     QAction* m_rebuildIndex = nullptr;
     QAction* m_compactSidecar = nullptr; // F-035
-    QList<QAction*> m_themeActions;      // System, Light, Dark (F-027)
+    QList<QAction*> m_themeActions;      // System, Light, Dark, Cassette (F-027)
+    // F-014.
+    BookmarksPanel* m_bookmarks = nullptr;
+    QDockWidget* m_bookmarksDock = nullptr;
+    QList<Bookmark> m_bookmarkList;
+    QList<RecentNotes::Note> m_recentList;
+    QTimer* m_recentTimer = nullptr;
+    CommandPalette* m_recentPicker = nullptr;
+    QObject* m_recentActions = nullptr; // the picker's current list
+    QMenu* m_recentMenu = nullptr;
+    static constexpr int kRecentSaveDelayMs = 2000;
+    std::optional<std::pair<QString, QString>> rootRelative(const QString& absolutePath) const;
+    QString absoluteOf(const QString& rootName, const QString& path) const;
+    void setBookmarks(const QList<Bookmark>& bookmarks);
+    void presentBookmarks();
+    void noteRecent(const QString& absolutePath);
+    void saveRecent();
+    QList<QAction*> recentActions(QObject* parent);
     QAction* m_gitignoreAction = nullptr;
     QAction* m_save = nullptr;
     QAction* m_toggleReading = nullptr;

@@ -7,6 +7,7 @@
 #include <memory>
 
 class QComboBox;
+class QToolButton;
 class QLabel;
 class QThreadPool;
 class QLineEdit;
@@ -39,6 +40,12 @@ public:
     // Runs the current query again, e.g. after the index changed.
     void refresh();
     void setQuery(const QString& text);
+    // "words", "meaning" or "both", as bookmarks keep them (F-014).
+    static QString modeName(Mode mode);
+    static Mode modeNamed(const QString& name);
+    // The ☆ beside the query: filled while the query and mode are bookmarked.
+    void setStarred(bool starred);
+    QToolButton* starButton() const { return m_star; }
 
     QLineEdit* input() const { return m_input; }
     QTreeWidget* results() const { return m_results; }
@@ -52,6 +59,10 @@ signals:
     // A passage found by meaning was chosen: open it at its first line.
     void openAtLineRequested(const QString& absolutePath, int line);
     void finished(int hits);
+    // The ☆ was clicked with `query` in `mode` ("words", "meaning", "both").
+    void starToggled(const QString& query, const QString& mode);
+    // The query or the mode changed, so the ☆ may need to change too.
+    void queryChanged(const QString& query, const QString& mode);
 
 private:
     struct Row {
@@ -74,6 +85,7 @@ private:
     std::shared_ptr<Model> m_model;
     QThreadPool* m_modelPool = nullptr;
     QComboBox* m_mode = nullptr;
+    QToolButton* m_star = nullptr;
     int m_generation = 0;
     QStringList m_words; // of the query on screen
     QLineEdit* m_input = nullptr;

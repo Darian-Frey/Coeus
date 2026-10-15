@@ -56,6 +56,11 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     crumbs->setForegroundRole(QPalette::PlaceholderText);
     crumbs->setTextInteractionFlags(Qt::TextSelectableByMouse);
     row->addWidget(crumbs, 1);
+    m_starButton = new QToolButton(header);
+    m_starButton->setAutoRaise(true);
+    connect(m_starButton, &QToolButton::clicked, this, &NoteView::starToggled);
+    row->addWidget(m_starButton);
+    setStarred(false);
 
     m_sourceButton = modeButton(tr("Source"), header);
     QToolButton* live = modeButton(tr("Live"), header);
@@ -185,6 +190,13 @@ QString NoteView::resolveImage(const QString& target, bool wiki) const
             return QUrl::fromLocalFile(candidate).toString();
     }
     return {};
+}
+
+void NoteView::setStarred(bool starred)
+{
+    m_starButton->setText(starred ? QStringLiteral("★") : QStringLiteral("☆"));
+    m_starButton->setToolTip(starred ? tr("Bookmarked: click to remove (Ctrl+Alt+S)") : tr("Bookmark this note (Ctrl+Alt+S)"));
+    m_starButton->setProperty("starred", starred);
 }
 
 QString NoteView::styleSheet() const

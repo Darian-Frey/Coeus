@@ -221,6 +221,13 @@ def build_vault(vault: Path, linked: Path) -> None:
           It is refused, since Save has it; press `Ctrl+Alt+N` instead. Reset
           puts `Ctrl+N` back.
 
+        ## Bookmarks and recent notes
+        - Click ☆ in a note's header (or `Ctrl+Alt+S`) and it joins the
+          **Bookmarks** tab beside Search. In **Search**, type a query and click
+          its ☆: the search is starred too, in its mode.
+        - `Ctrl+R` lists the notes you opened most recently, the one before the
+          current note first.
+
         ## Daily notes and templates
         - `Ctrl+D` opens today's note, creating it from `templates/Daily.md` if it
           does not exist yet; press it again and the same note opens, untouched.

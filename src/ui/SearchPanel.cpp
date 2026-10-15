@@ -14,6 +14,7 @@
 #include <QLineEdit>
 #include <QThreadPool>
 #include <QTimer>
+#include <QToolButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QtConcurrent/QtConcurrentRun>
@@ -110,10 +111,42 @@ SearchPanel::SearchPanel(QWidget* parent)
     row->setContentsMargins(0, 0, 0, 0);
     row->addWidget(m_input, 1);
     row->addWidget(m_mode);
+    m_star = new QToolButton(this);
+    m_star->setAutoRaise(true);
+    row->addWidget(m_star);
+    connect(m_star, &QToolButton::clicked, this, [this] {
+        if (!m_input->text().trimmed().isEmpty())
+            emit starToggled(m_input->text().trimmed(), modeName(mode()));
+    });
+    const auto changed = [this] {
+        m_star->setEnabled(!m_input->text().trimmed().isEmpty());
+        emit queryChanged(m_input->text().trimmed(), modeName(mode()));
+    };
+    connect(m_input, &QLineEdit::textChanged, this, changed);
+    connect(m_mode, &QComboBox::currentIndexChanged, this, changed);
+    setStarred(false);
+    m_star->setEnabled(false);
     layout->addLayout(row);
     layout->addWidget(m_status);
     layout->addWidget(m_results, 1);
     present(Outcome{QList<Row>(), QString(), 0});
+}
+
+QString SearchPanel::modeName(Mode mode)
+{
+    return mode == Mode::Meaning ? QStringLiteral("meaning") : mode == Mode::Both ? QStringLiteral("both") : QStringLiteral("words");
+}
+
+SearchPanel::Mode SearchPanel::modeNamed(const QString& name)
+{
+    return name == QLatin1String("meaning") ? Mode::Meaning : name == QLatin1String("both") ? Mode::Both : Mode::Words;
+}
+
+void SearchPanel::setStarred(bool starred)
+{
+    m_star->setText(starred ? QStringLiteral("★") : QStringLiteral("☆"));
+    m_star->setToolTip(starred ? tr("Bookmarked search: click to remove") : tr("Bookmark this search"));
+    m_star->setProperty("starred", starred);
 }
 
 SearchPanel::~SearchPanel()

@@ -2,6 +2,7 @@
 
 #include "ui/BacklinksPanel.hpp"
 #include "ui/CommandPalette.hpp"
+#include "ui/BookmarksPanel.hpp"
 #include "ui/CommitDialog.hpp"
 #include "ui/DiffView.hpp"
 #include "ui/Editor.hpp"
@@ -38,10 +39,12 @@
 #include "ui/TagPanel.hpp"
 #include "ui/VersionView.hpp"
 #include "ui/WriteToast.hpp"
+#include "vault/Bookmarks.hpp"
 #include "vault/DailyNotes.hpp"
 #include "vault/GitIgnoreOffer.hpp"
 #include "vault/Journal.hpp"
 #include "vault/NewNote.hpp"
+#include "vault/RecentNotes.hpp"
 #include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
 #include "vault/Templates.hpp"
@@ -147,9 +150,15 @@ MainWindow::MainWindow(QWidget* parent)
     m_journalTimer->setInterval(kJournalIntervalMs);
     connect(m_journalTimer, &QTimer::timeout, this, &MainWindow::journalNow);
     m_journalTimer->start();
+    m_recentTimer = new QTimer(this); // recents are written a moment after they settle (F-014)
+    m_recentTimer->setSingleShot(true);
+    m_recentTimer->setInterval(kRecentSaveDelayMs);
+    connect(m_recentTimer, &QTimer::timeout, this, &MainWindow::saveRecent);
     connect(m_tabs, &QTabWidget::currentChanged, this, &MainWindow::updateStatus);
     connect(m_tabs, &QTabWidget::currentChanged, this, [this] {
         Editor* editor = currentEditor();
+        if (editor)
+            noteRecent(editor->path());
         m_backlinks->showNote(editor ? editor->path() : QString());
         m_related->showNote(editor ? editor->path() : QString());
         // A version or a diff keeps its note's history in view.
@@ -181,6 +190,7 @@ MainWindow::MainWindow(QWidget* parent)
         m_related->refresh();
         m_history->refresh();
         m_tags->reload();
+        presentBookmarks();
     });
 }
 
@@ -243,6 +253,33 @@ void MainWindow::createDocks()
     tabifyDockWidget(m_explorerDock, m_searchDock);
     connect(m_search, &SearchPanel::openRequested, this, &MainWindow::openNoteAtWords);
     connect(m_search, &SearchPanel::openAtLineRequested, this, &MainWindow::openNoteAt);
+    connect(m_search, &SearchPanel::starToggled, this, [this](const QString& query, const QString& mode) {
+        setBookmarks(Bookmarks::toggled(m_bookmarkList, Bookmark::search(query, mode)));
+    });
+    connect(m_search, &SearchPanel::queryChanged, this, [this](const QString& query, const QString& mode) {
+        m_search->setStarred(m_bookmarkList.contains(Bookmark::search(query, mode)));
+    });
+
+    // Bookmarks: starred notes and searches (F-014).
+    m_bookmarks = new BookmarksPanel;
+    m_bookmarksDock = new QDockWidget(tr("Bookmarks"), this);
+    m_bookmarksDock->setObjectName(QStringLiteral("bookmarksDock"));
+    m_bookmarksDock->setWidget(m_bookmarks);
+    addDockWidget(Qt::LeftDockWidgetArea, m_bookmarksDock);
+    tabifyDockWidget(m_explorerDock, m_bookmarksDock);
+    connect(m_bookmarks, &BookmarksPanel::activated, this, &MainWindow::openBookmark);
+    connect(m_bookmarks, &BookmarksPanel::removeRequested, this, [this](int index) {
+        QList<Bookmark> bookmarks = m_bookmarkList;
+        if (index >= 0 && index < bookmarks.size())
+            bookmarks.removeAt(index);
+        setBookmarks(bookmarks);
+    });
+    connect(m_bookmarks, &BookmarksPanel::moveRequested, this, [this](int index, int to) {
+        QList<Bookmark> bookmarks = m_bookmarkList;
+        if (index >= 0 && index < bookmarks.size() && to >= 0 && to < bookmarks.size())
+            bookmarks.move(index, to);
+        setBookmarks(bookmarks);
+    });
 
     // Registers: the scaffold standard's entries for the current project (F-015).
     m_registers = new RegisterPanel(m_catalogue);
@@ -353,6 +390,29 @@ void MainWindow::createActions()
     m_nextIdPicker->setPlaceholder(tr("Which register?"));
     m_nextIdPicker->setKeepsOrder(true); // the current register's kind first
 
+    auto* toggleBookmarkAction = new QAction(tr("Toggle &Bookmark"), this);
+    toggleBookmarkAction->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_S));
+    connect(toggleBookmarkAction, &QAction::triggered, this, [this] {
+        if (NoteView* view = currentView())
+            toggleBookmark(view->path());
+        else
+            statusBar()->showMessage(tr("Open a note to bookmark it"), kStatusTimeoutMs);
+    });
+    auto* openRecentAction = new QAction(tr("Open &Recent Note…"), this);
+    openRecentAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
+    connect(openRecentAction, &QAction::triggered, this, &MainWindow::chooseRecent);
+    m_recentPicker = new CommandPalette(this);
+    m_recentPicker->setPlaceholder(tr("Open a recent note…"));
+    m_recentPicker->setKeepsOrder(true); // newest first
+    m_recentMenu = new QMenu(tr("Open Rec&ent"), this);
+    connect(m_recentMenu, &QMenu::aboutToShow, this, [this] {
+        m_recentMenu->clear();
+        for (QAction* action : recentActions(m_recentMenu))
+            m_recentMenu->addAction(action);
+        if (m_recentMenu->isEmpty())
+            m_recentMenu->addAction(tr("No recent notes"))->setEnabled(false);
+    });
+
     auto* newNoteAction = new QAction(QIcon::fromTheme(QStringLiteral("document-new")), tr("&New Note…"), this);
     newNoteAction->setShortcut(QKeySequence::New);
     connect(newNoteAction, &QAction::triggered, this, &MainWindow::newNote);
@@ -421,6 +481,9 @@ void MainWindow::createActions()
     fileMenu->addAction(openVault);
     fileMenu->addAction(newNoteAction);
     fileMenu->addAction(today);
+    fileMenu->addAction(openRecentAction);
+    fileMenu->addMenu(m_recentMenu);
+    fileMenu->addAction(toggleBookmarkAction);
     fileMenu->addAction(insertTemplateAction);
     fileMenu->addAction(insertNextIdAction);
     fileMenu->addAction(m_save);
@@ -535,6 +598,13 @@ void MainWindow::createActions()
     addAction(toggleBoard);
     registerAction(toggleBoard);
 
+    QAction* toggleBookmarks = m_bookmarksDock->toggleViewAction();
+    toggleBookmarks->setText(tr("Toggle Boo&kmarks"));
+    toggleBookmarks->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K));
+    viewMenu->addAction(toggleBookmarks);
+    addAction(toggleBookmarks);
+    registerAction(toggleBookmarks);
+
     QAction* toggleTags = m_tagsDock->toggleViewAction();
     toggleTags->setText(tr("Toggle &Tags"));
     toggleTags->setIcon(Icons::tags());
@@ -547,7 +617,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, newNoteAction, today, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
+    for (QAction* action : {openVault, newNoteAction, today, openRecentAction, toggleBookmarkAction, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -605,6 +675,157 @@ void MainWindow::updateProblemsButton()
     m_problemsButton->show();
 }
 
+std::optional<std::pair<QString, QString>> MainWindow::rootRelative(const QString& absolutePath) const
+{
+    // The deepest root containing the path, lexically: the note may be gone.
+    std::optional<std::pair<QString, QString>> best;
+    qsizetype longest = -1;
+    const auto consider = [&](const QString& name, const Vault& root) {
+        if (absolutePath.startsWith(root.rootPath() + QLatin1Char('/')) && root.rootPath().size() > longest) {
+            longest = root.rootPath().size();
+            best = std::pair{name, root.relativePath(absolutePath)};
+        }
+    };
+    if (m_vault)
+        consider(QStringLiteral("vault"), *m_vault);
+    for (const LinkedRoot& linked : m_linkedRoots)
+        consider(linked.name, linked.vault);
+    return best;
+}
+
+QString MainWindow::absoluteOf(const QString& rootName, const QString& path) const
+{
+    if (!m_vault)
+        return {};
+    if (rootName == QLatin1String("vault"))
+        return m_vault->rootPath() + QLatin1Char('/') + path;
+    for (const LinkedRoot& linked : m_linkedRoots)
+        if (linked.name == rootName)
+            return linked.vault.rootPath() + QLatin1Char('/') + path;
+    return {}; // a root missing on this machine
+}
+
+bool MainWindow::isBookmarked(const QString& absolutePath) const
+{
+    const auto note = rootRelative(absolutePath);
+    return note && m_bookmarkList.contains(Bookmark::note(note->first, note->second));
+}
+
+void MainWindow::toggleBookmark(const QString& absolutePath)
+{
+    const auto note = rootRelative(absolutePath);
+    if (!note)
+        return;
+    const bool starring = !isBookmarked(absolutePath);
+    setBookmarks(Bookmarks::toggled(m_bookmarkList, Bookmark::note(note->first, note->second)));
+    statusBar()->showMessage(starring ? tr("Bookmarked %1").arg(displayPath(absolutePath)) : tr("Removed the bookmark"), kStatusTimeoutMs);
+}
+
+void MainWindow::setBookmarks(const QList<Bookmark>& bookmarks)
+{
+    if (!m_vault)
+        return;
+    m_bookmarkList = bookmarks;
+    if (auto saved = Bookmarks::save(m_vault->rootPath(), m_bookmarkList); !saved)
+        statusBar()->showMessage(tr("Bookmarks not saved: %1").arg(saved.error()), kStatusTimeoutMs * 2);
+    presentBookmarks();
+}
+
+void MainWindow::presentBookmarks()
+{
+    QList<BookmarksPanel::Row> rows;
+    for (const Bookmark& bookmark : std::as_const(m_bookmarkList)) {
+        if (bookmark.kind == Bookmark::Kind::Search) {
+            const QString mode = bookmark.mode == QLatin1String("meaning") ? tr("by meaning")
+                                 : bookmark.mode == QLatin1String("both")  ? tr("words and meaning")
+                                                                           : tr("words");
+            rows.append({bookmark.query, mode, true, false});
+            continue;
+        }
+        const QString absolute = absoluteOf(bookmark.root, bookmark.path);
+        const QString shown = bookmark.root == QLatin1String("vault") ? bookmark.path : bookmark.root + QLatin1Char('/') + bookmark.path;
+        rows.append({QFileInfo(bookmark.path).completeBaseName(), shown, false, absolute.isEmpty() || !QFileInfo(absolute).isFile()});
+    }
+    m_bookmarks->setRows(rows);
+    for (int i = 0; i < m_tabs->count(); ++i)
+        if (NoteView* view = viewAt(i))
+            view->setStarred(isBookmarked(view->path()));
+    m_search->setStarred(m_bookmarkList.contains(Bookmark::search(m_search->input()->text().trimmed(), SearchPanel::modeName(m_search->mode()))));
+}
+
+void MainWindow::openBookmark(int index)
+{
+    if (index < 0 || index >= m_bookmarkList.size())
+        return;
+    const Bookmark bookmark = m_bookmarkList[index];
+    if (bookmark.kind == Bookmark::Kind::Search) {
+        m_searchDock->show();
+        m_searchDock->raise();
+        m_search->setMode(SearchPanel::modeNamed(bookmark.mode));
+        m_search->setQuery(bookmark.query);
+        m_search->input()->setFocus();
+        return;
+    }
+    const QString absolute = absoluteOf(bookmark.root, bookmark.path);
+    if (absolute.isEmpty() || !QFileInfo(absolute).isFile()) {
+        statusBar()->showMessage(tr("%1 is no longer there; remove the bookmark with Delete").arg(bookmark.path), kStatusTimeoutMs * 2);
+        return;
+    }
+    openNote(absolute);
+}
+
+void MainWindow::noteRecent(const QString& absolutePath)
+{
+    const auto note = rootRelative(absolutePath);
+    if (!note || (!m_recentList.isEmpty() && m_recentList.front() == RecentNotes::Note{note->first, note->second}))
+        return;
+    m_recentList = RecentNotes::touched(m_recentList, {note->first, note->second});
+    m_recentTimer->start();
+}
+
+void MainWindow::saveRecent()
+{
+    if (!m_recentTimer->isActive() || !m_vault)
+        return;
+    m_recentTimer->stop();
+    if (auto saved = RecentNotes::save(m_vault->rootPath(), m_recentList); !saved)
+        statusBar()->showMessage(tr("Recent notes not saved: %1").arg(saved.error()), kStatusTimeoutMs * 2);
+}
+
+QList<QAction*> MainWindow::recentActions(QObject* parent)
+{
+    QList<QAction*> actions;
+    for (const RecentNotes::Note& note : std::as_const(m_recentList)) {
+        const QString absolute = absoluteOf(note.first, note.second);
+        if (absolute.isEmpty() || !QFileInfo(absolute).isFile())
+            continue; // deleted or renamed since, or in a root missing here
+        auto* action = new QAction(displayPath(absolute), parent);
+        connect(action, &QAction::triggered, this, [this, absolute] { openNote(absolute); });
+        actions.append(action);
+    }
+    return actions;
+}
+
+void MainWindow::chooseRecent()
+{
+    if (!m_vault) {
+        statusBar()->showMessage(tr("Open a vault first"), kStatusTimeoutMs);
+        return;
+    }
+    delete m_recentActions;
+    m_recentActions = new QObject(this);
+    QList<QAction*> actions = recentActions(m_recentActions);
+    // The note in front is already open: the one before it is the likelier choice.
+    if (NoteView* view = currentView(); view && !actions.isEmpty() && actions.front()->text() == displayPath(view->path()))
+        actions.move(0, actions.size() - 1);
+    if (actions.isEmpty()) {
+        statusBar()->showMessage(tr("No recent notes yet"), kStatusTimeoutMs);
+        return;
+    }
+    m_recentPicker->setActions(actions);
+    m_recentPicker->popup();
+}
+
 void MainWindow::editShortcuts()
 {
     auto* dialog = new ShortcutsDialog(m_actions, this);
@@ -650,6 +871,10 @@ void MainWindow::openVault(const Vault& vault)
             m_linkedRoots.push_back({root.name, *opened});
     }
     m_explorer->setRoots(roots);
+    saveRecent(); // the previous vault's, if any are pending
+    m_recentList = RecentNotes::load(vault.rootPath());
+    m_bookmarkList = Bookmarks::load(vault.rootPath());
+    presentBookmarks();
     setWindowTitle(QStringLiteral("%1 — Coeus").arg(vault.name()));
     updateStatus();
     sweepTempFiles(vault.rootPath());
@@ -1322,6 +1547,8 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
         }
     }
     view->setProperty(kPathProperty, absolutePath);
+    view->setStarred(isBookmarked(absolutePath));
+    connect(view, &NoteView::starToggled, this, [this, absolutePath] { toggleBookmark(absolutePath); });
     editor->setCatalogue(m_catalogue);
     connect(editor, &Editor::blameRequested, this, [this, editor] { requestBlame(editor); });
     connect(editor, &Editor::blameShownChanged, this, [this, editor](bool shown) {
@@ -2355,6 +2582,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
         return;
     }
     m_journalPool->waitForDone(); // pending journal writes and removals land first
+    saveRecent();
     saveLayout();
     QMainWindow::closeEvent(event);
 }
