@@ -84,7 +84,7 @@ void Theme::apply()
     } else {
         // Fusion draws with the palette as given; desktop styles may not.
         QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
-        QApplication::setPalette(palette(m_mode));
+        QApplication::setPalette(palette(m_mode)); // replaces any per-class palettes too
     }
     if (m_mode == Mode::Cassette) {
         QFont terminal = QFontDatabase::systemFont(QFontDatabase::FixedFont);
@@ -95,6 +95,7 @@ void Theme::apply()
     }
     const QString terminal = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
     applySheet();
+    releasePalettes();
     if (m_mode != Mode::Cassette && terminal != m_systemFont.family()) {
         // Qt does not always hand back a font a style sheet gave: let any
         // widget still holding Cassette's inherit again, unless it is meant to.
@@ -114,8 +115,20 @@ void Theme::setMonospace(QWidget* widget)
 void Theme::applySheet()
 {
     const QString sheet = styleSheet(m_mode) + m_snippetSheet;
-    if (qApp && qApp->styleSheet() != sheet)
-        qApp->setStyleSheet(sheet);
+    if (!qApp || qApp->styleSheet() == sheet)
+        return;
+    qApp->setStyleSheet(sheet);
+    releasePalettes();
+}
+
+void Theme::releasePalettes()
+{
+    // Once a style sheet has been applied and removed, some widgets no longer
+    // follow the application's palette (Qt 6.4): a later theme left the
+    // sidebar in the colours of the one before. Let every widget inherit
+    // again; no Coeus widget sets a palette of its own.
+    for (QWidget* widget : QApplication::allWidgets())
+        widget->setPalette(QPalette());
 }
 
 QString Theme::styleSheet(Mode mode)

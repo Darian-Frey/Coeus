@@ -19,6 +19,15 @@ Severity vocabulary: low | medium | high.
 
 ## Fixed
 
+### BUG-011: Light theme left the docks dark after Cassette
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-10-15 (the author, trying the themes on `~/Projects`)
+**Fixed:** 2026-10-15
+**Location:** `src/ui/Theme.cpp`
+**Description.** After Cassette, switching to Light left the item views (Explorer, Tags, Search, Registers, Problems, the sidebar's lists) and the Search box dark, and labels and dock titles pale grey on light grey, nearly unreadable. Once an application style sheet has been applied and removed, Qt 6.4 leaves some widgets no longer following the application's palette: a later theme reached the window but not, for instance, the sidebar dock and everything in it. Cassette is the only theme with a sheet of its own; a style snippet removed would have done the same.
+**Fix.** Every theme change, and every change of style sheet, lets each widget inherit the application's palette again (no Coeus widget sets one of its own). `test_theme_shortcuts::everyWidgetFollowsEveryTheme` goes Dark, Light, Cassette, Light, Dark, System and requires every widget in a window to have the application's colours in its state (enabled or disabled), with a desktop-style palette for item views planted first; without the fix it fails at the second Dark on the sidebar.
+
 ### BUG-009: Changing the theme widened the window past the screen
 **Status:** fixed
 **Severity:** medium

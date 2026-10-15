@@ -161,6 +161,42 @@ private slots:
         }
     }
 
+    void everyWidgetFollowsEveryTheme()
+    {
+        // The author's report: Light after Cassette left the docks dark, their
+        // labels unreadable. No widget may keep an earlier theme's colours.
+        // As some desktops do (KDE), a palette for one class of widget: a
+        // theme must replace it too.
+        QPalette desktopViews = QApplication::palette();
+        desktopViews.setColor(QPalette::Base, Qt::magenta);
+        QApplication::setPalette(desktopViews, "QAbstractItemView");
+        MainWindow window;
+        window.resize(1200, 800);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        const auto stale = [&window] {
+            const QPalette app = QApplication::palette();
+            QStringList found;
+            for (QWidget* widget : window.findChildren<QWidget*>()) {
+                const QPalette::ColorGroup group = widget->palette().currentColorGroup(); // disabled widgets use their own
+                if (widget->palette().color(group, QPalette::Base) != app.color(group, QPalette::Base)
+                    || widget->palette().color(group, QPalette::WindowText) != app.color(group, QPalette::WindowText))
+                    found.append(QString::fromLatin1(widget->metaObject()->className()) + QLatin1Char(' ') + widget->objectName());
+            }
+            return found;
+        };
+        for (const Theme::Mode mode : {Theme::Mode::Dark, Theme::Mode::Light, Theme::Mode::Cassette, Theme::Mode::Light,
+                                       Theme::Mode::Dark, Theme::Mode::System}) {
+            Theme::instance().setMode(mode);
+            QTest::qWait(50);
+            if (mode == Theme::Mode::Cassette)
+                continue; // its style sheet colours some widgets on purpose
+            const QStringList found = stale();
+            QVERIFY2(found.isEmpty(), qPrintable(Theme::name(mode) + QStringLiteral(": ") + found.mid(0, 5).join(QStringLiteral(", "))));
+        }
+        QApplication::setPalette(QApplication::palette(), "QAbstractItemView"); // leave no magenta for later tests
+    }
+
     void snippetsStyleTheApplication()
     {
         const QString folder = Theme::snippetsFolder();

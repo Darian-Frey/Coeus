@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Fixed
+- BUG-011: after Cassette, Light left the docks' lists and the Search box dark and labels unreadable; every widget now follows each theme change.
 - BUG-009: changing the theme could widen the window past the screen, sizing the Registers panel's status filter to the longest status in the vault; the panel's filters are now a few words wide, longer items elided.
 - BUG-008: in a vault that is a Git repository, the embeddings sidecar counted as a changed file and appeared in every commit dialog; `.coeus-shared/` is now one of Coeus's own files, like `.coeus/`.
 

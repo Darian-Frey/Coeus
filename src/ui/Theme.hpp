@@ -70,6 +70,7 @@ private:
     Theme() = default;
     void apply();
     void applySheet(); // the mode's own sheet, then the snippets
+    static void releasePalettes(); // every widget follows the application's palette again
 
     QString m_snippetSheet;
     QFont m_systemFont;
