@@ -19,6 +19,15 @@ Severity vocabulary: low | medium | high.
 
 ## Fixed
 
+### BUG-009: Changing the theme widened the window past the screen
+**Status:** fixed
+**Severity:** medium
+**Found:** 2026-10-15 (the author, trying F-027 on `~/Projects`)
+**Fixed:** 2026-10-15
+**Location:** `src/ui/RegisterPanel.cpp`, `src/ui/NewNoteDialog.cpp`
+**Description.** The Registers panel's project and status filters kept Qt's default size policy, which measures a combo box's longest item once, when it is first shown. That was before the catalogue loaded, when the status filter held only "All statuses". A restyle measures again, and the standard's statuses run to a paragraph ("Complete (Phase 3, 2026-10-14): read tools working with…"), so switching theme on the author's vault gave the box a minimum width of 2,255 px and the window grew to 2,824 px to hold it. Latent since F-015; F-027's style change set it off, as a font change would have.
+**Fix.** Combo boxes filled from the vault are sized to a few words (`AdjustToMinimumContentsLengthWithIcon`), longer items elided with their full text as a tooltip. `test_theme_shortcuts::restylingNeverWidensTheWindow` switches through the three themes with such a status and requires the window to keep its width; without the fix it grows to 2,250 px.
+
 ### BUG-008: The embeddings sidecar counted as a change in Git vaults
 **Status:** fixed
 **Severity:** medium

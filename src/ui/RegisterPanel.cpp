@@ -20,6 +20,7 @@ namespace {
 
 constexpr int kPathRole = Qt::UserRole + 1;
 constexpr int kLineRole = Qt::UserRole + 2;
+constexpr int kComboChars = 14; // a project or status filter shows this much, then elides
 
 // "projects/coeus" in the vault, "pontus" or "pontus/sub" in a linked root.
 QString projectLabel(const ProjectRef& project)
@@ -46,6 +47,13 @@ RegisterPanel::RegisterPanel(const NoteCatalogue* catalogue, QWidget* parent)
     , m_count(new QLabel(this))
     , m_tree(new QTreeWidget(this))
 {
+    // Filled from the registers, whose statuses can run to a paragraph: sized
+    // to a few words, never to the longest item, which a restyle would
+    // otherwise measure again and widen the window by (BUG-009).
+    for (QComboBox* box : {m_project, m_status}) {
+        box->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+        box->setMinimumContentsLength(kComboChars);
+    }
     m_kind->addItem(tr("All kinds"), QString());
     for (const QString& kind : RegisterTemplates::kinds())
         m_kind->addItem(QStringLiteral("%1 — %2").arg(kind, RegisterTemplates::displayName(kind)), kind);
@@ -141,8 +149,10 @@ void RegisterPanel::present()
                 statuses.append(entry.status);
         }
         statuses.sort(Qt::CaseInsensitive);
-        for (const QString& status : std::as_const(statuses))
+        for (const QString& status : std::as_const(statuses)) {
             m_status->addItem(status, status);
+            m_status->setItemData(m_status->count() - 1, status, Qt::ToolTipRole); // the whole of an elided one
+        }
         const int index = m_status->findData(chosen);
         m_status->setCurrentIndex(index >= 0 ? index : 0);
         m_updating = false;

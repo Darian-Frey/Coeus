@@ -29,6 +29,8 @@ NewNoteDialog::NewNoteDialog(const QList<Root>& roots, const QList<Template>& te
     m_folder = new QLineEdit(folder, this);
     m_folder->setPlaceholderText(tr("(top level)"));
     m_template = new QComboBox(this);
+    m_template->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon); // BUG-009
+    m_template->setMinimumContentsLength(24);
     m_template->addItem(tr("Blank"));
     for (const Template& t : std::as_const(m_templates))
         m_template->addItem(t.folder.isEmpty() ? t.name : tr("%1  → %2/").arg(t.name, t.folder));

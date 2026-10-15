@@ -134,6 +134,33 @@ private slots:
         QCOMPARE(QSettings().value(QStringLiteral("appearance/theme")).toString(), QStringLiteral("system"));
     }
 
+    void restylingNeverWidensTheWindow()
+    {
+        // BUG-009: a register status a paragraph long, as the standard's are.
+        QTemporaryDir vault;
+        write(vault.filePath(QStringLiteral("p/README.md")),
+              "> **Status:** Active\n> **Provenance:** T\n> **Last reviewed:** 2026-10-15\n> **Why this status:** T\n\n# P\n");
+        write(vault.filePath(QStringLiteral("p/FEATURES.md")),
+              "### F-001 Shell\n**Status:** Complete (Phase 3, 2026-10-14): read tools working with Coeus closed; write tools "
+              "next_id, append_entry and write_note, off unless enabled, refusing notes open with unsaved changes, with a 10 s "
+              "undo toast when the window is open; BUILD.md snippets and a great deal more besides\n");
+        MainWindow window;
+        window.resize(1000, 700);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QSignalSpy reloaded(window.catalogue(), &NoteCatalogue::reloaded);
+        window.openVault(*Vault::open(vault.path()));
+        QVERIFY(reloaded.wait(10'000));
+        window.openNote(vault.filePath(QStringLiteral("p/FEATURES.md"))); // the register panel follows it
+        QTest::qWait(200);
+        for (const Theme::Mode mode : {Theme::Mode::Dark, Theme::Mode::Light, Theme::Mode::Cassette, Theme::Mode::System}) {
+            Theme::instance().setMode(mode);
+            QTest::qWait(100);
+            QCOMPARE(window.width(), 1000);
+            QVERIFY2(window.minimumSizeHint().width() < 1000, qPrintable(QString::number(window.minimumSizeHint().width())));
+        }
+    }
+
     void snippetsStyleTheApplication()
     {
         const QString folder = Theme::snippetsFolder();
