@@ -25,6 +25,7 @@
 #include "registers/RegisterTemplates.hpp"
 #include "ui/ProblemsPanel.hpp"
 #include "ui/ProjectBoard.hpp"
+#include "ui/NewNoteDialog.hpp"
 #include "ui/PromoteDialog.hpp"
 #include "ui/RegisterPanel.hpp"
 #include "ui/RelatedPanel.hpp"
@@ -37,6 +38,7 @@
 #include "vault/DailyNotes.hpp"
 #include "vault/GitIgnoreOffer.hpp"
 #include "vault/Journal.hpp"
+#include "vault/NewNote.hpp"
 #include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
 #include "vault/Templates.hpp"
@@ -251,6 +253,9 @@ void MainWindow::createDocks()
     addDockWidget(Qt::BottomDockWidgetArea, m_problemsDock);
     m_problemsDock->hide(); // the status bar's count opens it
     connect(m_problems, &ProblemsPanel::openRequested, this, &MainWindow::openNoteAt);
+    connect(m_problems, &ProblemsPanel::reportCopied, this, [this](int problems) {
+        statusBar()->showMessage(tr("Copied a report of %n problem(s) as Markdown", nullptr, problems), kStatusTimeoutMs);
+    });
     connect(m_catalogue, &NoteCatalogue::reloaded, m_problems, [this] {
         if (Editor* editor = currentEditor())
             m_problems->followNote(editor->path());
@@ -334,6 +339,10 @@ void MainWindow::createActions()
     m_nextIdPicker->setPlaceholder(tr("Which register?"));
     m_nextIdPicker->setKeepsOrder(true); // the current register's kind first
 
+    auto* newNoteAction = new QAction(QIcon::fromTheme(QStringLiteral("document-new")), tr("&New Note…"), this);
+    newNoteAction->setShortcut(QKeySequence::New);
+    connect(newNoteAction, &QAction::triggered, this, &MainWindow::newNote);
+
     auto* insertTemplateAction = new QAction(tr("Insert &Template…"), this);
     connect(insertTemplateAction, &QAction::triggered, this, &MainWindow::chooseTemplate);
     m_templatePicker = new CommandPalette(this);
@@ -396,6 +405,7 @@ void MainWindow::createActions()
 
     QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
     fileMenu->addAction(openVault);
+    fileMenu->addAction(newNoteAction);
     fileMenu->addAction(today);
     fileMenu->addAction(insertTemplateAction);
     fileMenu->addAction(insertNextIdAction);
@@ -489,7 +499,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, today, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
+    for (QAction* action : {openVault, newNoteAction, today, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -893,26 +903,34 @@ void MainWindow::insertTemplate(const QString& templatePath)
     }
 
     // {{next:KIND}} takes a real ID, reserved like Insert Next ID (F-010, F-015).
+    QPointer<Editor> target(editor);
+    allocateTemplateIds(*project, kinds, [this, target, templatePath, text = *source](const QHash<QString, QString>& ids,
+                                                                                     const QString& error) {
+        if (!target)
+            return;
+        if (!error.isEmpty())
+            statusBar()->showMessage(error, kStatusTimeoutMs * 2);
+        applyTemplate(target, templatePath, text, ids);
+    });
+}
+
+void MainWindow::allocateTemplateIds(const ProjectRef& project, const QStringList& kinds,
+                                     std::function<void(const QHash<QString, QString>&, const QString&)> done)
+{
     struct Allocated {
         QHash<QString, QString> ids;
         QString error;
     };
     QHash<QString, QString> unsaved;
     for (const QString& kind : kinds)
-        unsaved.insert(kind, unsavedRegisterText(*project, kind));
-    QPointer<Editor> target(editor);
+        unsaved.insert(kind, unsavedRegisterText(project, kind));
     auto* watcher = new QFutureWatcher<Allocated>(this);
-    connect(watcher, &QFutureWatcher<Allocated>::finished, this, [this, watcher, target, templatePath, text = *source] {
+    connect(watcher, &QFutureWatcher<Allocated>::finished, this, [watcher, done = std::move(done)] {
         const Allocated allocated = watcher->result();
         watcher->deleteLater();
-        if (!target)
-            return;
-        if (!allocated.error.isEmpty())
-            statusBar()->showMessage(allocated.error, kStatusTimeoutMs * 2);
-        applyTemplate(target, templatePath, text, allocated.ids);
+        done(allocated.ids, allocated.error);
     });
-    watcher->setFuture(QtConcurrent::run([index = IndexService::indexPath(m_vault->rootPath()), project = *project, kinds,
-                                          unsaved] {
+    watcher->setFuture(QtConcurrent::run([index = IndexService::indexPath(m_vault->rootPath()), project, kinds, unsaved] {
         Allocated allocated;
         for (const QString& kind : kinds) {
             const auto id = NextId::allocate({index, project.rootPath, project.path, kind, QStringLiteral("gui"), unsaved.value(kind)});
@@ -923,6 +941,108 @@ void MainWindow::insertTemplate(const QString& templatePath)
         }
         return allocated;
     }));
+}
+
+void MainWindow::newNote()
+{
+    if (!m_vault) {
+        statusBar()->showMessage(tr("Open a vault first"), kStatusTimeoutMs);
+        return;
+    }
+    QList<NewNoteDialog::Root> roots{{QFileInfo(m_vault->rootPath()).fileName(), m_vault->rootPath()}};
+    for (const LinkedRoot& linked : m_linkedRoots)
+        roots.append({linked.name, linked.vault.rootPath()});
+    QList<NewNoteDialog::Template> templates;
+    const QString base = QDir::cleanPath(m_vault->rootPath() + QLatin1Char('/') + Templates::folder(m_vault->rootPath()));
+    for (const QString& path : Templates::list(m_vault->rootPath())) {
+        QString name = QDir(base).relativeFilePath(path);
+        name.chop(3);
+        templates.append({name, path, Templates::placement(m_vault->readNote(path).value_or(QString()))});
+    }
+    // Where to start: the explorer's folder, else the current note's, else the vault.
+    QString folder = m_explorer->selectedFolder();
+    if (folder.isEmpty() && currentView())
+        folder = QFileInfo(currentView()->path()).absolutePath();
+    int rootIndex = 0;
+    QString relative;
+    qsizetype longest = -1;
+    for (qsizetype i = 0; i < roots.size(); ++i) {
+        const QString& rootPath = roots[i].path;
+        if ((folder == rootPath || folder.startsWith(rootPath + QLatin1Char('/'))) && rootPath.size() > longest) {
+            longest = rootPath.size();
+            rootIndex = int(i);
+            relative = folder == rootPath ? QString() : QDir(rootPath).relativeFilePath(folder);
+        }
+    }
+    auto* dialog = new NewNoteDialog(roots, templates, rootIndex, relative, this);
+    dialog->setObjectName(QStringLiteral("newNoteDialog"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    connect(dialog, &QDialog::accepted, this, [this, dialog] { createNote(dialog->notePath(), dialog->templatePath()); });
+    dialog->open();
+}
+
+void MainWindow::createNote(const QString& absolutePath, const QString& templatePath)
+{
+    const Vault* root = m_vault ? rootFor(QFileInfo(absolutePath).absolutePath()) : nullptr;
+    if (!root && m_vault) {
+        // A folder not made yet: the deepest root whose path contains it.
+        QList<const Vault*> candidates{&*m_vault};
+        for (const LinkedRoot& linked : m_linkedRoots)
+            candidates.append(&linked.vault);
+        for (const Vault* candidate : std::as_const(candidates))
+            if (absolutePath.startsWith(candidate->rootPath() + QLatin1Char('/'))
+                && (!root || candidate->rootPath().size() > root->rootPath().size()))
+                root = candidate;
+    }
+    if (!root) {
+        statusBar()->showMessage(tr("Outside the vault and its linked roots: %1").arg(absolutePath), kStatusTimeoutMs * 2);
+        return;
+    }
+    QString source;
+    if (!templatePath.isEmpty()) {
+        const auto read = m_vault->readNote(templatePath);
+        if (!read) {
+            statusBar()->showMessage(read.error(), kStatusTimeoutMs * 2);
+            return;
+        }
+        source = *read;
+    }
+    const auto write = [this, root, absolutePath, templatePath, source](const QHash<QString, QString>& ids, const QString& error) {
+        if (QFileInfo::exists(absolutePath)) { // appeared meanwhile: never overwritten
+            statusBar()->showMessage(tr("%1 already exists").arg(displayPath(absolutePath)), kStatusTimeoutMs * 2);
+            return;
+        }
+        Templates::Rendered rendered{NewNote::blank(absolutePath), {}};
+        if (!templatePath.isEmpty())
+            rendered = Templates::render(source, QDateTime::currentDateTime(), QFileInfo(absolutePath).completeBaseName(), ids);
+        if (!QDir().mkpath(QFileInfo(absolutePath).absolutePath())) {
+            statusBar()->showMessage(tr("Cannot create %1").arg(QFileInfo(absolutePath).absolutePath()), kStatusTimeoutMs * 2);
+            return;
+        }
+        // An explicit user command, through Vault::writeNote and AtomicWriter.
+        if (auto written = root->writeNote(absolutePath, rendered.text.toUtf8()); !written) {
+            statusBar()->showMessage(written.error(), kStatusTimeoutMs * 2);
+            return;
+        }
+        openNote(absolutePath);
+        if (NoteView* view = currentView())
+            view->setMode(NoteView::Mode::Source);
+        if (!error.isEmpty())
+            statusBar()->showMessage(error, kStatusTimeoutMs * 2);
+        else if (!rendered.unsupported.isEmpty())
+            statusBar()->showMessage(tr("Created %1; left as written: %2 ({{next:…}} needs a note inside a project)")
+                                         .arg(displayPath(absolutePath), rendered.unsupported.join(QStringLiteral(", "))),
+                                     kStatusTimeoutMs * 2);
+        else
+            statusBar()->showMessage(tr("Created %1").arg(displayPath(absolutePath)), kStatusTimeoutMs);
+        emit noteCreated(absolutePath);
+    };
+    const QStringList kinds = Templates::nextKinds(source);
+    const auto project = m_catalogue->projectOf(absolutePath);
+    if (kinds.isEmpty() || !project)
+        write({}, {});
+    else
+        allocateTemplateIds(*project, kinds, write);
 }
 
 void MainWindow::applyTemplate(Editor* editor, const QString& templatePath, const QString& source,

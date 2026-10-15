@@ -222,6 +222,11 @@ def build_vault(vault: Path, linked: Path) -> None:
           `Ctrl+Z` takes it all back in one step. Inserted into a note under
           `projects/coeus/`, its `{{next:D}}` becomes D-020; elsewhere it stays as
           written.
+        - **New Note…** (`Ctrl+N`) names a note and fills it from a template, or
+          Blank. It starts in the folder of the note you are in; choose *Reading
+          note* and the folder becomes `reading/`, because the template says so
+          (`coeus-folder`), a key the new note does not get. An existing name is
+          refused rather than overwritten.
 
         ## Registers
         - The **Registers** tab (beside Explorer) lists a project's entries; open
@@ -243,6 +248,9 @@ def build_vault(vault: Path, linked: Path) -> None:
         - Click a problem: the register opens at its line, the culprit underlined
           with a wavy line; hover it for the message. Change *Planned* to
           *Not started* and save: the error goes.
+        - **Copy Report** puts what the panel shows on the clipboard as Markdown,
+          to paste into Claude Code. Claude Code can also ask for it through
+          Coeus's MCP server: the `problems` tool.
 
         ## Git history
         - Open [[pontus:DECISIONS]]: the sidebar's **History** shows the branch
@@ -500,6 +508,20 @@ def build_vault(vault: Path, linked: Path) -> None:
         - Agenda:
         - Decisions: {{next:D}}
         - Actions:
+        """)
+
+    write(vault / "templates/Reading note.md", """
+        ---
+        coeus-folder: reading
+        tags: [reading]
+        ---
+        # {{title}}
+
+        Started {{date}}.
+
+        ## Quotes
+
+        ## Thoughts
         """)
 
     write(vault / ".secret.md", "# Hidden\n\nNever listed or indexed.\n")

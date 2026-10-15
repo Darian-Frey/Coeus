@@ -1,4 +1,5 @@
 #include "vault/DailyNotes.hpp"
+#include "vault/NewNote.hpp"
 #include "vault/Roots.hpp"
 #include "vault/Templates.hpp"
 
@@ -135,6 +136,38 @@ private slots:
         write(Roots::configPath(dir.path()), "[daily]\ntemplate = \"templates/Gone.md\"\n");
         QVERIFY(!DailyNotes::openOrCreate(*Vault::open(dir.path()), kNow).has_value());
         QVERIFY(!QFile::exists(dir.filePath(QStringLiteral("daily/2026-10-13.md"))));
+    }
+
+    void templatesNameTheirFolder()
+    {
+        const QString meeting = QStringLiteral("---\ncoeus-folder: meetings/2026/\ntags: [meeting]\n---\n# {{title}}\n");
+        QCOMPARE(Templates::placement(meeting), QStringLiteral("meetings/2026"));
+        QCOMPARE(Templates::placement(QStringLiteral("# No frontmatter\n")), QString());
+        QCOMPARE(Templates::placement(QStringLiteral("---\ntags: [x]\n---\nbody\n")), QString());
+        // Never copied into a note: other keys stay, a block left empty goes.
+        QCOMPARE(Templates::withoutPlacement(meeting), QStringLiteral("---\ntags: [meeting]\n---\n# {{title}}\n"));
+        QCOMPARE(Templates::withoutPlacement(QStringLiteral("---\ncoeus-folder: x\n---\nbody\n")), QStringLiteral("body\n"));
+        QCOMPARE(Templates::render(meeting, QDateTime(QDate(2026, 10, 15), QTime(9, 0)), QStringLiteral("Standup")).text,
+                 QStringLiteral("---\ntags: [meeting]\n---\n# Standup\n"));
+    }
+
+    void newNotePathsAreChecked()
+    {
+        QTemporaryDir root;
+        write(root.filePath(QStringLiteral("notes/Existing.md")), "x");
+        QCOMPARE(NewNote::pathFor(root.path(), QStringLiteral("notes"), QStringLiteral(" Plan ")).value(), root.filePath(QStringLiteral("notes/Plan.md")));
+        QCOMPARE(NewNote::pathFor(root.path(), QString(), QStringLiteral("Plan.md")).value(), root.filePath(QStringLiteral("Plan.md")));
+        QCOMPARE(NewNote::pathFor(root.path(), QStringLiteral("new/deeper/"), QStringLiteral("Plan")).value(),
+                 root.filePath(QStringLiteral("new/deeper/Plan.md"))); // folders not made yet are fine
+        QVERIFY(NewNote::pathFor(root.path(), QStringLiteral("notes"), QStringLiteral("Existing")).error().contains(QLatin1String("already exists")));
+        QVERIFY(!NewNote::pathFor(root.path(), QString(), QStringLiteral("  ")));
+        QVERIFY(!NewNote::pathFor(root.path(), QString(), QStringLiteral("a/b")));
+        QVERIFY(!NewNote::pathFor(root.path(), QString(), QStringLiteral(".hidden")));
+        QVERIFY(!NewNote::pathFor(root.path(), QStringLiteral("../outside"), QStringLiteral("Plan")));
+        QVERIFY(!NewNote::pathFor(root.path(), QStringLiteral("notes/../.."), QStringLiteral("Plan")));
+        QVERIFY(!NewNote::pathFor(root.path(), QStringLiteral("/tmp"), QStringLiteral("Plan")));
+        QVERIFY(!NewNote::pathFor(root.path(), QStringLiteral(".coeus"), QStringLiteral("Plan")));
+        QCOMPARE(NewNote::blank(root.filePath(QStringLiteral("Plan.md"))), QStringLiteral("# Plan\n"));
     }
 };
 

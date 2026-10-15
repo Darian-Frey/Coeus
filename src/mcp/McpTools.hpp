@@ -46,6 +46,7 @@ public:
     static std::expected<QJsonObject, QString> related(const Context& context, const QJsonObject& arguments);
     static std::expected<QJsonObject, QString> listRegisters(const Context& context, const QJsonObject& arguments);
     static std::expected<QJsonObject, QString> projectStatus(const Context& context, const QJsonObject& arguments);
+    static std::expected<QJsonObject, QString> problems(const Context& context, const QJsonObject& arguments);
     static std::expected<QJsonObject, QString> listIdeas(const Context& context, const QJsonObject& arguments);
     static std::expected<QJsonObject, QString> nextId(const Context& context, const QJsonObject& arguments);
     static std::expected<QJsonObject, QString> appendEntry(const Context& context, const QJsonObject& arguments);

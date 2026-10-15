@@ -89,6 +89,8 @@ private slots:
         m_git->write(QStringLiteral("projects/alpha/FEATURES.md"), "### F-001 Shell\n**Status:** Complete\n**Related:** D-001\n");
         m_git->write(QStringLiteral("projects/beta/alpha/README.md"), kHeader); // a second "alpha", nested in beta's folder
         m_git->write(QStringLiteral("projects/beta/README.md"), kHeader);
+        m_git->write(QStringLiteral("projects/beta/alpha/CLAIMS.md"), // three errors: L1, L3, L5
+                     "### C-001 Lone\n**Status:** Maybe\n**Related:** F-404\n");
         m_git->write(QStringLiteral("notes/plan.md"),
                      "---\ntags: [plan, q4]\nowner: Ada\n---\n# Plan\n\nSee [[DECISIONS]] and [[Missing note]]. The lighthouse budget.\n");
         m_git->write(QStringLiteral("notes/other.md"), "Links to [[plan]].\n");
@@ -134,7 +136,7 @@ private slots:
             QVERIFY(tool.toObject().value(QStringLiteral("inputSchema")).toObject().value(QStringLiteral("type")).toString() == QLatin1String("object"));
         }
         QCOMPARE(names, (QStringList{QStringLiteral("search"), QStringLiteral("get_note"), QStringLiteral("related"), QStringLiteral("list_registers"),
-                                     QStringLiteral("project_status"), QStringLiteral("list_ideas"), QStringLiteral("next_id"),
+                                     QStringLiteral("problems"), QStringLiteral("project_status"), QStringLiteral("list_ideas"), QStringLiteral("next_id"),
                                      QStringLiteral("append_entry"), QStringLiteral("write_note")}));
     }
 
@@ -260,6 +262,43 @@ private slots:
                     .value(QStringLiteral("error")).toString().contains(QStringLiteral("ambiguous")));
         QVERIFY(call(QStringLiteral("list_registers"), {{QStringLiteral("project"), QStringLiteral("gamma")}}, &ok)
                     .value(QStringLiteral("error")).toString().contains(QStringLiteral("projects/alpha")));
+    }
+
+    void problemsAsThePanelShowsThem()
+    {
+        const QJsonObject nested = call(QStringLiteral("problems"), {{QStringLiteral("project"), QStringLiteral("projects/beta/alpha")},
+                                                                     {QStringLiteral("level"), QStringLiteral("error")}});
+        QCOMPARE(nested.value(QStringLiteral("project")).toString(), QStringLiteral("projects/beta/alpha"));
+        QCOMPARE(nested.value(QStringLiteral("counts")).toObject().value(QStringLiteral("error")).toInt(), 3);
+        const QJsonArray list = nested.value(QStringLiteral("problems")).toArray();
+        QCOMPARE(list.size(), 3);
+        QStringList rules;
+        for (const QJsonValue& value : list) {
+            const QJsonObject problem = value.toObject();
+            QCOMPARE(problem.value(QStringLiteral("path")).toString(), QStringLiteral("projects/beta/alpha/CLAIMS.md"));
+            QCOMPARE(problem.value(QStringLiteral("file")).toString(), QStringLiteral("CLAIMS.md"));
+            QCOMPARE(problem.value(QStringLiteral("level")).toString(), QStringLiteral("error"));
+            QVERIFY(problem.value(QStringLiteral("line")).toInt() >= 1);
+            rules.append(problem.value(QStringLiteral("rule")).toString());
+        }
+        rules.sort();
+        QCOMPARE(rules, (QStringList{QStringLiteral("L1"), QStringLiteral("L3"), QStringLiteral("L5")}));
+        QVERIFY(nested.value(QStringLiteral("rules")).toObject().value(QStringLiteral("L5")).toString().contains(QLatin1String("Reversal conditions")));
+
+        // A project's problems are not its nested projects'.
+        const QJsonArray beta = call(QStringLiteral("problems"), {{QStringLiteral("project"), QStringLiteral("projects/beta")},
+                                                                  {QStringLiteral("level"), QStringLiteral("warning")}})
+                                    .value(QStringLiteral("problems")).toArray();
+        QVERIFY(beta.isEmpty());
+        // Every project: each problem names its project.
+        const QJsonArray all = call(QStringLiteral("problems"), {{QStringLiteral("level"), QStringLiteral("error")}})
+                                   .value(QStringLiteral("problems")).toArray();
+        QCOMPARE(all.size(), 3);
+        QCOMPARE(all[0].toObject().value(QStringLiteral("project")).toString(), QStringLiteral("projects/beta/alpha"));
+        bool ok = true;
+        QVERIFY(call(QStringLiteral("problems"), {{QStringLiteral("level"), QStringLiteral("severe")}}, &ok)
+                    .value(QStringLiteral("error")).toString().contains(QLatin1String("error, warning or info")));
+        QVERIFY(!ok);
     }
 
     void projectStatusAsTheBoardSeesIt()

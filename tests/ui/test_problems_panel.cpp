@@ -7,6 +7,8 @@
 #include "ui/ProblemsPanel.hpp"
 
 #include <QAction>
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QComboBox>
 #include <QDockWidget>
 #include <QFile>
@@ -114,6 +116,34 @@ private slots:
         QCOMPARE(problemCount(tree), 3); // q's "closed" is not a BUG status (L3)
         panel->levelBox()->setCurrentIndex(panel->levelBox()->findText(QStringLiteral("All levels")));
         QCOMPARE(problemCount(tree), 5); // and q's review is years old (L8)
+        panel->scopeBox()->setCurrentIndex(panel->scopeBox()->findText(QStringLiteral("This project")));
+    }
+
+    void copyReportForAnAiSession()
+    {
+        ProblemsPanel* panel = m_window->problems();
+        QSignalSpy copied(panel, &ProblemsPanel::reportCopied);
+        panel->copyButton()->click();
+        QCOMPARE(copied.count(), 1);
+        QCOMPARE(copied.front().front().toInt(), 3);
+        const QString report = panel->report();
+        QCOMPARE(QGuiApplication::clipboard()->text(), report);
+        QVERIFY(report.startsWith(QStringLiteral("# Register problems: p\n\n%1 · 2 error(s) · 1 warning(s) · 0 info")
+                                      .arg(QDate::currentDate().toString(Qt::ISODate))));
+        QVERIFY(report.contains(QLatin1String("\n## DECISIONS.md\n\n- `DECISIONS.md:5` error L1: ")));
+        QVERIFY(report.contains(QLatin1String("\n## ATTACK_VECTORS.md\n\n- `ATTACK_VECTORS.md:1` error L7: ")));
+        QVERIFY(report.contains(QLatin1String("\n## Rules\n\n- L1: a Related field cites an ID the project does not define.\n")));
+        QVERIFY(!report.contains(QLatin1String("q/"))); // another project's problems
+
+        // What the panel shows: every project, errors only, paths from the root.
+        panel->scopeBox()->setCurrentIndex(panel->scopeBox()->findText(QStringLiteral("All projects")));
+        panel->levelBox()->setCurrentIndex(panel->levelBox()->findText(QStringLiteral("Errors")));
+        const QString all = panel->report();
+        QVERIFY(all.startsWith(QLatin1String("# Register problems: all projects (errors)\n")));
+        QVERIFY(all.contains(QLatin1String("- `q/BUGS.md:2` error L3: ")));
+        QVERIFY(all.contains(QLatin1String("- `p/DECISIONS.md:5` error L1: ")));
+        QVERIFY(!all.contains(QLatin1String(" warning ")));
+        panel->levelBox()->setCurrentIndex(panel->levelBox()->findText(QStringLiteral("All levels")));
         panel->scopeBox()->setCurrentIndex(panel->scopeBox()->findText(QStringLiteral("This project")));
     }
 

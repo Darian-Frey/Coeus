@@ -87,6 +87,7 @@ add_library(coeus_core STATIC
     src/registers/LintCommand.cpp
     src/registers/NextId.cpp
     src/registers/ProjectOverview.cpp
+    src/registers/ProblemReport.cpp
     src/registers/ProjectScaffold.cpp
     src/registers/ProjectStatus.cpp
     src/registers/RegisterTemplates.cpp
@@ -99,6 +100,7 @@ add_library(coeus_core STATIC
     src/vault/Roots.cpp
     src/vault/TempSweeper.cpp
     src/vault/Templates.cpp
+    src/vault/NewNote.cpp
     src/vault/Vault.cpp
     src/vault/VaultConfig.cpp
     src/vault/VaultLogging.cpp
@@ -121,6 +123,7 @@ add_library(coeus_core STATIC
     src/ui/Icons.cpp
     src/ui/ProblemsPanel.cpp
     src/ui/PromoteDialog.cpp
+    src/ui/NewNoteDialog.cpp
     src/ui/ProjectBoard.cpp
     src/ui/RegisterPanel.cpp
     src/ui/RelatedPanel.cpp

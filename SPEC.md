@@ -216,6 +216,8 @@ Reservations are transient, not vault data, so losing them in an index rebuild l
 
 A Problems dock below the editor (`Ctrl+Shift+M`; hidden until asked for) lists the lint problems of the current note's project, or of every project, filtered by level, grouped by file with counts, from the `NoteCatalogue` snapshot. Clicking a problem opens its file at its line. With a note in a project open, the status bar shows that project's errors and warnings (`✖ 2  ⚠ 1`); clicking it opens the dock.
 
+**Copy Report** (F-037) puts what the panel shows, with its scope and level, on the clipboard as Markdown for an AI session or an issue (`registers/ProblemReport`): a `# Register problems: <project>` title (with the level when narrowed), the date and counts, then a `## <file>` section per file with one line per problem, `` `<file>:<line>` <level> <rule>: <message> ``, and a `## Rules` section saying what each rule present means. Paths are relative to the project's folder for one project, else `<root>/<path>` (`<path>` in the vault). MCP's `problems` returns the same problems as data.
+
 In the editor each problem in the open note is underlined with a wavy line, red for errors, amber for warnings, blue for info, under its subject on its line: the cited ID, the field's value, the entry's ID. Hovering shows the message. Problems come from the index, so they reflect the note as last saved; one whose line no longer holds its subject is not shown, and they refresh when the index catches up.
 
 ## Index schema
@@ -466,7 +468,7 @@ Encryption, when enabled, is age-style: a vault key derived from a passphrase wi
 
 **Results.** A tool's result is its JSON object as `structuredContent` and the same JSON as one text content item. A tool that cannot do what was asked (a missing note, an unknown project, bad arguments) returns `isError: true` with a sentence saying why and, where useful, what would work (the roots, the projects). A project is named as `project_status` names it (`projects/coeus`, `pontus`, `pontus/sub`), case aside, or by its folder's name when only one project has it. Paths are root-relative; `.md` may be left off; a path that escapes its root is refused.
 
-Implemented: the read tools `search` (modes `text`, `semantic` and `hybrid`; by meaning, results carry `heading`, `line` and `score`, or `found_by`, and the answer carries `coverage`), `related`, `get_note`, `list_registers`, `project_status` and `list_ideas`, and the write tools `next_id`, `append_entry` and `write_note`. Tools, with JSON argument shapes:
+Implemented: the read tools `search` (modes `text`, `semantic` and `hybrid`; by meaning, results carry `heading`, `line` and `score`, or `found_by`, and the answer carries `coverage`), `related`, `get_note`, `list_registers`, `problems`, `project_status` and `list_ideas`, and the write tools `next_id`, `append_entry` and `write_note`. Tools, with JSON argument shapes:
 
 | Tool | Arguments | Returns | Writes |
 |------|-----------|---------|--------|
@@ -474,6 +476,7 @@ Implemented: the read tools `search` (modes `text`, `semantic` and `hybrid`; by 
 | `related` | `{root, path, limit}` | `{root, path, related: [{root, path, title, heading, line, snippet, score}]}` | no |
 | `get_note` | `{root, path}` | `{frontmatter, body, links, backlinks}` | no |
 | `list_registers` | `{project, kind?, status?}` | `[{ident, title, status, fields}]` | no |
+| `problems` | `{project?, level?: "error"\|"warning"\|"info"}` | `{project?, root?, folder?, counts: {error, warning, info}, problems: [{root, path, file, line, level, rule, message, project?}], rules: {L1: meaning, …}}`; `file` is relative to the problem's project folder; the problems of a project exclude those of projects nested in it | no |
 | `project_status` | `{project?}` | `[{name, status, last_reviewed, phase, unreleased, git: {branch, ahead, behind, dirty}}]` | no |
 | `list_ideas` | `{stage?}` | `[{path, stage, codename, summary}]` | no |
 | `next_id` | `{project, kind}` | `{ident}` | reserves for 60 s (§ID allocation) |
@@ -545,7 +548,9 @@ In source mode a collapsible "Properties (N)" card sits above the editor (F-008)
 
 **Templates** (F-010). Every `.md` file under the templates folder (inside the vault) is a template. File › Insert Template… lists them in a palette with the fuzzy filter; the chosen one is rendered and inserted into the current buffer as one undo step, then saved like any edit. Into an empty note it goes whole. Otherwise its body goes in at the cursor and its frontmatter keys are added to the note's frontmatter where the note lacks them, with existing keys untouched (§Properties panel editing rules); the cursor ends after the inserted body.
 
-**Variables**, in templates for both: `{{date}}` (`yyyy-MM-dd`), `{{time}}` (`HH:mm`), `{{title}}` (the note's file name without extension), and `{{date:FORMAT}}` / `{{time:FORMAT}}` with any Qt date or time format. `{{next:KIND}}` (KIND one of `F C D AV BUG IMP`), in a template inserted into a note inside a project, becomes that project's next ID of the kind, allocated by `NextId` on a worker thread before the template is inserted (§ID allocation); each kind is allocated once per insertion, so repeated `{{next:D}}` give the same ID. Outside a project, and in daily notes, it is left as written. Anything else in braces is left as written, and anything left is named in the status bar.
+**New notes** (F-036). File › New Note… (`Ctrl+N`) opens a dialog with the note's name, its root (when there are linked roots), its folder within the root, and a template: Blank or any template. The folder starts as the one selected in the explorer (the selected item itself if a folder, else its folder), else the current note's folder, else the top level. A template whose frontmatter has `coeus-folder: <folder>` (relative to the vault) moves the note there when chosen; the key is removed from whatever a template renders, here, in Insert Template and in daily notes, along with frontmatter it leaves empty. `.md` is added to the name. **Create** stays disabled, with the reason shown, while the name is empty, contains a slash or starts with a dot, the folder is outside the root or hidden, or the note exists; folders not made yet are made. The note is the rendered template (Blank: `# <name>`), with `{{next:KIND}}` allocated as for Insert Template when the note is inside a project, written through `Vault::writeNote` and `AtomicWriter` (an explicit user command), checked again for existence just before, and opened in source mode.
+
+**Variables**, in templates for all three: `{{date}}` (`yyyy-MM-dd`), `{{time}}` (`HH:mm`), `{{title}}` (the note's file name without extension), and `{{date:FORMAT}}` / `{{time:FORMAT}}` with any Qt date or time format. `{{next:KIND}}` (KIND one of `F C D AV BUG IMP`), in a template inserted into a note inside a project, becomes that project's next ID of the kind, allocated by `NextId` on a worker thread before the template is inserted (§ID allocation); each kind is allocated once per insertion, so repeated `{{next:D}}` give the same ID. Outside a project, and in daily notes, it is left as written. Anything else in braces is left as written, and anything left is named in the status bar.
 
 ## Git
 

@@ -68,6 +68,12 @@ public:
     // Offers the templates folder's notes; the chosen one goes in at the cursor (F-010).
     void chooseTemplate();
     void insertTemplate(const QString& templatePath);
+    // File › New Note… (F-036): the dialog, then createNote().
+    void newNote();
+    // Creates the note at `absolutePath` from `templatePath` (empty for
+    // blank), allocating any {{next:KIND}} first, and opens it. Never
+    // overwrites; emits noteCreated() once it is written.
+    void createNote(const QString& absolutePath, const QString& templatePath);
     // Offers the register kinds; the next free ID of the chosen kind is
     // appended to the current project's register file as a new entry (F-015).
     void chooseNextId();
@@ -169,6 +175,7 @@ signals:
     void nextIdInserted(const QString& ident, const QString& registerFile);
     // A template was inserted into the current buffer (F-010).
     void templateInserted(const QString& templatePath);
+    void noteCreated(const QString& absolutePath);
     // The stale temporary-file sweep started by openVault() has finished (IMP-002).
     void tempSweepFinished(int removed);
     // The index worker opened the vault's index and finished its first scan.
@@ -227,6 +234,10 @@ private:
     Editor* openEditor(const QString& absolutePath, bool allowMissing);
     void checkRecovery(const QString& vaultPath);
     void forgetJournal(const QString& notePath);
+    // {{next:KIND}} IDs for `kinds` in `project`, allocated by NextId on a
+    // worker thread, then `done(ids, error)` on the UI thread.
+    void allocateTemplateIds(const ProjectRef& project, const QStringList& kinds,
+                             std::function<void(const QHash<QString, QString>&, const QString&)> done);
     void applyTemplate(Editor* editor, const QString& templatePath, const QString& source,
                        const QHash<QString, QString>& nextIds);
     // Unsaved text of open buffers of `kind`'s register file in `project`.

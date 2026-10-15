@@ -297,6 +297,24 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - A compaction command drops hashes no longer present in the vault
 **Status:** Complete (Phase 3, 2026-10-14): `search/Sidecar`; imported before embedding and exported, as a whole-file atomic union, when an embedding pass ends (SPEC.md §Embeddings sidecar); only vectors of the model in use (D-008) imported; conflict copies united and removed; File › Compact Embeddings Sidecar and a weekly compaction; `coeus --mcp` imports and exports too
 
+### F-036 New note from a template
+**Priority:** Should
+**Acceptance:**
+- File › New Note… (`Ctrl+N`) asks for a name, a folder (in the vault or a linked root) and a template, Blank or any in the templates folder (F-010)
+- It starts in the folder selected in the explorer, else the current note's, else the vault's top level
+- A template may name the folder its notes go in with a `coeus-folder` frontmatter key, which never reaches a note
+- The note is rendered with the template's variables, `{{next:KIND}}` allocated like Insert Template, written atomically and opened; an existing note is never overwritten
+**Status:** Complete (2026-10-15): `vault/NewNote`, `ui/NewNoteDialog`, `Templates::placement` (SPEC.md §Daily notes and templates)
+**Notes:** Asked for by the author 2026-10-15, between Phases 3 and 4; until then Coeus could not make a note except today's.
+
+### F-037 Problems report for AI sessions
+**Priority:** Should
+**Acceptance:**
+- An MCP tool `problems` returns the register lint's problems (F-016) for a project, or every project, filtered by level, with file, line, rule and what each rule means (F-033)
+- The Problems panel's Copy Report puts exactly what it shows on the clipboard as Markdown, grouped by file with `path:line` references relative to the project
+**Status:** Complete (2026-10-15): `registers/ProblemReport`, shared by both (SPEC.md §Problems panel, §MCP surface)
+**Notes:** Asked for by the author 2026-10-15 as a report file for Claude Code. A file goes stale as problems are fixed and lands in the repository; Claude Code reaches the vault through MCP already, so it asks for the current problems instead, and Copy Report covers handing them over by hand.
+
 ## Candidate features (uncommitted)
 - GitHub API status: pull-request state and Actions results on the project board, via polling or webhook.
 - Crucible mode: structured adversarial-review view that spawns a review note and links findings back as AV- entries.

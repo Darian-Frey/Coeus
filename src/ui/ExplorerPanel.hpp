@@ -2,6 +2,7 @@
 
 #include <QList>
 #include <QString>
+#include <QPointer>
 #include <QWidget>
 
 #include <utility>
@@ -38,6 +39,9 @@ public:
     // Only the vault.
     void setRootPath(const QString& path);
     QString rootPath() const;
+    // The folder of the item last made current in any root's tree (the item
+    // itself if it is a folder); empty if none, or while a filter is shown.
+    QString selectedFolder() const;
 
     int sectionCount() const { return int(m_sections.size()); }
     QToolButton* sectionHeader(int index) const { return m_sections.value(index).header; }
@@ -78,6 +82,7 @@ private:
     QTreeWidget* m_filterList = nullptr;
     QString m_filterLabelText;
     bool m_filtered = false;
+    QPointer<QTreeView> m_lastView; // a root's tree, gone when roots are reset
 };
 
 } // namespace coeus

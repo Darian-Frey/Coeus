@@ -48,6 +48,37 @@ Templates::Rendered Templates::render(const QString& text, const QDateTime& now,
         }
     }
     result.text += text.mid(at);
+    result.text = withoutPlacement(result.text);
+    return result;
+}
+
+QString Templates::placement(const QString& text)
+{
+    const QByteArray bytes = text.toUtf8();
+    const Frontmatter::Split split = Frontmatter::split(bytes);
+    if (!split.present)
+        return {};
+    ParsedNote parsed;
+    Frontmatter::parse(split, parsed);
+    for (const Property& property : std::as_const(parsed.properties)) {
+        if (property.key == QLatin1String(kFolderKey) && !property.values.isEmpty()) {
+            const QString folder = QDir::cleanPath(property.values.front().trimmed());
+            return folder == QLatin1String(".") ? QString() : folder;
+        }
+    }
+    return {};
+}
+
+QString Templates::withoutPlacement(const QString& text)
+{
+    const auto removal = Frontmatter::removeKey(text, QLatin1String(kFolderKey));
+    if (!removal)
+        return text;
+    const QString result = Frontmatter::apply(text, *removal);
+    const QByteArray bytes = result.toUtf8();
+    const Frontmatter::Split split = Frontmatter::split(bytes);
+    if (split.present && QByteArray(split.yaml.data(), split.yaml.size()).trimmed().isEmpty())
+        return QString::fromUtf8(split.body.data(), split.body.size()); // it held only the folder
     return result;
 }
 

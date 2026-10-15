@@ -2,6 +2,7 @@
 
 #include "vault/Vault.hpp"
 
+#include <QFileInfo>
 #include <QFileSystemModel>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -11,6 +12,18 @@
 #include <QVBoxLayout>
 
 namespace coeus {
+
+QString ExplorerPanel::selectedFolder() const
+{
+    if (m_filtered || !m_lastView || !m_lastView->isVisible())
+        return {};
+    const QModelIndex index = m_lastView->currentIndex();
+    auto* model = qobject_cast<QFileSystemModel*>(m_lastView->model());
+    if (!index.isValid() || !model)
+        return {};
+    const QFileInfo info = model->fileInfo(index);
+    return info.isDir() ? info.absoluteFilePath() : info.absolutePath();
+}
 
 ExplorerPanel::ExplorerPanel(QWidget* parent)
     : QWidget(parent)
@@ -165,6 +178,7 @@ ExplorerPanel::Section ExplorerPanel::createSection(const ExplorerRoot& root, bo
     });
     connect(view, &QTreeView::activated, this, [this, view](const QModelIndex& index) { onActivated(view, index); });
     connect(view, &QTreeView::clicked, this, [this, view](const QModelIndex& index) { onActivated(view, index); });
+    connect(view->selectionModel(), &QItemSelectionModel::currentChanged, this, [this, view] { m_lastView = view; });
     if (isVault) {
         QFileSystemModel* model = section.model;
         connect(model, &QFileSystemModel::directoryLoaded, this, [this, model](const QString& path) {

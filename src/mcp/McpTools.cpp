@@ -8,13 +8,16 @@
 #include "parser/Frontmatter.hpp"
 #include "parser/RegisterParser.hpp"
 #include "registers/EntryWriter.hpp"
+#include "registers/Lint.hpp"
 #include "registers/NextId.hpp"
+#include "registers/ProblemReport.hpp"
 #include "registers/RegisterTemplates.hpp"
 #include "registers/ProjectOverview.hpp"
 #include "registers/Vocabulary.hpp"
 #include "search/Sidecar.hpp"
 #include "search/VectorStore.hpp"
 #include "vault/Vault.hpp"
+#include "vault/VaultConfig.hpp"
 
 #include <QDir>
 #include <QFile>
@@ -245,6 +248,18 @@ QJsonArray McpTools::definitions()
                      {QStringLiteral("status"), stringProperty(QStringLiteral("Only entries whose status opens with this, e.g. "
                                                                               "Accepted, open, suggested."))}},
                     {QStringLiteral("project")})),
+        tool(QStringLiteral("problems"), QStringLiteral("Register problems"),
+             QStringLiteral("The register lint's problems (what Coeus's Problems panel shows) for a project, or every project: "
+                            "unresolved, stale and one-way citations, values outside a vocabulary, missing required fields, "
+                            "duplicate IDs and a stale Last reviewed date, each with its file, line, rule and level, and what "
+                            "each rule means; `file` is relative to the project's folder. Use it to find what to fix in a project's "
+                            "registers; check again after fixing."),
+             schema({{QStringLiteral("project"), stringProperty(QStringLiteral("The project, as project_status names it; every "
+                                                                               "project if left out."))},
+                     {QStringLiteral("level"), stringProperty(QStringLiteral("The most minor level to include: error, warning "
+                                                                             "(errors and warnings) or info (everything, the "
+                                                                             "default)."),
+                                                              {QStringLiteral("error"), QStringLiteral("warning"), QStringLiteral("info")})}})),
         tool(QStringLiteral("project_status"), QStringLiteral("Project status"),
              QStringLiteral("Every project (or one) as the project board shows it: README status and Last reviewed, the ROADMAP's "
                             "current phase, unreleased CHANGELOG entries, and Git branch, ahead/behind (as of the last fetch) and "
@@ -310,6 +325,8 @@ std::expected<QJsonObject, QString> McpTools::call(const Context& context, const
         return listRegisters(context, arguments);
     if (name == QLatin1String("project_status"))
         return projectStatus(context, arguments);
+    if (name == QLatin1String("problems"))
+        return problems(context, arguments);
     if (name == QLatin1String("list_ideas"))
         return listIdeas(context, arguments);
     if (isWriteTool(name) && !context.allowWrites)
@@ -577,6 +594,66 @@ std::expected<QJsonObject, QString> McpTools::listRegisters(const Context& conte
     return QJsonObject{{QStringLiteral("project"), ProjectOverview::labelOf(*project)},
                        {QStringLiteral("root"), project->rootName},
                        {QStringLiteral("entries"), entries}};
+}
+
+std::expected<QJsonObject, QString> McpTools::problems(const Context& context, const QJsonObject& arguments)
+{
+    const auto name = text(arguments, "project", false);
+    const auto level = text(arguments, "level", false);
+    for (const auto* argument : {&name, &level}) {
+        if (!*argument)
+            return std::unexpected(argument->error());
+    }
+    int worst = 2;
+    if (!level->isEmpty()) {
+        worst = ProblemReport::rank(level->toLower());
+        if (worst == 2 && level->compare(QLatin1String("info"), Qt::CaseInsensitive) != 0)
+            return std::unexpected(QStringLiteral("`level` is error, warning or info"));
+    }
+    const auto projects = IndexQueries::projects(context.indexPath);
+    if (!projects)
+        return std::unexpected(projects.error());
+    std::optional<ProjectRef> project;
+    if (!name->isEmpty()) {
+        const auto found = findProject(*projects, *name);
+        if (!found)
+            return std::unexpected(found.error());
+        project = *found;
+    }
+    const int threshold = int(VaultConfig::integer(context.vaultPath, "registers", "review_threshold_days")
+                                  .value_or(Lint::kDefaultReviewThresholdDays));
+    const auto all = IndexQueries::problems(context.indexPath, QDate::currentDate(), threshold);
+    if (!all)
+        return std::unexpected(all.error());
+    const QList<ProblemRef> chosen = ProblemReport::select(*all, *projects, project, worst);
+    QJsonArray list;
+    QJsonObject counts{{QStringLiteral("error"), 0}, {QStringLiteral("warning"), 0}, {QStringLiteral("info"), 0}};
+    QJsonObject rules;
+    for (const ProblemRef& problem : chosen) {
+        QJsonObject entry{{QStringLiteral("root"), problem.rootName},
+                          {QStringLiteral("path"), QDir(problem.rootPath).relativeFilePath(problem.notePath)},
+                          {QStringLiteral("line"), problem.line},
+                          {QStringLiteral("level"), problem.level},
+                          {QStringLiteral("rule"), problem.rule},
+                          {QStringLiteral("message"), problem.message}};
+        // `file` is relative to the problem's project folder: the repository an AI session works in.
+        const auto owner = project ? project : ProblemReport::projectOf(*projects, problem.notePath);
+        if (owner) {
+            entry.insert(QStringLiteral("file"), ProblemReport::location(problem, owner));
+            if (!project)
+                entry.insert(QStringLiteral("project"), ProjectOverview::labelOf(*owner));
+        }
+        list.append(entry);
+        counts.insert(problem.level, counts.value(problem.level).toInt() + 1);
+        rules.insert(problem.rule, ProblemReport::ruleMeaning(problem.rule));
+    }
+    QJsonObject result{{QStringLiteral("counts"), counts}, {QStringLiteral("problems"), list}, {QStringLiteral("rules"), rules}};
+    if (project) {
+        result.insert(QStringLiteral("project"), ProjectOverview::labelOf(*project));
+        result.insert(QStringLiteral("root"), project->rootName);
+        result.insert(QStringLiteral("folder"), project->path);
+    }
+    return result;
 }
 
 std::expected<QJsonObject, QString> McpTools::projectStatus(const Context& context, const QJsonObject& arguments)

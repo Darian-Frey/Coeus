@@ -1,8 +1,13 @@
 #include "ui/ProblemsPanel.hpp"
 
+#include "registers/ProblemReport.hpp"
+#include "registers/ProjectOverview.hpp"
 #include "ui/NoteCatalogue.hpp"
 
 #include <QApplication>
+#include <QClipboard>
+#include <QDate>
+#include <QToolButton>
 #include <QComboBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
@@ -20,7 +25,7 @@ constexpr int kLineRole = Qt::UserRole + 2;
 
 int rank(const QString& level)
 {
-    return level == QLatin1String("error") ? 0 : level == QLatin1String("warning") ? 1 : 2;
+    return ProblemReport::rank(level);
 }
 
 QIcon iconFor(const QString& level)
@@ -48,7 +53,17 @@ ProblemsPanel::ProblemsPanel(const NoteCatalogue* catalogue, QWidget* parent)
     , m_level(new QComboBox(this))
     , m_count(new QLabel(this))
     , m_tree(new QTreeWidget(this))
+    , m_copy(new QToolButton(this))
 {
+    m_copy->setText(tr("Copy Report"));
+    m_copy->setIcon(QIcon::fromTheme(QStringLiteral("edit-copy")));
+    m_copy->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    m_copy->setAutoRaise(true);
+    m_copy->setToolTip(tr("Copy the problems shown as Markdown, to paste into Claude Code or an issue"));
+    connect(m_copy, &QToolButton::clicked, this, [this] {
+        QGuiApplication::clipboard()->setText(report());
+        emit reportCopied(int(shown().size()));
+    });
     m_scope->addItem(tr("This project"), int(Scope::Project));
     m_scope->addItem(tr("All projects"), int(Scope::All));
     m_level->addItem(tr("All levels"), 2);
@@ -76,6 +91,7 @@ ProblemsPanel::ProblemsPanel(const NoteCatalogue* catalogue, QWidget* parent)
     filters->addWidget(m_scope);
     filters->addWidget(m_level);
     filters->addWidget(m_count, 1);
+    filters->addWidget(m_copy);
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addLayout(filters);
@@ -108,27 +124,47 @@ QString ProblemsPanel::summary() const
     return m_count->text();
 }
 
+std::optional<ProjectRef> ProblemsPanel::followedProject() const
+{
+    for (const ProjectRef& project : m_catalogue->projects())
+        if (ProblemReport::folderOf(project) == m_projectFolder)
+            return project;
+    return std::nullopt;
+}
+
+QList<ProblemRef> ProblemsPanel::shown() const
+{
+    // Problems of the followed project, not of projects nested in it, or of all.
+    const bool all = Scope(m_scope->currentData().toInt()) == Scope::All;
+    if (!all && m_projectFolder.isEmpty())
+        return {};
+    const std::optional<ProjectRef> project = all ? std::nullopt : followedProject();
+    if (!all && !project)
+        return {};
+    return ProblemReport::select(m_catalogue->problems(), m_catalogue->projects(), project, m_level->currentData().toInt());
+}
+
+QString ProblemsPanel::report() const
+{
+    const bool all = Scope(m_scope->currentData().toInt()) == Scope::All;
+    const std::optional<ProjectRef> project = all ? std::nullopt : followedProject();
+    QString label = project ? ProjectOverview::labelOf(*project) : tr("all projects");
+    if (m_level->currentData().toInt() < 2)
+        label += QStringLiteral(" (%1)").arg(m_level->currentText().toLower());
+    return ProblemReport::markdown(shown(), project, label, QDate::currentDate());
+}
+
 void ProblemsPanel::present()
 {
     const bool all = Scope(m_scope->currentData().toInt()) == Scope::All;
-    const int worst = m_level->currentData().toInt();
     int counts[3] = {0, 0, 0};
 
     m_tree->clear();
     QTreeWidgetItem* file = nullptr;
     QString filePath;
-    for (const ProblemRef& problem : m_catalogue->problems()) {
-        if (!all) {
-            // Problems of the followed project, not of projects nested in it.
-            const auto project = m_catalogue->projectOf(problem.notePath);
-            const QString folder = !project ? QString()
-                                   : project->path.isEmpty() ? project->rootPath
-                                                             : project->rootPath + QLatin1Char('/') + project->path;
-            if (m_projectFolder.isEmpty() || folder != m_projectFolder)
-                continue;
-        }
-        if (rank(problem.level) > worst)
-            continue;
+    const QList<ProblemRef> problems = shown();
+    m_copy->setEnabled(all || !m_projectFolder.isEmpty());
+    for (const ProblemRef& problem : problems) {
         ++counts[rank(problem.level)];
         if (!file || problem.notePath != filePath) {
             filePath = problem.notePath;
