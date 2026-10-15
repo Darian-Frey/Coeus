@@ -81,11 +81,11 @@ private slots:
             "```mermaid\ngraph LR\n  a-->b\n```\n" // 11-14
             "![[pic.png|Diagram]]\n"               // 15 picture
             "![alt](img/x.jpg)\n"                  // 16 picture
-            "![[Some note]]\n"                     // 17 a note embed: not a picture (step 2)
+            "![[Some note]]\n"                     // 17 a note embed, drawn as a block
             "Text ![[inline.png]] text\n"          // 18 not alone on its line
             "![[doc.pdf#page=2]]\n"                // 19 a PDF page
             "~~~\nunclosed"));                     // 20-21 a fence to the end
-        QCOMPARE(blocks.size(), 9);
+        QCOMPARE(blocks.size(), 10);
         QCOMPARE(blocks[0].kind, LiveBlock::Kind::Frontmatter);
         QCOMPARE(blocks[0].lastLine, 2);
         QCOMPARE(blocks[1].kind, LiveBlock::Kind::Code);
@@ -104,9 +104,11 @@ private slots:
         QVERIFY(blocks[5].wiki);
         QCOMPARE(blocks[6].source, QStringLiteral("img/x.jpg"));
         QVERIFY(!blocks[6].wiki);
-        QCOMPARE(blocks[7].source, QStringLiteral("doc.pdf#page=2"));
-        QCOMPARE(blocks[8].kind, LiveBlock::Kind::Code);
-        QCOMPARE(blocks[8].lastLine, 21);
+        QCOMPARE(blocks[7].kind, LiveBlock::Kind::Embed);
+        QCOMPARE(blocks[7].firstLine, 17);
+        QCOMPARE(blocks[8].source, QStringLiteral("doc.pdf#page=2"));
+        QCOMPARE(blocks[9].kind, LiveBlock::Kind::Code);
+        QCOMPARE(blocks[9].lastLine, 21);
     }
 
     void syntaxHidesAwayFromTheRevealedLines()
@@ -150,6 +152,8 @@ private slots:
         QVERIFY(editor.load());
         editor.resize(600, 400);
         editor.setLive(true);
+        // Opened at its start, the note begins below its frontmatter, which stays folded.
+        QCOMPARE(editor.textCursor().blockNumber(), 3);
         const auto visible = [&editor](int line) { return editor.document()->findBlockByNumber(line).isVisible(); };
         editor.setTextCursor(QTextCursor(editor.document()->findBlockByNumber(9))); // "End **bold**."
         QVERIFY(!visible(0) && !visible(1) && !visible(2)); // frontmatter folded
@@ -208,6 +212,73 @@ private slots:
         QVERIFY(editor.document()->findBlockByNumber(4).isVisible());
         QVERIFY(!editor.live()->pictureSize(2).isValid());
         QVERIFY(editor.blockRect(editor.document()->findBlockByNumber(2)).height() < picture.height());
+    }
+
+    void tablesCalloutsAndEmbedsAreFound()
+    {
+        const QList<LiveBlock> blocks = LiveBlocks::scan(QStringLiteral(
+            "| A | B |\n|---|:-:|\n| 1 | 2 |\n"        // 0-2 a table
+            "\n"                                       // 3
+            "a | b without a delimiter row\n"          // 4 not a table
+            "> [!warning] Careful\n> Body\n> more\n"   // 5-7 a callout
+            "> a plain quote\n"                        // 8 ends it? no: still a quote line
+            "\n"                                       // 9
+            "> just a quote\n"                         // 10 not a callout
+            "![[Guide#Install|the steps]]\n"));        // 11 a note embed
+        QCOMPARE(blocks.size(), 3);
+        QCOMPARE(blocks[0].kind, LiveBlock::Kind::Table);
+        QCOMPARE(blocks[0].lastLine, 2);
+        QCOMPARE(blocks[1].kind, LiveBlock::Kind::Callout);
+        QCOMPARE(blocks[1].firstLine, 5);
+        QCOMPARE(blocks[1].lastLine, 8);
+        QCOMPARE(blocks[2].kind, LiveBlock::Kind::Embed);
+        QCOMPARE(blocks[2].source, QStringLiteral("![[Guide#Install|the steps]]"));
+    }
+
+    void tablesCalloutsAndEmbedsAreDrawn()
+    {
+        QTemporaryDir vault;
+        write(vault.filePath(QStringLiteral("guide.md")), "# Guide\n\n## Install\n\nRun it.\n\n## Use\n\nLater.\n");
+        QByteArray longNote = "# Long\n\n";
+        for (int i = 0; i < 80; ++i)
+            longNote += "Paragraph " + QByteArray::number(i) + " of a long note.\n\n";
+        write(vault.filePath(QStringLiteral("long.md")), longNote);
+        write(vault.filePath(QStringLiteral("host.md")),
+              "| A | B |\n|---|---|\n| 1 | 2 |\n\n"   // 0-2
+              "> [!tip] Hint\n> Body.\n\n"             // 4-5
+              "![[guide#Install]]\n\n"                 // 7
+              "![[long]]\n\n"                          // 9
+              "End.\n");                               // 11
+        MainWindow window;
+        window.resize(900, 700);
+        window.show();
+        QSignalSpy opened(&window, &MainWindow::indexOpened);
+        window.openVault(*Vault::open(vault.path()));
+        QVERIFY(opened.wait(5000));
+        window.openNote(vault.filePath(QStringLiteral("host.md")));
+        Editor* editor = window.currentEditor();
+        QVERIFY(editor->isLive());
+        editor->setTextCursor(QTextCursor(editor->document()->findBlockByNumber(11)));
+        QTRY_VERIFY(editor->live()->pictureSize(7).isValid()); // the embed resolves through the index
+        for (int line : {0, 4, 7, 9})
+            QVERIFY2(editor->live()->pictureSize(line).isValid(), qPrintable(QString::number(line)));
+        QVERIFY(!editor->document()->findBlockByNumber(1).isVisible() && !editor->document()->findBlockByNumber(2).isVisible());
+        QVERIFY(!editor->document()->findBlockByNumber(5).isVisible());
+        // A table's line is as tall as its drawing; a long embed stops at the cap.
+        QVERIFY(editor->blockRect(editor->document()->findBlockByNumber(0)).height() >= editor->live()->pictureSize(0).height());
+        QCOMPARE(editor->live()->pictureSize(9).height(), LivePreview::kMaxBlockHeight);
+        QVERIFY(editor->live()->pictureSize(7).height() < LivePreview::kMaxBlockHeight);
+        // Into the table: its Markdown, the rest still drawn.
+        editor->setTextCursor(QTextCursor(editor->document()->findBlockByNumber(1)));
+        QVERIFY(!editor->live()->pictureSize(0).isValid());
+        QVERIFY(editor->document()->findBlockByNumber(2).isVisible());
+        QVERIFY(editor->live()->pictureSize(4).isValid());
+        // The embedded section grows on disk: the drawing follows once indexed.
+        const int before = editor->live()->pictureSize(7).height();
+        write(vault.filePath(QStringLiteral("guide.md")), "# Guide\n\n## Install\n\nRun it.\n\nThen check it.\n\nAnd once more.\n\n## Use\n\nLater.\n");
+        QTRY_VERIFY_WITH_TIMEOUT(editor->live()->pictureSize(7).height() > before, 5000);
+        QCOMPARE(editor->toPlainText().count(QLatin1Char('|')), 9); // and the note itself never changed
+        QVERIFY(!editor->isModified());
     }
 
     void ctrlClickFollowsLinks()

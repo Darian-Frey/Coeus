@@ -73,12 +73,12 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 4 — Rich Markdown and workspace
 **Goal:** Feature parity with the parts of Obsidian's core that Phase 2 deferred.
-**Status:** In progress (F-027, F-014, F-023, F-024 and F-025 built 2026-10-15; live preview, F-003, step 1 of 2). Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step: D-022, accepted 2026-10-15 (Option B)
+**Status:** In progress (F-027, F-014, F-023, F-024, F-025 and F-003 built 2026-10-15; next splits and multi-window, F-012). Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step: D-022, accepted 2026-10-15 (Option B)
 **Features delivered:** F-003 (live preview), F-012, F-014, F-023, F-024, F-025, F-026, F-027
 **Deliverables:**
-- [ ] Live-preview editing mode
+- [x] Live-preview editing mode
   - [x] Step 1: hidden syntax, folding, pictures in place, Ctrl+click, Default Mode (`src/ui/LivePreview.cpp`, `src/parser/LiveBlocks.cpp`; F-003)
-  - [ ] Step 2: tables, callouts and note embeds drawn as blocks
+  - [x] Step 2: tables, callouts and note embeds drawn as blocks, from reading mode's renderer (F-003)
 - [ ] Splits and native multi-window
 - [x] Embeds, block references, callouts, Mermaid, maths, code highlighting
   - [x] Code highlighting by language and note and section embeds in reading mode (`src/parser/CodeHighlighter.cpp`, `src/parser/Transclusion.cpp`; F-025, F-023)

@@ -97,6 +97,13 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     connect(m_reader, &QTextBrowser::anchorClicked, this, &NoteView::linkActivated);
     connect(m_editor, &Editor::linkActivated, this, &NoteView::linkActivated); // Ctrl+click (F-003)
     m_editor->live()->setImageResolver([this](const QString& target, bool wiki) { return resolveImage(target, wiki); });
+    // Tables, callouts and note embeds in live preview are drawn as reading mode draws them (F-003).
+    m_editor->live()->setHtmlRenderer(
+        [this](const QByteArray& markdown) {
+            const int room = std::max(200, m_editor->viewport()->width() - 4 * LivePreview::kPictureMargin - 24);
+            return HtmlRenderer::render(markdown, readingOptions(room));
+        },
+        [this] { return styleSheet(); });
 
     m_stack->addWidget(m_editor);
     m_stack->addWidget(m_reader);
@@ -157,7 +164,7 @@ void NoteView::toggleMode()
     setMode(m_mode == Mode::Reading ? m_editMode : Mode::Reading);
 }
 
-void NoteView::render()
+HtmlRenderer::Options NoteView::readingOptions(int room) const
 {
     HtmlRenderer::Options options;
     options.resolveImage = [this](const QString& target, bool wiki) { return resolveImage(target, wiki); };
@@ -165,8 +172,7 @@ void NoteView::render()
         options.resolveNote = [this](const QString& target, const QString& fromPath) { return resolveNote(target, fromPath); };
     options.notePath = m_path;
     if (m_render) {
-        // Never wider than the view: a wide diagram is shown smaller, never cut off.
-        const int room = std::max(200, m_reader->viewport()->width() - 2 * int(m_reader->document()->documentMargin()) - 8);
+        // Never wider than `room`: a wide diagram is shown smaller, never cut off.
         const auto picture = [room](const RenderService::Picture& p) {
             QSize size = p.size;
             if (size.width() > room)
@@ -180,8 +186,14 @@ void NoteView::render()
         };
     }
     options.embedAccent = Theme::instance().colour(Theme::Colour::Accent).name();
+    return options;
+}
+
+void NoteView::render()
+{
+    const int room = std::max(200, m_reader->viewport()->width() - 2 * int(m_reader->document()->documentMargin()) - 8);
     const int scroll = m_reader->verticalScrollBar()->value();
-    m_reader->setHtml(HtmlRenderer::render(m_editor->toPlainText().toUtf8(), options));
+    m_reader->setHtml(HtmlRenderer::render(m_editor->toPlainText().toUtf8(), readingOptions(room)));
     m_reader->verticalScrollBar()->setValue(scroll);
 }
 
@@ -226,6 +238,8 @@ void NoteView::refreshReading()
 {
     if (m_mode == Mode::Reading)
         render();
+    else if (m_mode == Mode::Live)
+        m_editor->live()->invalidate(); // its tables and embeds are drawn from the same renderer
 }
 
 HtmlRenderer::Embedded NoteView::resolveNote(const QString& target, const QString& fromPath) const

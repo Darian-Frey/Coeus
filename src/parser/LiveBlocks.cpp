@@ -12,6 +12,9 @@ QList<LiveBlock> LiveBlocks::scan(const QString& text)
     static const QRegularExpression kFence(QStringLiteral(R"(^ {0,3}(`{3,}|~{3,})\s*([^\s`]*))"));
     static const QRegularExpression kWikiPicture(QStringLiteral(R"(^\s*!\[\[([^\[\]|\n]+?)(?:\|[^\[\]\n]*)?\]\]\s*$)"));
     static const QRegularExpression kMarkdownPicture(QStringLiteral(R"(^\s*!\[[^\]\n]*\]\(([^)\s]+)\)\s*$)"));
+    static const QRegularExpression kDelimiterRow(QStringLiteral(R"(^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$)"));
+    static const QRegularExpression kCallout(QStringLiteral(R"(^ {0,3}>\s?\[![A-Za-z]+\])"));
+    static const QRegularExpression kQuoteLine(QStringLiteral(R"(^ {0,3}>)"));
     const QStringList lines = text.split(QLatin1Char('\n'));
     QList<LiveBlock> blocks;
     qsizetype i = 0;
@@ -68,7 +71,28 @@ QList<LiveBlock> LiveBlocks::scan(const QString& text)
                 continue;
             }
         }
-        if (const auto m = kWikiPicture.match(line); m.hasMatch() && isAttachmentTarget(m.captured(1).section(QLatin1Char('#'), 0, 0))) {
+        // A table: a header row, then a delimiter row, then rows with pipes.
+        if (line.contains(QLatin1Char('|')) && i + 1 < lines.size() && lines[i + 1].contains(QLatin1Char('-'))
+            && kDelimiterRow.match(lines[i + 1]).hasMatch()) {
+            qsizetype end = i + 2;
+            while (end < lines.size() && lines[end].contains(QLatin1Char('|')) && !lines[end].trimmed().isEmpty())
+                ++end;
+            blocks.append({LiveBlock::Kind::Table, int(i), int(end - 1), {}, lines.mid(i, end - i).join(QLatin1Char('\n')), false});
+            i = end;
+            continue;
+        }
+        // A callout: its head and every quote line after it.
+        if (kCallout.match(line).hasMatch()) {
+            qsizetype end = i + 1;
+            while (end < lines.size() && kQuoteLine.match(lines[end]).hasMatch())
+                ++end;
+            blocks.append({LiveBlock::Kind::Callout, int(i), int(end - 1), {}, lines.mid(i, end - i).join(QLatin1Char('\n')), false});
+            i = end;
+            continue;
+        }
+        if (const auto m = kWikiPicture.match(line); m.hasMatch() && !isAttachmentTarget(m.captured(1).section(QLatin1Char('#'), 0, 0))) {
+            blocks.append({LiveBlock::Kind::Embed, int(i), int(i), {}, line.trimmed(), true}); // as written, alias and all
+        } else if (m.hasMatch()) {
             blocks.append({LiveBlock::Kind::Picture, int(i), int(i), {}, m.captured(1).trimmed(), true});
         } else if (const auto md = kMarkdownPicture.match(line); md.hasMatch() && isAttachmentTarget(md.captured(1).section(QLatin1Char('#'), 0, 0))) {
             blocks.append({LiveBlock::Kind::Picture, int(i), int(i), {}, md.captured(1), false});

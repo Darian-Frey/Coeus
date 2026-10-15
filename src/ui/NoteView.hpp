@@ -77,6 +77,8 @@ private:
     QString resolveImage(const QString& target, bool wiki) const;
     HtmlRenderer::Embedded resolveNote(const QString& target, const QString& fromPath) const;
     QString styleSheet() const;
+    // What reading mode renders with; pictures fit within `room` pixels.
+    HtmlRenderer::Options readingOptions(int room) const;
 
     Vault m_root;
     QString m_indexPath;

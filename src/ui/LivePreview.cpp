@@ -5,14 +5,21 @@
 #include "ui/RenderService.hpp"
 #include "ui/Theme.hpp"
 
+#include <QAbstractTextDocumentLayout>
+#include <QApplication>
 #include <QDateTime>
 #include <QFileInfo>
+#include <QLinearGradient>
 #include <QPainter>
 #include <QRegularExpression>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QTextDocument>
+#include <QTextFrame>
 #include <QTimer>
 #include <QUrl>
+
+#include <cmath>
 
 namespace coeus {
 
@@ -45,8 +52,18 @@ void LivePreview::setEnabled(bool enabled)
     if (enabled == m_enabled)
         return;
     m_enabled = enabled;
-    if (enabled)
+    if (enabled) {
         rescan();
+        // A note opened at its very start begins below its frontmatter, which
+        // the Properties panel shows, rather than with it unfolded.
+        const QTextCursor cursor = m_editor->textCursor();
+        if (!cursor.hasSelection() && cursor.position() == 0 && !m_blocks.isEmpty()
+            && m_blocks.front().kind == LiveBlock::Kind::Frontmatter) {
+            const QTextBlock below = m_editor->document()->findBlockByNumber(m_blocks.front().lastLine + 1);
+            if (below.isValid())
+                m_editor->setTextCursor(QTextCursor(below));
+        }
+    }
     update();
 }
 
@@ -65,6 +82,19 @@ void LivePreview::setRenderService(RenderService* service)
 void LivePreview::setImageResolver(std::function<QString(const QString&, bool)> resolver)
 {
     m_resolve = std::move(resolver);
+}
+
+void LivePreview::setHtmlRenderer(std::function<QString(const QByteArray&)> html, std::function<QString()> styleSheet)
+{
+    m_html = std::move(html);
+    m_styleSheet = std::move(styleSheet);
+}
+
+void LivePreview::invalidate()
+{
+    m_pictures.clear();
+    if (m_enabled)
+        update();
 }
 
 void LivePreview::rescan()
@@ -104,6 +134,29 @@ std::optional<LivePreview::Drawn> LivePreview::pictureFor(const LiveBlock& block
 
 std::optional<LivePreview::Drawn> LivePreview::draw(const LiveBlock& block, int room)
 {
+    if (block.kind == LiveBlock::Kind::Table || block.kind == LiveBlock::Kind::Callout || block.kind == LiveBlock::Kind::Embed) {
+        // Drawn as reading mode draws it: the same renderer, style sheet and embeds.
+        if (!m_html)
+            return std::nullopt;
+        auto document = std::make_shared<QTextDocument>();
+        document->setDocumentMargin(2);
+        if (m_styleSheet)
+            document->setDefaultStyleSheet(m_styleSheet());
+        document->setDefaultFont(QApplication::font());
+        document->setHtml(m_html(block.source.toUtf8()));
+        document->setTextWidth(room);
+        // To the foot of the last line with something on it: a document closes
+        // a table or a box with an empty paragraph, which would leave a gap.
+        qreal bottom = 0;
+        for (QTextBlock line = document->begin(); line.isValid(); line = line.next()) {
+            if (!line.text().trimmed().isEmpty())
+                bottom = std::max(bottom, document->documentLayout()->blockBoundingRect(line).bottom());
+        }
+        for (QTextFrame* frame : document->rootFrame()->childFrames()) // tables and boxes, with their borders
+            bottom = std::max(bottom, document->documentLayout()->frameBoundingRect(frame).bottom());
+        const int height = int(std::ceil(bottom > 0 ? bottom + 2 : document->size().height()));
+        return Drawn{{}, QSize(room, std::min(height, kMaxBlockHeight)), document, height > kMaxBlockHeight};
+    }
     QString path;
     QSize size;
     switch (block.kind) {
@@ -154,7 +207,7 @@ std::optional<LivePreview::Drawn> LivePreview::draw(const LiveBlock& block, int 
     // Never wider than the editor: a wide picture is shown smaller.
     if (size.width() > room)
         size = QSize(room, int(double(size.height()) * room / size.width()));
-    return Drawn{image, size};
+    return Drawn{image, size, nullptr, false};
 }
 
 void LivePreview::update()
@@ -197,7 +250,8 @@ void LivePreview::update()
             }
             if (const auto picture = pictureFor(block)) {
                 drawn.insert(block.firstLine, *picture);
-                tall.insert(block.firstLine, picture->size.height() + 2 * kPictureMargin);
+                // A drawn table or box brings its own spacing; a picture gets a margin each side.
+                tall.insert(block.firstLine, picture->size.height() + (picture->document ? 1 : 2) * kPictureMargin);
                 for (int line = block.firstLine + 1; line <= block.lastLine; ++line)
                     folded.insert(line);
             }
@@ -235,6 +289,23 @@ void LivePreview::paint(QPainter& painter, const QRect& exposed)
         const QRect target(int(line.left()) + kPictureMargin, int(line.top()) + kPictureMargin, it->size.width(), it->size.height());
         if (!target.intersects(exposed))
             continue;
+        if (it->document) {
+            painter.save();
+            painter.translate(target.topLeft());
+            it->document->drawContents(&painter, QRectF(QPointF(0, 0), QSizeF(target.size())));
+            if (it->clipped) {
+                // It goes on: fade the foot and say so.
+                const QColor base = m_editor->palette().color(QPalette::Base);
+                QLinearGradient fade(0, target.height() - 48, 0, target.height());
+                fade.setColorAt(0, QColor(base.red(), base.green(), base.blue(), 0));
+                fade.setColorAt(1, base);
+                painter.fillRect(QRect(0, target.height() - 48, target.width(), 48), fade);
+                painter.setPen(m_editor->palette().color(QPalette::PlaceholderText));
+                painter.drawText(QRect(0, target.height() - 20, target.width(), 20), Qt::AlignCenter, QStringLiteral("⋯"));
+            }
+            painter.restore();
+            continue;
+        }
         painter.setRenderHint(QPainter::SmoothPixmapTransform);
         painter.drawImage(target, it->image);
     }

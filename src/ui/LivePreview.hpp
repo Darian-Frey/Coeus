@@ -12,9 +12,11 @@
 #include <QTextEdit>
 
 #include <functional>
+#include <memory>
 #include <optional>
 
 class QPainter;
+class QTextDocument;
 class QTimer;
 
 namespace coeus {
@@ -40,6 +42,11 @@ public:
     // Maps an image target, as an embed or Markdown image writes it, to a
     // file: URL, or empty if it cannot be found (NoteView's resolver).
     void setImageResolver(std::function<QString(const QString& target, bool wiki)> resolver);
+    // Renders Markdown as reading mode does, with its style sheet (NoteView's):
+    // tables, callouts and note embeds are drawn from it.
+    void setHtmlRenderer(std::function<QString(const QByteArray& markdown)> html, std::function<QString()> styleSheet);
+    // Draws everything again: an embedded note or the theme changed.
+    void invalidate();
 
     // Draws the pictures over their lines; Editor's paintEvent calls it.
     void paint(QPainter& painter, const QRect& exposed);
@@ -52,6 +59,7 @@ public:
 
     static constexpr int kScanDelayMs = 120;
     static constexpr int kPictureMargin = 6;
+    static constexpr int kMaxBlockHeight = 480; // a long embed is cut here, with a "⋯"
 
 public slots:
     // Recomputes what is shown; after typing, a cursor move or a picture landing.
@@ -59,8 +67,10 @@ public slots:
 
 private:
     struct Drawn {
-        QImage image;
-        QSize size; // shown at
+        QImage image;                            // a picture's
+        QSize size;                              // shown at
+        std::shared_ptr<QTextDocument> document; // a table's, callout's or embed's, laid out at size.width()
+        bool clipped = false;                    // the document runs on past size.height()
     };
     void rescan();
     std::optional<Drawn> pictureFor(const LiveBlock& block);
@@ -72,6 +82,8 @@ private:
     bool m_enabled = false;
     QPointer<RenderService> m_render;
     std::function<QString(const QString&, bool)> m_resolve;
+    std::function<QString(const QByteArray&)> m_html;
+    std::function<QString()> m_styleSheet;
     QList<LiveBlock> m_blocks;
     QTimer* m_scanTimer = nullptr;
     int m_revealFirst = -1;
