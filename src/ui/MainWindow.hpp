@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ui/GraphPanel.hpp"
 #include "ui/NoteView.hpp"
 #include "ui/VaultSession.hpp"
 #include "ui/Workspace.hpp"
@@ -125,6 +126,10 @@ public:
     QDockWidget* boardDock() const { return m_boardDock; }
     HistoryPanel* history() const { return m_history; }
     RelatedPanel* related() const { return m_related; }
+    // F-026: the sidebar's local graph, and View › Open Graph View's tab (one at a time).
+    GraphPanel* localGraph() const { return m_localGraph; }
+    GraphPanel* graphTab() const { return m_graphTab; }
+    void openGraph();
     // F-019: a link to `absolutePath` at the cursor of the current note, resolving to it (AV-006).
     void linkHere(const QString& absolutePath);
     // Opens the note as it was in `commit`, read-only, in a tab (F-020).
@@ -355,6 +360,8 @@ private:
     ProblemsPanel* m_problems = nullptr;
     HistoryPanel* m_history = nullptr;
     RelatedPanel* m_related = nullptr;
+    GraphPanel* m_localGraph = nullptr;
+    QPointer<GraphPanel> m_graphTab;
     QTimer* m_relatedTimer = nullptr;
     QThreadPool* m_gitPool = nullptr;
     QDockWidget* m_problemsDock = nullptr;

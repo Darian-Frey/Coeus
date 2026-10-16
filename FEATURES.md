@@ -216,7 +216,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Could
 **Acceptance:**
 - Global and local link graphs with force layout; nodes coloured by project or tag; click opens note
-**Status:** Not started (Phase 4)
+**Status:** Complete (Phase 4, 2026-10-16): View › Open Graph View as a tab and the sidebar's local graph, tags as nodes, orphans, unresolved links and linked roots on request (SPEC.md §Graph view)
 
 ### F-027 Themes and hotkeys
 **Priority:** Should

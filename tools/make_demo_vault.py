@@ -234,6 +234,16 @@ def build_vault(vault: Path, linked: Path) -> None:
           index, one set of bookmarks and one MCP link; a note open in one is
           shown there when the other asks for it. **File › Quit** closes them all.
 
+        ## Graph
+        - **View › Open Graph View** (`Ctrl+G`): every note and its links,
+          settling into clusters. The bulk notes make one ball; this guide and
+          its neighbours another. Hover a dot to light its links, click to open
+          it, click a `#tag` to filter the explorer. **By tag** recolours it;
+          tick **Orphans** and **Unresolved** for the loners and the notes not
+          yet written, **Linked roots** for *pontus*.
+        - The sidebar's **Graph** section is this note's own neighbourhood;
+          raise **Depth** to reach further.
+
         ## Reading mode
         - `Ctrl+E` here, then open [[Markdown showcase]] and toggle it: callouts,
           tables, tasks, highlights, images, code that never turns into links.

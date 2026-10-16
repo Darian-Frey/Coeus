@@ -45,6 +45,10 @@ public:
     // Whether the palette in use is dark, whatever the mode.
     bool isDark() const;
     QColor colour(Colour colour) const;
+    // The `index`th of a run of distinct colours for groups, such as the graph's
+    // projects and tags (F-026): hues turned from the accent by the golden
+    // angle, as light as the palette needs; Cassette's stay among the ambers.
+    QColor category(int index) const;
     static QPalette palette(Mode mode); // Light, Dark or Cassette; System is the desktop's own
     // The style sheet a mode brings itself, before the user's snippets; empty for most.
     static QString styleSheet(Mode mode);

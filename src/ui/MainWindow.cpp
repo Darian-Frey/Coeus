@@ -7,6 +7,7 @@
 #include "ui/DiffView.hpp"
 #include "ui/Editor.hpp"
 #include "ui/ExplorerPanel.hpp"
+#include "ui/GraphPanel.hpp"
 #include "ui/HistoryPanel.hpp"
 #include "ui/Icons.hpp"
 #include "ui/McpLink.hpp"
@@ -95,6 +96,7 @@ constexpr int kRelatedDelayMs = 800;   // after embedding progress settles
 
 const char* const kPathProperty = "coeusPath";
 const char* const kDiffProperty = "coeusDiff"; // identifies a DiffView tab
+const char* const kGraphProperty = "coeusGraph"; // the global graph's tab (F-026)
 const char* const kVersionProperty = "coeusVersion"; // "<absolute path>@<commit id>" on a VersionView tab
 
 } // namespace
@@ -153,6 +155,11 @@ MainWindow::MainWindow(QWidget* parent)
             noteRecent(editor->path());
         m_backlinks->showNote(editor ? editor->path() : QString());
         m_related->showNote(editor ? editor->path() : QString());
+        if (editor || !m_graphTab || m_tabs->currentWidget() != m_graphTab) {
+            m_localGraph->showNote(editor ? editor->path() : QString());
+            if (m_graphTab && editor)
+                m_graphTab->showNote(editor->path()); // ringed in the global graph
+        }
         // A version or a diff keeps its note's history in view.
         QString historyOf = editor ? editor->path() : QString();
         if (const auto* version = qobject_cast<VersionView*>(m_tabs->currentWidget()))
@@ -207,6 +214,11 @@ void MainWindow::createDocks()
     m_relatedTimer->setSingleShot(true);
     m_relatedTimer->setInterval(kRelatedDelayMs);
     connect(m_relatedTimer, &QTimer::timeout, m_related, &RelatedPanel::refresh);
+    // The local graph (F-026): the current note and what it links with.
+    m_localGraph = new GraphPanel(GraphPanel::Scope::Local);
+    m_sidebar->addSection(tr("Graph"), m_localGraph);
+    connect(m_localGraph, &GraphPanel::openRequested, this, &MainWindow::openNote);
+    connect(m_localGraph, &GraphPanel::tagRequested, this, &MainWindow::showTag);
     m_history = new HistoryPanel(m_gitPool);
     m_sidebar->addSection(tr("History"), m_history);
     connect(m_history, &HistoryPanel::versionRequested, this, &MainWindow::openVersion);
@@ -519,12 +531,16 @@ void MainWindow::createActions()
     auto* nextPane = new QAction(tr("Focus &Next Pane"), this);
     nextPane->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O));
     connect(nextPane, &QAction::triggered, this, [this] { m_tabs->focusNextPane(); });
+    // The global graph (F-026), a tab.
+    auto* graph = new QAction(tr("Open &Graph View"), this);
+    graph->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
+    connect(graph, &QAction::triggered, this, &MainWindow::openGraph);
     // Windows (F-012 step 2): the note moves, with its unsaved text, to a window of its own.
     auto* newWindow = new QAction(tr("Move to New &Window"), this);
     newWindow->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_W));
     connect(newWindow, &QAction::triggered, this, [this] { moveToNewWindow(); });
     viewMenu->addSeparator();
-    for (QAction* action : {splitRight, splitDown, moveTab, nextPane, newWindow}) {
+    for (QAction* action : {graph, splitRight, splitDown, moveTab, nextPane, newWindow}) {
         viewMenu->addAction(action);
         addAction(action);
         registerAction(action);
@@ -923,6 +939,28 @@ void MainWindow::openVault(const Vault& vault)
     attachSession(std::move(session), created);
 }
 
+void MainWindow::openGraph()
+{
+    if (!m_vault) {
+        statusBar()->showMessage(tr("Open a vault first"), kStatusTimeoutMs);
+        return;
+    }
+    if (m_graphTab) {
+        m_tabs->setCurrentWidget(m_graphTab);
+        return;
+    }
+    const QString current = currentEditor() ? currentEditor()->path() : QString();
+    m_graphTab = new GraphPanel(GraphPanel::Scope::Global);
+    m_graphTab->setProperty(kGraphProperty, true);
+    m_graphTab->showNote(current);
+    m_graphTab->setIndexPath(IndexService::indexPath(m_vault->rootPath()));
+    connect(m_graphTab, &GraphPanel::openRequested, this, &MainWindow::openNote);
+    connect(m_graphTab, &GraphPanel::tagRequested, this, &MainWindow::showTag);
+    const int index = m_tabs->addTab(m_graphTab, tr("Graph"));
+    m_tabs->setTabToolTip(index, tr("The vault's notes and their links"));
+    m_tabs->setCurrentIndex(index);
+}
+
 void MainWindow::removeAllTabs()
 {
     while (m_tabs->count() > 0) {
@@ -1128,6 +1166,9 @@ void MainWindow::connectWorkers()
     m_search->setIndexPath(IndexService::indexPath(vaultPath));
     m_search->setModelPath(Embedder::modelPath(vaultPath));
     m_related->setIndexPath(IndexService::indexPath(vaultPath));
+    m_localGraph->setIndexPath(IndexService::indexPath(vaultPath));
+    if (m_graphTab)
+        m_graphTab->setIndexPath(IndexService::indexPath(vaultPath));
 
     const auto opened = [this](int notes, const QStringList& problems) {
         setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), problems.join(QLatin1Char('\n')));
@@ -1140,6 +1181,9 @@ void MainWindow::connectWorkers()
         m_backlinks->refresh();
         m_tags->reload();
         m_search->refresh();
+        m_localGraph->refresh();
+        if (m_graphTab)
+            m_graphTab->refresh();
         m_gitStatusTimer->start();
         emit indexOpened(notes);
     };
@@ -1154,6 +1198,9 @@ void MainWindow::connectWorkers()
                 view->refreshReading();
         m_tags->reload();
         m_search->refresh();
+        m_localGraph->refresh();
+        if (m_graphTab)
+            m_graphTab->refresh();
         emit indexUpdated(notes);
     });
     connect(index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
@@ -2164,6 +2211,10 @@ void MainWindow::updateStatus()
     }
     if (const auto* diff = qobject_cast<DiffView*>(page)) {
         m_noteLabel->setText(diff->summary());
+        return;
+    }
+    if (page && page == m_graphTab) {
+        m_noteLabel->setText(tr("Graph view"));
         return;
     }
     m_noteLabel->setText(page ? displayPath(page->property(kPathProperty).toString()) : QString());

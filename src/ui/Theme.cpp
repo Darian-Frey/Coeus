@@ -10,6 +10,8 @@
 #include <QStyleFactory>
 #include <QWidget>
 
+#include <algorithm>
+
 namespace coeus {
 
 namespace {
@@ -246,6 +248,20 @@ QPalette Theme::palette(Mode mode)
 bool Theme::isDark() const
 {
     return QApplication::palette().color(QPalette::Base).lightness() < 128;
+}
+
+QColor Theme::category(int index) const
+{
+    index = std::max(index, 0);
+    const QColor accent = colour(Colour::Accent);
+    if (m_mode == Mode::Cassette) {
+        // Phosphor shades: ambers to reds to yellows, each at three brightnesses.
+        const int hue = 8 + (index * 11) % 44;
+        const int lightness = 150 - (index / 4 % 3) * 30;
+        return QColor::fromHsl(hue, 230, lightness);
+    }
+    const int hue = (std::max(accent.hslHue(), 0) + index * 137) % 360;
+    return isDark() ? QColor::fromHsl(hue, 150, 150) : QColor::fromHsl(hue, 170, 105);
 }
 
 QColor Theme::colour(Colour colour) const
