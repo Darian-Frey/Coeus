@@ -5,6 +5,7 @@
 #include "ui/CommandPalette.hpp"
 #include "ui/Editor.hpp"
 #include "ui/MainWindow.hpp"
+#include "ui/VaultSession.hpp"
 #include "ui/NoteView.hpp"
 #include "ui/SearchPanel.hpp"
 
@@ -145,6 +146,7 @@ private slots:
 
     void recentNotesNewestFirst()
     {
+        QFile::remove(note(".coeus/recent.json"));
         auto window = std::make_unique<MainWindow>();
         window->openVault(*Vault::open(m_vault.path()));
         for (const char* path : {"plan.md", "notes/ideas.md", "journal.md"})
@@ -163,7 +165,12 @@ private slots:
         QCOMPARE(offered.indexOf(QStringLiteral("journal.md")), offered.size() - 1);
         window->recentPicker()->close();
 
+        // Written a moment after they settle, without waiting for the window to close (BUG-012).
+        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(note(".coeus/recent.json")), VaultSession::kRecentSaveDelayMs + 3000);
         // Kept across a restart, in this vault's .coeus/.
+        QFile::remove(note(".coeus/recent.json"));
+        window->openNote(note("plan.md"));
+        window->openNote(note("journal.md"));
         window->close();
         QVERIFY(QFile::exists(note(".coeus/recent.json")));
         window = std::make_unique<MainWindow>();

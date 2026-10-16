@@ -4,11 +4,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Fixed
+- BUG-012: recent notes are written two seconds after they settle, as meant, rather than only when the window closed.
 - BUG-011: after Cassette, Light left the docks' lists and the Search box dark and labels unreadable; every widget now follows each theme change.
 - BUG-009: changing the theme could widen the window past the screen, sizing the Registers panel's status filter to the longest status in the vault; the panel's filters are now a few words wide, longer items elided.
 - BUG-008: in a vault that is a Git repository, the embeddings sidecar counted as a changed file and appeared in every commit dialog; `.coeus-shared/` is now one of Coeus's own files, like `.coeus/`.
 
 ### Added
+- Windows, step 2 of F-012 (D-023, F-012 complete): View › Move to New Window (`Ctrl+Alt+W`) moves the current note, with its unsaved text, cursor and mode, into a window of its own with its own docks, kept layout and panes. The vault's windows share one index, embedding worker, MCP link, bookmarks and recent notes (`ui/VaultSession`), and a note open in one window is shown there when another asks for it. File › Open Vault… on a vault already open joins it; File › Quit closes every window. Tests in `test_workspace` and `test_mcp_window`.
 - Panes, step 1 of F-012 (D-023): View › Split Right (`Ctrl+\`) and Split Down (`Ctrl+Shift+\`) put notes side by side or one above another, the current tab moving into the new pane; Move Tab to Next Pane (`Ctrl+Alt+M`) and Focus Next Pane (`Ctrl+Alt+O`) move between them, and a pane emptied of tabs goes. New notes open in the pane in focus; a note already open elsewhere is shown where it is. Test `test_workspace`.
 - Live preview, step 2 (F-003 complete): tables, callouts and note embeds are drawn in Live as reading mode draws them, until the cursor enters them; a long embed is cut at 480 pixels with a `⋯`, and embeds follow their notes' edits once indexed. A note opened in Live starts below its frontmatter, which stays folded. Tests in `test_live_preview`.
 - Demo vault: a *Live preview tour* note with one of every construct live preview draws (callouts of five kinds, a table, code in four languages, maths, a flowchart and a sequence diagram, an image, a PDF page and note, section and block embeds); `attachments/spec.pdf` is now a real three-page PDF; the showcase gains a PDF page and a sequence diagram; bookmarks and recent notes come seeded; the *Start here* guide covers it all. `test_make_demo_vault` checks them.

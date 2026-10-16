@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/NoteView.hpp"
+#include "ui/VaultSession.hpp"
 #include "ui/Workspace.hpp"
 #include "vault/Bookmarks.hpp"
 #include "vault/RecentNotes.hpp"
@@ -11,6 +12,7 @@
 #include <QMainWindow>
 #include <QPointer>
 
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -66,7 +68,14 @@ public:
     explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override;
 
+    // Opens `vault` here, joining its session if another window has it open (F-012).
     void openVault(const Vault& vault);
+    // Moves the current note into a new window sharing this one's session,
+    // with its unsaved text and cursor (F-012, D-023); returns the window,
+    // which deletes itself when closed.
+    MainWindow* moveToNewWindow();
+    // The vault's session, shared with the other windows that have it open.
+    const std::shared_ptr<VaultSession>& session() const { return m_session; }
     // Opens a note in an editor tab, or focuses the tab if it is already open.
     void openNote(const QString& absolutePath);
     // Opens today's daily note, creating it first if needed (F-009).
@@ -86,8 +95,8 @@ public:
     bool isBookmarked(const QString& absolutePath) const;
     void openBookmark(int index);
     void chooseRecent();
-    const QList<Bookmark>& bookmarks() const { return m_bookmarkList; }
-    const QList<RecentNotes::Note>& recentNotes() const { return m_recentList; }
+    const QList<Bookmark>& bookmarks() const;
+    const QList<RecentNotes::Note>& recentNotes() const;
     BookmarksPanel* bookmarksPanel() const { return m_bookmarks; }
     RenderService* renderService() const { return m_render; }
     CommandPalette* recentPicker() const { return m_recentPicker; }
@@ -111,7 +120,7 @@ public:
     // Writes the new project and removes the idea; true on success.
     bool promote(const IdeaRef& idea, const QString& codename, const QString& targetFolder, const QString& rootName);
     // F-033: the link `coeus --mcp` uses to ask about open notes and report writes.
-    McpLink* mcpLink() const { return m_mcpLink; }
+    McpLink* mcpLink() const { return m_session ? m_session->mcpLink() : nullptr; }
     QList<WriteToast*> toasts() const;
     QDockWidget* boardDock() const { return m_boardDock; }
     HistoryPanel* history() const { return m_history; }
@@ -241,11 +250,16 @@ private:
 
     void chooseVault();
     void sweepTempFiles(const QString& root);
-    void startIndex(const QString& vaultPath);
+    // Joins `session` (leaving any other); `created` when this window started it,
+    // which then sweeps, offers .gitignore and recovery once for the vault.
+    void attachSession(std::shared_ptr<VaultSession> session, bool created);
+    void detachSession();
+    void removeAllTabs(); // without asking: after confirmCloseAll()
+    // Connects to the session's index and embedding workers, and shows what they have reported.
+    void connectWorkers();
     void checkGitignore(const QString& vaultPath, bool onOpen);
     void offerGitignore(const QString& vaultPath, const QStringList& patterns);
     void addToGitignore(const QString& vaultPath, const QStringList& patterns);
-    void stopIndex();
     void setIndexStatus(const QString& text, const QString& toolTip = QString());
     bool closeTab(int index);           // false if the author cancelled
     bool confirmCloseAll();             // before quitting or switching vault
@@ -278,12 +292,15 @@ private:
     // "<path>" inside the vault, "<root name>/<path>" inside a linked root (SPEC.md §Linked roots).
     QString displayPath(const QString& absolutePath) const;
 
+    friend class VaultSession; // asks windows for open buffers and shows MCP write toasts
+
     std::optional<Vault> m_vault;
-    struct LinkedRoot {
-        QString name;
-        Vault vault;
-    };
-    std::vector<LinkedRoot> m_linkedRoots; // present linked roots from config.toml (F-034)
+    std::shared_ptr<VaultSession> m_session; // the index, embedding, MCP link, bookmarks, recents (F-012)
+    using LinkedRoot = VaultSession::LinkedRoot;
+    // Present linked roots from config.toml (F-034), the session's.
+    const std::vector<LinkedRoot>& linkedRoots() const;
+    QString m_layoutKey = QStringLiteral("mainWindow"); // "secondaryWindow" for windows a note moved to
+    bool m_verifyAsked = false; // this window asked to verify the index, so shows the result
     QList<QAction*> m_actions;
 
     Workspace* m_tabs = nullptr; // every pane's tabs, one index across them (F-012)
@@ -308,8 +325,6 @@ private:
     GitCommand* m_push = nullptr;
     QTimer* m_gitStatusTimer = nullptr;
     int m_gitStatusGeneration = 0;
-    QThread* m_indexThread = nullptr;
-    IndexService* m_index = nullptr;
     QAction* m_verifyIndex = nullptr;
     QAction* m_rebuildIndex = nullptr;
     QAction* m_compactSidecar = nullptr; // F-035
@@ -319,13 +334,9 @@ private:
     // F-014.
     BookmarksPanel* m_bookmarks = nullptr;
     QDockWidget* m_bookmarksDock = nullptr;
-    QList<Bookmark> m_bookmarkList;
-    QList<RecentNotes::Note> m_recentList;
-    QTimer* m_recentTimer = nullptr;
     CommandPalette* m_recentPicker = nullptr;
     QObject* m_recentActions = nullptr; // the picker's current list
     QMenu* m_recentMenu = nullptr;
-    static constexpr int kRecentSaveDelayMs = 2000;
     std::optional<std::pair<QString, QString>> rootRelative(const QString& absolutePath) const;
     QString absoluteOf(const QString& rootName, const QString& path) const;
     void setBookmarks(const QList<Bookmark>& bookmarks);
@@ -350,9 +361,6 @@ private:
     ProjectBoard* m_board = nullptr;
     QDockWidget* m_boardDock = nullptr;
     QTimer* m_boardTimer = nullptr;
-    McpLink* m_mcpLink = nullptr;
-    QThread* m_embedThread = nullptr;
-    EmbeddingService* m_embedding = nullptr;
     QLabel* m_semanticLabel = nullptr;
     QList<QPointer<WriteToast>> m_toasts;
     QObject* m_templateActions = nullptr; // parent of the picker's per-template actions

@@ -136,6 +136,7 @@ add_library(coeus_core STATIC
     src/ui/RenderService.cpp
     src/ui/LivePreview.cpp
     src/ui/Workspace.cpp
+    src/ui/VaultSession.cpp
     src/ui/Shortcuts.cpp
     src/ui/ShortcutsDialog.cpp
     src/ui/Theme.cpp

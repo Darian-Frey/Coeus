@@ -128,21 +128,6 @@ MainWindow::MainWindow(QWidget* parent)
         refreshGitStatus();
         emit pushFinished(ok, message);
     });
-    // MCP writes (F-033, AV-012): `coeus --mcp` asks before touching a note open
-    // here and reports each write, which this window offers to undo.
-    m_mcpLink = new McpLink(
-        [this](const QString& path) {
-            const Editor* editor = editorFor(path);
-            if (!editor)
-                editor = editorFor(QFileInfo(path).canonicalFilePath());
-            if (!editor)
-                return McpLink::Buffer{};
-            return McpLink::Buffer{true, editor->isModified(), editor->isModified() ? editor->toPlainText() : QString()};
-        },
-        [this](const QString& path, const std::optional<QByteArray>& before, const QByteArray& afterHash, const QString& summary) {
-            showWriteToast(path, before, afterHash, summary);
-        },
-        this);
     m_gitStatusTimer = new QTimer(this);
     m_gitStatusTimer->setSingleShot(true);
     m_gitStatusTimer->setInterval(kGitStatusDelayMs);
@@ -161,10 +146,6 @@ MainWindow::MainWindow(QWidget* parent)
     connect(m_render, &RenderService::unavailable, this, [this](const QString& why) {
         statusBar()->showMessage(why, kStatusTimeoutMs * 3);
     });
-    m_recentTimer = new QTimer(this); // recents are written a moment after they settle (F-014)
-    m_recentTimer->setSingleShot(true);
-    m_recentTimer->setInterval(kRecentSaveDelayMs);
-    connect(m_recentTimer, &QTimer::timeout, this, &MainWindow::saveRecent);
     connect(m_tabs, &Workspace::currentChanged, this, &MainWindow::updateStatus);
     connect(m_tabs, &Workspace::currentChanged, this, [this] {
         Editor* editor = currentEditor();
@@ -265,10 +246,10 @@ void MainWindow::createDocks()
     connect(m_search, &SearchPanel::openRequested, this, &MainWindow::openNoteAtWords);
     connect(m_search, &SearchPanel::openAtLineRequested, this, &MainWindow::openNoteAt);
     connect(m_search, &SearchPanel::starToggled, this, [this](const QString& query, const QString& mode) {
-        setBookmarks(Bookmarks::toggled(m_bookmarkList, Bookmark::search(query, mode)));
+        setBookmarks(Bookmarks::toggled(bookmarks(), Bookmark::search(query, mode)));
     });
     connect(m_search, &SearchPanel::queryChanged, this, [this](const QString& query, const QString& mode) {
-        m_search->setStarred(m_bookmarkList.contains(Bookmark::search(query, mode)));
+        m_search->setStarred(bookmarks().contains(Bookmark::search(query, mode)));
     });
 
     // Bookmarks: starred notes and searches (F-014).
@@ -280,13 +261,13 @@ void MainWindow::createDocks()
     tabifyDockWidget(m_explorerDock, m_bookmarksDock);
     connect(m_bookmarks, &BookmarksPanel::activated, this, &MainWindow::openBookmark);
     connect(m_bookmarks, &BookmarksPanel::removeRequested, this, [this](int index) {
-        QList<Bookmark> bookmarks = m_bookmarkList;
+        QList<Bookmark> bookmarks = this->bookmarks();
         if (index >= 0 && index < bookmarks.size())
             bookmarks.removeAt(index);
         setBookmarks(bookmarks);
     });
     connect(m_bookmarks, &BookmarksPanel::moveRequested, this, [this](int index, int to) {
-        QList<Bookmark> bookmarks = m_bookmarkList;
+        QList<Bookmark> bookmarks = this->bookmarks();
         if (index >= 0 && index < bookmarks.size() && to >= 0 && to < bookmarks.size())
             bookmarks.move(index, to);
         setBookmarks(bookmarks);
@@ -447,7 +428,8 @@ void MainWindow::createActions()
 
     auto* quit = new QAction(QIcon::fromTheme(QStringLiteral("application-exit")), tr("&Quit"), this);
     quit->setShortcut(QKeySequence::Quit);
-    connect(quit, &QAction::triggered, this, &QWidget::close);
+    // Every window, each asking about its own unsaved notes; a Cancel stops there (F-012).
+    connect(quit, &QAction::triggered, this, [] { QApplication::closeAllWindows(); });
 
     auto* palette = new QAction(Icons::palette(),
                                 tr("Command &Palette…"), this);
@@ -467,22 +449,24 @@ void MainWindow::createActions()
     m_verifyIndex = new QAction(tr("&Verify Index"), this);
     m_verifyIndex->setEnabled(false);
     connect(m_verifyIndex, &QAction::triggered, this, [this] {
-        if (m_index)
-            QMetaObject::invokeMethod(m_index, &IndexService::verify, Qt::QueuedConnection);
+        if (m_session && m_session->index()) {
+            m_verifyAsked = true;
+            QMetaObject::invokeMethod(m_session->index(), &IndexService::verify, Qt::QueuedConnection);
+        }
     });
 
     m_rebuildIndex = new QAction(tr("&Rebuild Index"), this);
     m_rebuildIndex->setEnabled(false);
     connect(m_rebuildIndex, &QAction::triggered, this, [this] {
-        if (m_index)
-            QMetaObject::invokeMethod(m_index, &IndexService::rebuild, Qt::QueuedConnection);
+        if (m_session && m_session->index())
+            QMetaObject::invokeMethod(m_session->index(), &IndexService::rebuild, Qt::QueuedConnection);
     });
 
     m_compactSidecar = new QAction(tr("Compact &Embeddings Sidecar"), this);
     m_compactSidecar->setEnabled(false);
     connect(m_compactSidecar, &QAction::triggered, this, [this] {
-        if (m_embedding)
-            QMetaObject::invokeMethod(m_embedding, &EmbeddingService::compactSidecar, Qt::QueuedConnection);
+        if (m_session && m_session->embedding())
+            QMetaObject::invokeMethod(m_session->embedding(), &EmbeddingService::compactSidecar, Qt::QueuedConnection);
     });
 
     m_gitignoreAction = new QAction(tr("Add Coeus Files to .&gitignore"), this);
@@ -535,8 +519,12 @@ void MainWindow::createActions()
     auto* nextPane = new QAction(tr("Focus &Next Pane"), this);
     nextPane->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_O));
     connect(nextPane, &QAction::triggered, this, [this] { m_tabs->focusNextPane(); });
+    // Windows (F-012 step 2): the note moves, with its unsaved text, to a window of its own.
+    auto* newWindow = new QAction(tr("Move to New &Window"), this);
+    newWindow->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_W));
+    connect(newWindow, &QAction::triggered, this, [this] { moveToNewWindow(); });
     viewMenu->addSeparator();
-    for (QAction* action : {splitRight, splitDown, moveTab, nextPane}) {
+    for (QAction* action : {splitRight, splitDown, moveTab, nextPane, newWindow}) {
         viewMenu->addAction(action);
         addAction(action);
         registerAction(action);
@@ -741,7 +729,7 @@ std::optional<std::pair<QString, QString>> MainWindow::rootRelative(const QStrin
     };
     if (m_vault)
         consider(QStringLiteral("vault"), *m_vault);
-    for (const LinkedRoot& linked : m_linkedRoots)
+    for (const LinkedRoot& linked : linkedRoots())
         consider(linked.name, linked.vault);
     return best;
 }
@@ -752,7 +740,7 @@ QString MainWindow::absoluteOf(const QString& rootName, const QString& path) con
         return {};
     if (rootName == QLatin1String("vault"))
         return m_vault->rootPath() + QLatin1Char('/') + path;
-    for (const LinkedRoot& linked : m_linkedRoots)
+    for (const LinkedRoot& linked : linkedRoots())
         if (linked.name == rootName)
             return linked.vault.rootPath() + QLatin1Char('/') + path;
     return {}; // a root missing on this machine
@@ -761,7 +749,7 @@ QString MainWindow::absoluteOf(const QString& rootName, const QString& path) con
 bool MainWindow::isBookmarked(const QString& absolutePath) const
 {
     const auto note = rootRelative(absolutePath);
-    return note && m_bookmarkList.contains(Bookmark::note(note->first, note->second));
+    return note && bookmarks().contains(Bookmark::note(note->first, note->second));
 }
 
 void MainWindow::toggleBookmark(const QString& absolutePath)
@@ -770,24 +758,41 @@ void MainWindow::toggleBookmark(const QString& absolutePath)
     if (!note)
         return;
     const bool starring = !isBookmarked(absolutePath);
-    setBookmarks(Bookmarks::toggled(m_bookmarkList, Bookmark::note(note->first, note->second)));
+    setBookmarks(Bookmarks::toggled(bookmarks(), Bookmark::note(note->first, note->second)));
     statusBar()->showMessage(starring ? tr("Bookmarked %1").arg(displayPath(absolutePath)) : tr("Removed the bookmark"), kStatusTimeoutMs);
+}
+
+const QList<Bookmark>& MainWindow::bookmarks() const
+{
+    static const QList<Bookmark> none;
+    return m_session ? m_session->bookmarks() : none;
+}
+
+const QList<RecentNotes::Note>& MainWindow::recentNotes() const
+{
+    static const QList<RecentNotes::Note> none;
+    return m_session ? m_session->recentNotes() : none;
+}
+
+const std::vector<MainWindow::LinkedRoot>& MainWindow::linkedRoots() const
+{
+    static const std::vector<LinkedRoot> none;
+    return m_session ? m_session->linkedRoots() : none;
 }
 
 void MainWindow::setBookmarks(const QList<Bookmark>& bookmarks)
 {
-    if (!m_vault)
+    if (!m_session)
         return;
-    m_bookmarkList = bookmarks;
-    if (auto saved = Bookmarks::save(m_vault->rootPath(), m_bookmarkList); !saved)
+    // Every window sharing the session shows them again (bookmarksChanged).
+    if (auto saved = m_session->setBookmarks(bookmarks); !saved)
         statusBar()->showMessage(tr("Bookmarks not saved: %1").arg(saved.error()), kStatusTimeoutMs * 2);
-    presentBookmarks();
 }
 
 void MainWindow::presentBookmarks()
 {
     QList<BookmarksPanel::Row> rows;
-    for (const Bookmark& bookmark : std::as_const(m_bookmarkList)) {
+    for (const Bookmark& bookmark : std::as_const(bookmarks())) {
         if (bookmark.kind == Bookmark::Kind::Search) {
             const QString mode = bookmark.mode == QLatin1String("meaning") ? tr("by meaning")
                                  : bookmark.mode == QLatin1String("both")  ? tr("words and meaning")
@@ -803,14 +808,14 @@ void MainWindow::presentBookmarks()
     for (int i = 0; i < m_tabs->count(); ++i)
         if (NoteView* view = viewAt(i))
             view->setStarred(isBookmarked(view->path()));
-    m_search->setStarred(m_bookmarkList.contains(Bookmark::search(m_search->input()->text().trimmed(), SearchPanel::modeName(m_search->mode()))));
+    m_search->setStarred(bookmarks().contains(Bookmark::search(m_search->input()->text().trimmed(), SearchPanel::modeName(m_search->mode()))));
 }
 
 void MainWindow::openBookmark(int index)
 {
-    if (index < 0 || index >= m_bookmarkList.size())
+    if (index < 0 || index >= bookmarks().size())
         return;
-    const Bookmark bookmark = m_bookmarkList[index];
+    const Bookmark bookmark = bookmarks()[index];
     if (bookmark.kind == Bookmark::Kind::Search) {
         m_searchDock->show();
         m_searchDock->raise();
@@ -829,26 +834,22 @@ void MainWindow::openBookmark(int index)
 
 void MainWindow::noteRecent(const QString& absolutePath)
 {
-    const auto note = rootRelative(absolutePath);
-    if (!note || (!m_recentList.isEmpty() && m_recentList.front() == RecentNotes::Note{note->first, note->second}))
-        return;
-    m_recentList = RecentNotes::touched(m_recentList, {note->first, note->second});
-    m_recentTimer->start();
+    if (const auto note = rootRelative(absolutePath); note && m_session)
+        m_session->touchRecent({note->first, note->second});
 }
 
 void MainWindow::saveRecent()
 {
-    if (!m_recentTimer->isActive() || !m_vault)
+    if (!m_session)
         return;
-    m_recentTimer->stop();
-    if (auto saved = RecentNotes::save(m_vault->rootPath(), m_recentList); !saved)
+    if (auto saved = m_session->saveRecent(); !saved)
         statusBar()->showMessage(tr("Recent notes not saved: %1").arg(saved.error()), kStatusTimeoutMs * 2);
 }
 
 QList<QAction*> MainWindow::recentActions(QObject* parent)
 {
     QList<QAction*> actions;
-    for (const RecentNotes::Note& note : std::as_const(m_recentList)) {
+    for (const RecentNotes::Note& note : std::as_const(recentNotes())) {
         const QString absolute = absoluteOf(note.first, note.second);
         if (absolute.isEmpty() || !QFileInfo(absolute).isFile())
             continue; // deleted or renamed since, or in a root missing here
@@ -916,6 +917,14 @@ void MainWindow::openVault(const Vault& vault)
 {
     if (!confirmCloseAll())
         return;
+    removeAllTabs();
+    bool created = false;
+    std::shared_ptr<VaultSession> session = VaultSession::open(vault, &created);
+    attachSession(std::move(session), created);
+}
+
+void MainWindow::removeAllTabs()
+{
     while (m_tabs->count() > 0) {
         if (NoteView* view = viewAt(0)) {
             m_journalled.remove(view->editor());
@@ -925,32 +934,103 @@ void MainWindow::openVault(const Vault& vault)
         m_tabs->removeTab(0);
         page->deleteLater();
     }
-    m_vault = vault;
-    m_linkedRoots.clear();
-    if (!m_mcpLink->listen(vault.rootPath()))
-        statusBar()->showMessage(tr("Another Coeus window is serving this vault to MCP clients"), kStatusTimeoutMs * 2);
+}
+
+MainWindow* MainWindow::moveToNewWindow()
+{
+    NoteView* view = currentView();
+    if (!view || !m_session) {
+        statusBar()->showMessage(tr("Only a note moves to a new window"), kStatusTimeoutMs);
+        return nullptr;
+    }
+    Editor* editor = view->editor();
+    if (m_conflictPrompts.value(editor)) {
+        statusBar()->showMessage(tr("Answer the prompt about %1 first").arg(displayPath(editor->path())), kStatusTimeoutMs);
+        return nullptr;
+    }
+    // The buffer goes with the note; its undo history does not.
+    const QString path = editor->path();
+    const bool modified = editor->isModified();
+    const QString text = editor->toPlainText();
+    const QByteArray baseHash = editor->baseHash();
+    const int cursor = editor->textCursor().position();
+    const NoteView::Mode mode = view->mode();
+    m_journalled.remove(editor);
+    m_tabs->removeTab(m_tabs->indexOf(view)); // out of this window first: a note is open in one place
+    view->deleteLater();
+
+    auto* window = new MainWindow;
+    window->setAttribute(Qt::WA_DeleteOnClose);
+    window->m_layoutKey = QStringLiteral("secondaryWindow");
+    if (QSettings().contains(window->m_layoutKey + QStringLiteral("/geometry"))) {
+        window->restoreLayout();
+    } else {
+        window->resize(size());
+        window->move(pos() + QPoint(48, 48)); // not exactly over this one
+    }
+    window->attachSession(m_session, false);
+    if (Editor* moved = window->openEditor(path, true)) {
+        if (modified)
+            moved->restore(text, baseHash);
+        QTextCursor at = moved->textCursor();
+        at.setPosition(std::min(cursor, int(moved->document()->characterCount()) - 1));
+        moved->setTextCursor(at);
+        if (NoteView* movedView = window->viewOf(moved))
+            movedView->setMode(mode);
+    }
+    window->show();
+    window->raise();
+    window->activateWindow();
+    return window;
+}
+
+void MainWindow::attachSession(std::shared_ptr<VaultSession> session, bool created)
+{
+    saveRecent(); // the previous vault's, if any are pending
+    detachSession();
+    m_session = std::move(session);
+    m_session->attach(this);
+    m_vault = m_session->vault();
+    const QString vaultPath = m_vault->rootPath();
+    if (created && !m_session->mcpLink()->isListening())
+        statusBar()->showMessage(tr("Another Coeus is serving this vault to MCP clients"), kStatusTimeoutMs * 2);
 
     // The explorer lists linked roots at once; the index reconciles them on its thread.
-    QList<ExplorerRoot> roots{ExplorerRoot{vault.name(), vault.rootPath(), true}};
-    for (const RootConfig& root : Roots::load(vault.rootPath()).roots) {
-        const auto opened = Vault::open(root.path);
-        roots.append(ExplorerRoot{root.name, root.path, opened.has_value()});
-        if (opened)
-            m_linkedRoots.push_back({root.name, *opened});
-    }
-    m_explorer->setRoots(roots);
-    saveRecent(); // the previous vault's, if any are pending
-    m_recentList = RecentNotes::load(vault.rootPath());
-    m_render->setVault(vault.rootPath());
-    m_bookmarkList = Bookmarks::load(vault.rootPath());
+    m_explorer->setRoots(m_session->explorerRoots());
+    connect(m_session.get(), &VaultSession::rootsChanged, this, [this] { m_explorer->setRoots(m_session->explorerRoots()); });
+    connect(m_session.get(), &VaultSession::restarted, this, &MainWindow::connectWorkers);
+    connect(m_session.get(), &VaultSession::bookmarksChanged, this, &MainWindow::presentBookmarks);
+    connect(m_session.get(), &VaultSession::warning, this,
+            [this](const QString& message) { statusBar()->showMessage(message, kStatusTimeoutMs * 2); });
+    m_render->setVault(vaultPath);
     presentBookmarks();
-    setWindowTitle(QStringLiteral("%1 — Coeus").arg(vault.name()));
+    setWindowTitle(QStringLiteral("%1 — Coeus").arg(m_vault->name()));
     updateStatus();
-    sweepTempFiles(vault.rootPath());
-    startIndex(vault.rootPath());
+    connectWorkers();
     m_gitignoreAction->setEnabled(true);
-    checkGitignore(vault.rootPath(), true);
-    checkRecovery(vault.rootPath());
+    // Once per vault, by the window that opened it.
+    if (created) {
+        sweepTempFiles(vaultPath);
+        checkGitignore(vaultPath, true);
+        checkRecovery(vaultPath);
+    }
+}
+
+void MainWindow::detachSession()
+{
+    if (!m_session)
+        return;
+    disconnect(m_session.get(), nullptr, this, nullptr);
+    if (m_session->index())
+        disconnect(m_session->index(), nullptr, this, nullptr);
+    if (m_session->embedding())
+        disconnect(m_session->embedding(), nullptr, this, nullptr);
+    m_session->detach(this);
+    m_session.reset(); // the last window's stops the workers
+    m_semanticLabel->hide();
+    m_verifyIndex->setEnabled(false);
+    m_rebuildIndex->setEnabled(false);
+    m_compactSidecar->setEnabled(false);
 }
 
 void MainWindow::checkGitignore(const QString& vaultPath, bool onOpen)
@@ -1032,16 +1112,14 @@ void MainWindow::addToGitignore(const QString& vaultPath, const QStringList& pat
 
 MainWindow::~MainWindow()
 {
-    stopIndex();
+    detachSession();
 }
 
-void MainWindow::startIndex(const QString& vaultPath)
+void MainWindow::connectWorkers()
 {
-    stopIndex();
-    m_indexThread = new QThread(this);
-    m_indexThread->setObjectName(QStringLiteral("coeus-index"));
-    m_index = new IndexService; // no parent: it moves to the worker thread
-    m_index->moveToThread(m_indexThread);
+    IndexService* index = m_session->index();
+    EmbeddingService* embedding = m_session->embedding();
+    const QString vaultPath = m_vault->rootPath();
     m_catalogue->setIndexPath(IndexService::indexPath(vaultPath));
     m_catalogue->setReviewThreshold(
         int(VaultConfig::integer(vaultPath, "registers", "review_threshold_days").value_or(Lint::kDefaultReviewThresholdDays)));
@@ -1050,10 +1128,8 @@ void MainWindow::startIndex(const QString& vaultPath)
     m_search->setIndexPath(IndexService::indexPath(vaultPath));
     m_search->setModelPath(Embedder::modelPath(vaultPath));
     m_related->setIndexPath(IndexService::indexPath(vaultPath));
-    connect(m_indexThread, &QThread::finished, m_index, &QObject::deleteLater);
 
-    connect(m_index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
-    connect(m_index, &IndexService::opened, this, [this](int notes, const QStringList& problems) {
+    const auto opened = [this](int notes, const QStringList& problems) {
         setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), problems.join(QLatin1Char('\n')));
         if (!problems.isEmpty())
             statusBar()->showMessage(problems.front(), kStatusTimeoutMs * 2);
@@ -1066,8 +1142,10 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_search->refresh();
         m_gitStatusTimer->start();
         emit indexOpened(notes);
-    });
-    connect(m_index, &IndexService::indexChanged, this, [this](int notes) {
+    };
+    connect(index, &IndexService::busy, this, [this](const QString& what) { setIndexStatus(what); });
+    connect(index, &IndexService::opened, this, opened);
+    connect(index, &IndexService::indexChanged, this, [this](int notes) {
         setIndexStatus(tr("index ok · %n note(s)", nullptr, notes), m_indexLabel->toolTip());
         m_catalogue->reload();
         m_backlinks->refresh();
@@ -1078,20 +1156,22 @@ void MainWindow::startIndex(const QString& vaultPath)
         m_search->refresh();
         emit indexUpdated(notes);
     });
-    connect(m_index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
-    connect(m_index, &IndexService::filesChanged, this, [this](const QStringList& paths) {
+    connect(index, &IndexService::filesChanged, this, &MainWindow::onFilesChanged);
+    connect(index, &IndexService::filesChanged, this, [this](const QStringList& paths) {
         if (paths.contains(m_history->notePath()))
             m_history->refresh(); // e.g. git checkout or pull changed it
         m_gitStatusTimer->start();
     });
-    connect(m_index, &IndexService::rootRescanned, this, &MainWindow::onRootRescanned);
-    connect(m_index, &IndexService::failed, this, [this](const QString& message) {
+    connect(index, &IndexService::rootRescanned, this, &MainWindow::onRootRescanned);
+    connect(index, &IndexService::failed, this, [this](const QString& message) {
         setIndexStatus(tr("index error"), message);
         statusBar()->showMessage(message, kStatusTimeoutMs * 2);
     });
-    connect(m_index, &IndexService::warning, this,
+    connect(index, &IndexService::warning, this,
             [this](const QString& message) { statusBar()->showMessage(message, kStatusTimeoutMs * 2); });
-    connect(m_index, &IndexService::verified, this, [this](const QString& summary, bool clean) {
+    connect(index, &IndexService::verified, this, [this](const QString& summary, bool clean) {
+        if (!std::exchange(m_verifyAsked, false))
+            return; // another window's request
         auto* box = new QMessageBox(clean ? QMessageBox::Information : QMessageBox::Warning, tr("Verify Index"),
                                     clean ? summary : tr("The index differs from the vault. Rebuild Index will repair it."),
                                     QMessageBox::Ok, this);
@@ -1104,66 +1184,35 @@ void MainWindow::startIndex(const QString& vaultPath)
                        m_indexLabel->toolTip());
     });
 
-    // The embedding worker (F-018): its own low-priority thread, woken by every index change.
-    m_embedThread = new QThread(this);
-    m_embedThread->setObjectName(QStringLiteral("coeus-embed"));
-    m_embedding = new EmbeddingService; // no parent: it moves to the worker thread
-    m_embedding->moveToThread(m_embedThread);
-    connect(m_embedThread, &QThread::finished, m_embedding, &QObject::deleteLater);
-    connect(m_embedding, &EmbeddingService::progress, this, [this](int embedded, int total) {
+    // The embedding worker (F-018), on the session's low-priority thread.
+    const auto progress = [this](int embedded, int total) {
         m_semanticLabel->setVisible(total > 0);
         m_semanticLabel->setText(embedded >= total ? tr("meaning ✓") : tr("embedding %L1 of %L2").arg(embedded).arg(total));
         m_semanticLabel->setToolTip(tr("%L1 of %L2 passages have vectors for search by meaning (bge-small-en-v1.5)").arg(embedded).arg(total));
         m_relatedTimer->start(); // the note's new vectors may have landed (a save is re-embedded)
         emit embeddingProgress(embedded, total);
-    });
-    connect(m_embedding, &EmbeddingService::sidecarReport, this, [this](const QString& message) {
-        statusBar()->showMessage(message, kStatusTimeoutMs * 2);
-    });
-    connect(m_embedding, &EmbeddingService::unavailable, this, [this](const QString& why) {
+    };
+    const auto unavailable = [this](const QString& why) {
         m_semanticLabel->setVisible(true);
         m_semanticLabel->setText(tr("no embedding model"));
         m_semanticLabel->setToolTip(why);
-    });
-    const auto wakeEmbedding = [this, vaultPath](bool reopen) {
-        QMetaObject::invokeMethod(m_embedding, [service = m_embedding, vaultPath, reopen] {
-            if (reopen)
-                service->open(vaultPath);
-            service->wake();
-        }, Qt::QueuedConnection);
     };
-    connect(m_index, &IndexService::opened, this, [wakeEmbedding] { wakeEmbedding(true); });
-    connect(m_index, &IndexService::indexChanged, this, [wakeEmbedding] { wakeEmbedding(false); });
-    m_embedThread->start(QThread::LowPriority);
+    connect(embedding, &EmbeddingService::progress, this, progress);
+    connect(embedding, &EmbeddingService::sidecarReport, this, [this](const QString& message) {
+        statusBar()->showMessage(message, kStatusTimeoutMs * 2);
+    });
+    connect(embedding, &EmbeddingService::unavailable, this, unavailable);
 
-    m_indexThread->start();
-    setIndexStatus(tr("Indexing…"));
-    QMetaObject::invokeMethod(m_index, [service = m_index, vaultPath] { service->open(vaultPath); },
-                              Qt::QueuedConnection);
+    // A window joining a session shows what the workers have already said.
+    if (const auto state = m_session->indexState())
+        opened(state->first, state->second);
+    else
+        setIndexStatus(tr("Indexing…"));
+    if (const auto state = m_session->embeddingState())
+        progress(state->first, state->second);
+    if (const auto why = m_session->embeddingUnavailable())
+        unavailable(*why);
 }
-
-void MainWindow::stopIndex()
-{
-    if (!m_indexThread)
-        return;
-    if (m_embedThread) {
-        m_embedThread->quit(); // returns after the batch in hand, at most about half a second
-        m_embedThread->wait();
-        delete m_embedThread;
-        m_embedThread = nullptr;
-        m_embedding = nullptr;
-        m_semanticLabel->hide();
-    }
-    m_indexThread->quit();
-    m_indexThread->wait();
-    delete m_indexThread;
-    m_indexThread = nullptr;
-    m_index = nullptr; // deleted on its own thread as it finished
-    m_verifyIndex->setEnabled(false);
-    m_rebuildIndex->setEnabled(false);
-    m_compactSidecar->setEnabled(false);
-}
-
 
 void MainWindow::setIndexStatus(const QString& text, const QString& toolTip)
 {
@@ -1305,7 +1354,7 @@ void MainWindow::newNote()
         return;
     }
     QList<NewNoteDialog::Root> roots{{QFileInfo(m_vault->rootPath()).fileName(), m_vault->rootPath()}};
-    for (const LinkedRoot& linked : m_linkedRoots)
+    for (const LinkedRoot& linked : linkedRoots())
         roots.append({linked.name, linked.vault.rootPath()});
     QList<NewNoteDialog::Template> templates;
     const QString base = QDir::cleanPath(m_vault->rootPath() + QLatin1Char('/') + Templates::folder(m_vault->rootPath()));
@@ -1342,7 +1391,7 @@ void MainWindow::createNote(const QString& absolutePath, const QString& template
     if (!root && m_vault) {
         // A folder not made yet: the deepest root whose path contains it.
         QList<const Vault*> candidates{&*m_vault};
-        for (const LinkedRoot& linked : m_linkedRoots)
+        for (const LinkedRoot& linked : linkedRoots())
             candidates.append(&linked.vault);
         for (const Vault* candidate : std::as_const(candidates))
             if (absolutePath.startsWith(candidate->rootPath() + QLatin1Char('/'))
@@ -1578,12 +1627,23 @@ void MainWindow::openNoteAt(const QString& absolutePath, int line)
 
 Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
 {
-    if (!m_vault)
+    if (!m_vault || !m_session)
         return nullptr;
 
     if (const int existing = tabIndexFor(absolutePath); existing >= 0) {
         m_tabs->setCurrentIndex(existing);
         return editorAt(existing);
+    }
+    // Open in another window of the session: shown there, never opened twice (D-023).
+    for (MainWindow* other : m_session->windows()) {
+        if (other == this)
+            continue;
+        if (const int existing = other->tabIndexFor(absolutePath); existing >= 0) {
+            other->m_tabs->setCurrentIndex(existing);
+            other->raise();
+            other->activateWindow();
+            return other->editorAt(existing);
+        }
     }
 
     const Vault* root = rootFor(absolutePath);
@@ -1593,7 +1653,7 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
             if (candidate->contains(QFileInfo(absolutePath).absolutePath()))
                 root = candidate;
         }
-        for (const LinkedRoot& linked : m_linkedRoots) {
+        for (const LinkedRoot& linked : linkedRoots()) {
             if (!root && linked.vault.contains(QFileInfo(absolutePath).absolutePath()))
                 root = &linked.vault;
         }
@@ -1969,7 +2029,7 @@ const Vault* MainWindow::rootFor(const QString& absolutePath) const
 {
     if (m_vault && m_vault->contains(absolutePath))
         return &*m_vault;
-    for (const LinkedRoot& root : m_linkedRoots) {
+    for (const LinkedRoot& root : linkedRoots()) {
         if (root.vault.contains(absolutePath))
             return &root.vault;
     }
@@ -1983,7 +2043,7 @@ QString MainWindow::displayPath(const QString& absolutePath) const
         return absolutePath;
     if (root == &*m_vault)
         return root->relativePath(absolutePath);
-    for (const LinkedRoot& linked : m_linkedRoots) {
+    for (const LinkedRoot& linked : linkedRoots()) {
         if (&linked.vault == root)
             return linked.name + QLatin1Char('/') + root->relativePath(absolutePath);
     }
@@ -2112,15 +2172,15 @@ void MainWindow::updateStatus()
 void MainWindow::restoreLayout()
 {
     QSettings settings;
-    restoreGeometry(settings.value(QStringLiteral("mainWindow/geometry")).toByteArray());
-    restoreState(settings.value(QStringLiteral("mainWindow/state")).toByteArray(), kLayoutVersion);
+    restoreGeometry(settings.value(m_layoutKey + QStringLiteral("/geometry")).toByteArray());
+    restoreState(settings.value(m_layoutKey + QStringLiteral("/state")).toByteArray(), kLayoutVersion);
 }
 
 void MainWindow::saveLayout() const
 {
     QSettings settings;
-    settings.setValue(QStringLiteral("mainWindow/geometry"), saveGeometry());
-    settings.setValue(QStringLiteral("mainWindow/state"), saveState(kLayoutVersion));
+    settings.setValue(m_layoutKey + QStringLiteral("/geometry"), saveGeometry());
+    settings.setValue(m_layoutKey + QStringLiteral("/state"), saveState(kLayoutVersion));
 }
 
 void MainWindow::openVersion(const QString& notePath, const GitCommit& commit, const QString& workdir)
@@ -2574,7 +2634,7 @@ bool MainWindow::promote(const IdeaRef& idea, const QString& codename, const QSt
     if (linked) {
         if (const auto added = Roots::add(m_vault->rootPath(), rootName, targetFolder); !added)
             return fail(tr("the project was created at %1 but not linked: %2").arg(targetFolder, added.error()));
-        openVault(*m_vault); // reopened, so the new root is watched and indexed
+        m_session->reloadRoots(); // so the new root is watched and indexed, in every window
     }
     openNote(readme);
     statusBar()->showMessage(tr("Promoted %1 to %2").arg(codename, linked ? tr("the linked root %1").arg(rootName) : displayPath(targetFolder)),
@@ -2721,6 +2781,10 @@ void MainWindow::closeEvent(QCloseEvent* event)
     m_journalPool->waitForDone(); // pending journal writes and removals land first
     saveRecent();
     saveLayout();
+    // Its notes are free to open in the session's other windows, and the last
+    // window to leave stops the workers.
+    removeAllTabs();
+    detachSession();
     QMainWindow::closeEvent(event);
 }
 

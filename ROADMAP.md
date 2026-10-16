@@ -73,15 +73,15 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 4 — Rich Markdown and workspace
 **Goal:** Feature parity with the parts of Obsidian's core that Phase 2 deferred.
-**Status:** In progress (F-027, F-014, F-023, F-024, F-025 and F-003 built 2026-10-15; F-012 step 1 of 2). Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step: D-022, accepted 2026-10-15 (Option B)
+**Status:** In progress (F-027, F-014, F-023, F-024, F-025 and F-003 built 2026-10-15; F-012 built 2026-10-16; F-026 next). Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step: D-022, accepted 2026-10-15 (Option B)
 **Features delivered:** F-003 (live preview), F-012, F-014, F-023, F-024, F-025, F-026, F-027
 **Deliverables:**
 - [x] Live-preview editing mode
   - [x] Step 1: hidden syntax, folding, pictures in place, Ctrl+click, Default Mode (`src/ui/LivePreview.cpp`, `src/parser/LiveBlocks.cpp`; F-003)
   - [x] Step 2: tables, callouts and note embeds drawn as blocks, from reading mode's renderer (F-003)
-- [ ] Splits and native multi-window (D-023)
+- [x] Splits and native multi-window (D-023)
   - [x] Step 1: panes of tabs in splitters (`src/ui/Workspace.cpp`; F-012)
-  - [ ] Step 2: several windows sharing the vault's session, each with its own docks and layout
+  - [x] Step 2: several windows sharing the vault's session, each with its own docks and layout (`src/ui/VaultSession.cpp`; F-012)
 - [x] Embeds, block references, callouts, Mermaid, maths, code highlighting
   - [x] Code highlighting by language and note and section embeds in reading mode (`src/parser/CodeHighlighter.cpp`, `src/parser/Transclusion.cpp`; F-025, F-023)
   - [x] Block references: links, completion, embeds and Copy Block Link (`src/parser/Transclusion.cpp`; F-024)

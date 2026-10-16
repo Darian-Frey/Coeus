@@ -105,7 +105,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Acceptance:**
 - Multiple notes open in tabs; horizontal and vertical splits
 - Native multi-window: a note can be torn off into its own `QMainWindow` with its own docks
-**Status:** In progress (Phase 4): step 1 built 2026-10-15, panes of tabs in splitters, Split Right and Split Down, moving tabs and focus between panes, a note open in one place at a time (D-023, SPEC.md §Panes). Step 2: several windows sharing the vault's session, each with its own docks and layout
+**Status:** Complete (Phase 4, 2026-10-16): step 1 built 2026-10-15, panes of tabs in splitters, Split Right and Split Down, moving tabs and focus between panes, a note open in one place at a time; step 2 built 2026-10-16, Move to New Window, several windows sharing the vault's session, each with its own docks and saved layout (D-023, SPEC.md §Panes)
 
 ### F-013 Outline panel
 **Priority:** Should

@@ -228,6 +228,11 @@ def build_vault(vault: Path, linked: Path) -> None:
           (`Ctrl+Shift+\\`) stacks another. Click into a pane and the sidebar
           follows it; `Ctrl+Alt+O` hops between panes and `Ctrl+Alt+M` carries a
           tab across. Opening a note that is already open goes to its pane.
+        - **View › Move to New Window** (`Ctrl+Alt+W`) takes the current note,
+          unsaved text and all, to a window of its own: drag it to another
+          monitor and arrange its docks as you like. Both windows share one
+          index, one set of bookmarks and one MCP link; a note open in one is
+          shown there when the other asks for it. **File › Quit** closes them all.
 
         ## Reading mode
         - `Ctrl+E` here, then open [[Markdown showcase]] and toggle it: callouts,

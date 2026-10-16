@@ -5,10 +5,12 @@
 #include "ui/Editor.hpp"
 #include "ui/MainWindow.hpp"
 #include "ui/NoteView.hpp"
+#include "ui/VaultSession.hpp"
 #include "ui/Workspace.hpp"
 
 #include <QAction>
 #include <QFile>
+#include <QPointer>
 #include <QLabel>
 #include <QSettings>
 #include <QSignalSpy>
@@ -179,6 +181,87 @@ private slots:
         QCOMPARE(workspace->panes().size(), 1);
         QCOMPARE(workspace->count(), 1);
         QVERIFY(window.currentView());
+    }
+
+    // F-012 step 2: a note moved to a window of its own, which shares the
+    // vault's session: one index, one note in one place, shared bookmarks.
+    void notesMoveToWindowsSharingTheSession()
+    {
+        QTemporaryDir vault;
+        write(vault.filePath(QStringLiteral("a.md")), "# A\n\nSee [[b]].\n");
+        write(vault.filePath(QStringLiteral("b.md")), "# B\n\nBody.\n");
+        const QString a = vault.filePath(QStringLiteral("a.md"));
+        const QString b = vault.filePath(QStringLiteral("b.md"));
+        std::weak_ptr<VaultSession> session;
+        {
+            MainWindow window;
+            window.resize(1000, 700);
+            window.show();
+            QSignalSpy opened(&window, &MainWindow::indexOpened);
+            window.openVault(*Vault::open(vault.path()));
+            QVERIFY(opened.wait(5000));
+            session = window.session();
+            window.openNote(a);
+            window.openNote(b);
+            Editor* editor = window.currentEditor();
+            editor->moveCursor(QTextCursor::End);
+            editor->insertPlainText(QStringLiteral("Unsaved.\n"));
+            const int cursor = editor->textCursor().position();
+
+            QAction* move = actionNamed(window, QStringLiteral("Move to New Window"));
+            QVERIFY(move);
+            QCOMPARE(move->shortcut(), QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_W));
+            QPointer<MainWindow> second = window.moveToNewWindow();
+            QVERIFY(second);
+            QVERIFY(second->testAttribute(Qt::WA_DeleteOnClose));
+            // The note left this window, with its unsaved text and cursor.
+            QCOMPARE(window.tabs()->count(), 1);
+            QVERIFY(!window.editorFor(b));
+            Editor* moved = second->currentEditor();
+            QCOMPARE(moved->path(), b);
+            QVERIFY(moved->isModified());
+            QVERIFY(moved->toPlainText().endsWith(QStringLiteral("Unsaved.\n")));
+            QCOMPARE(moved->textCursor().position(), cursor);
+            // One session, already indexed: the window joining it says so at once.
+            QCOMPARE(second->session(), window.session());
+            QCOMPARE(window.session()->windows().size(), 2);
+            QVERIFY(actionNamed(*second, QStringLiteral("Verify Index"))->isEnabled()); // without waiting
+            QCOMPARE(second->vault()->rootPath(), vault.path());
+
+            // A note is open in one place: asking either window for it shows it where it is.
+            QCOMPARE(window.tabs()->count(), 1);
+            window.openNote(b);
+            QCOMPARE(window.tabs()->count(), 1);
+            QCOMPARE(second->tabs()->count(), 1);
+            second->openNote(a);
+            QCOMPARE(second->tabs()->count(), 1);
+
+            // Bookmarks are the session's: starred in one window, shown in both.
+            second->toggleBookmark(a);
+            QVERIFY(window.isBookmarked(a));
+            QVERIFY(window.bookmarks() == second->bookmarks());
+
+            // Closing the second window asks about its unsaved note like any
+            // other; saved, it closes and its notes are free again.
+            QVERIFY(second->saveCurrent());
+            second->close();
+            QTRY_VERIFY(second.isNull());
+            QCOMPARE(window.session()->windows().size(), 1);
+            QVERIFY(QSettings().contains(QStringLiteral("secondaryWindow/geometry"))); // its own layout
+            window.openNote(b);
+            QCOMPARE(window.tabs()->count(), 2);
+
+            // The first window closing while another has the vault keeps the session.
+            QPointer<MainWindow> third = window.moveToNewWindow();
+            QVERIFY(third);
+            window.close();
+            QVERIFY(!session.expired());
+            QVERIFY(!window.session());
+            QVERIFY(third->session()->index());
+            actionNamed(*third, QStringLiteral("Quit"))->trigger(); // every window
+            QTRY_VERIFY(third.isNull());
+        }
+        QVERIFY(session.expired()); // the last window took the workers with it
     }
 };
 

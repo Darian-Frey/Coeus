@@ -19,6 +19,14 @@ Severity vocabulary: low | medium | high.
 
 ## Fixed
 
+### BUG-012: Recent notes were written only when the window closed
+**Status:** fixed (2026-10-16)
+**Severity:** low
+**Found:** 2026-10-16 (moving recent notes into the vault session, F-012)
+**Location:** `src/ui/MainWindow.cpp` (`saveRecent`), now `src/ui/VaultSession.cpp`
+**Description.** Recent notes are meant to be written two seconds after they settle (SPEC.md §Bookmarks and recent notes). The timer's handler wrote them only if the timer was still active, but a single-shot `QTimer` has already stopped when it emits `timeout()`, so the handler never wrote; they were saved only on closing the window or switching vault, and lost if Coeus was killed.
+**Fix.** A pending flag replaces the timer test. `test_bookmarks_window` waits for `recent.json` with the window still open.
+
 ### BUG-011: Light theme left the docks dark after Cassette
 **Status:** fixed
 **Severity:** medium

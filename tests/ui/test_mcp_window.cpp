@@ -15,6 +15,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPointer>
 #include <QProcess>
 #include <QPushButton>
 #include <QSettings>
@@ -190,6 +191,39 @@ private slots:
         QPointer<WriteToast> toast = shown.front().at(0).value<WriteToast*>();
         QTRY_VERIFY_WITH_TIMEOUT(toast.isNull(), WriteToast::kUndoMs + 5000); // closed and deleted after 10 s
         QVERIFY(QFile::exists(vault("notes/later.md")));                      // and the write kept
+    }
+
+    // F-012 step 2: a note moved to another window of the session is still
+    // guarded, and the toast for a write to it shows in that window.
+    void aNoteInAnotherWindowIsAskedAboutThere()
+    {
+        m_window->openNote(vault("notes/open.md"));
+        Editor* editor = m_window->currentEditor();
+        editor->moveCursor(QTextCursor::End);
+        editor->insertPlainText(QStringLiteral("Typing, not saved.\n"));
+        QPointer<MainWindow> second = m_window->moveToNewWindow();
+        QVERIFY(second);
+        QVERIFY(second->editorFor(vault("notes/open.md"))->isModified());
+        bool ok = true;
+        QVERIFY(call(QStringLiteral("write_note"), {{QStringLiteral("path"), QStringLiteral("notes/open")},
+                                                    {QStringLiteral("body"), QStringLiteral("Overwritten?")},
+                                                    {QStringLiteral("mode"), QStringLiteral("replace")}}, &ok)
+                    .value(QStringLiteral("error")).toString().contains(QStringLiteral("unsaved changes")));
+        QVERIFY(!ok);
+
+        second->editorFor(vault("notes/open.md"))->document()->undo();
+        second->editorFor(vault("notes/open.md"))->document()->setModified(false);
+        QSignalSpy shownThere(second.data(), &MainWindow::toastShown);
+        QSignalSpy shownHere(m_window.get(), &MainWindow::toastShown);
+        call(QStringLiteral("write_note"), {{QStringLiteral("path"), QStringLiteral("notes/open")}, {QStringLiteral("body"), QStringLiteral("Seen there.")},
+                                            {QStringLiteral("mode"), QStringLiteral("append")}}, &ok);
+        QVERIFY(ok);
+        QTRY_VERIFY_WITH_TIMEOUT(!shownThere.isEmpty(), kWaitMs);
+        QVERIFY(shownHere.isEmpty());
+        // The second window leaving keeps the session and its socket.
+        second->close();
+        QTRY_VERIFY(second.isNull());
+        QVERIFY(m_window->mcpLink()->isListening());
     }
 
     void cleanupTestCase()

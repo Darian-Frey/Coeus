@@ -531,12 +531,13 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - **C. Notes as dock widgets.** Qt's docks already tab, split and float. But floating docks belong to one window's layout, are not windows with docks of their own, and every panel would share them; the acceptance test cannot be met.
 - **D. A process per window.** Two processes would index and embed the same vault into the same database at once, and only one may serve MCP; rejected.
 
-**Decision.** Option A, in two steps, committed separately. A note is open in one place at a time: opening a note already open in another pane (or, later, window) shows it there, so no two editors ever hold separate buffers of one note. Split Right and Split Down move the current tab into the new pane when its pane keeps another tab; otherwise the new pane starts empty and takes the next note opened.
+**Decision.** Option A, in two steps, committed separately. A note is open in one place at a time: opening a note already open in another pane or window shows it there, so no two editors ever hold separate buffers of one note. Split Right and Split Down move the current tab into the new pane when its pane keeps another tab; otherwise the new pane starts empty and takes the next note opened.
 
 **Consequences.**
 - CLAUDE.md's rule against restructuring the shell is amended: panes and windows are the shell's own business, decided here; panels, docks and commands remain how features join it.
 - The window's code keeps calling `m_tabs` as before; only splitting, moving and focusing panes are new.
 - The open panes are not restored on restart, as tabs are not.
 - Step 2 moves the index service, embedding worker, MCP link, catalogue and render service out of `MainWindow`.
+- *Amended 2026-10-16, as built:* step 2 moved what there can be only one of per vault into `ui/VaultSession`, shared by the vault's windows and ended by the last: the index service and embedding worker, the MCP link, the linked roots, bookmarks and recent notes. The catalogue and render service stayed per window after all: the catalogue is a read-only snapshot of the shared index, cheap to load twice, and the render service's work is cached on disk, so a second window redraws nothing already drawn. A note moving window takes its unsaved text, cursor and mode but not its undo history, since a `QTextDocument` cannot change hands between editors without carrying the first editor's layout.
 
 **Reversal conditions.** Revisit if the author wants the same note side by side in two panes, which needs editors sharing one buffer and live preview's folding made per view; or if step 2's session split proves too disruptive, in which case Option B stands and the tear-off is withdrawn from F-012.
