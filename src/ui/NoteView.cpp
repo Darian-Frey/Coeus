@@ -195,6 +195,10 @@ HtmlRenderer::Options NoteView::readingOptions(int room) const
         };
     }
     options.embedAccent = Theme::instance().colour(Theme::Colour::Accent).name();
+    options.calloutFill = [](const QString& kind) {
+        const QColor fill = Theme::instance().calloutFill(QColor(kind));
+        return fill.isValid() ? fill.name() : QString();
+    };
     return options;
 }
 

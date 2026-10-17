@@ -594,7 +594,8 @@ void MainWindow::createActions()
     QMenu* themeMenu = viewMenu->addMenu(tr("T&heme"));
     auto* themes = new QActionGroup(this);
     for (const auto& [mode, label] : {std::pair{Theme::Mode::System, tr("System")}, std::pair{Theme::Mode::Light, tr("Light")},
-                                      std::pair{Theme::Mode::Dark, tr("Dark")}, std::pair{Theme::Mode::Cassette, tr("Cassette")}}) {
+                                      std::pair{Theme::Mode::Dark, tr("Dark")}, std::pair{Theme::Mode::DarkCyan, tr("Dark Cyan")},
+                                      std::pair{Theme::Mode::Cassette, tr("Cassette")}}) {
         auto* action = new QAction(tr("Theme: %1").arg(label), themes);
         action->setCheckable(true);
         action->setChecked(Theme::instance().mode() == mode);

@@ -25,7 +25,10 @@ class Theme : public QObject {
 public:
     // Cassette: cassette futurism, an amber CRT terminal (warm near-black,
     // amber phosphor, burnt orange, monospace, square ruled edges).
-    enum class Mode { System, Light, Dark, Cassette };
+    // Dark Cyan: the main-window mockup's look (docs/design/main-window.png):
+    // three near-blacks for chrome, panels and the note, soft grey text, a
+    // teal accent and dark-teal callouts.
+    enum class Mode { System, Light, Dark, Cassette, DarkCyan };
     enum class Colour {
         Accent,    // links, tags, list markers: the mockup's teal
         Error,     // lint errors, refusals
@@ -58,6 +61,9 @@ public:
     // Gives `widget` the fixed-pitch font for good: an editor, a diff. Other
     // widgets that still hold Cassette's font after it is left are reset.
     static void setMonospace(QWidget* widget);
+    // The fill behind a callout of `kind` colour, if the theme fills callouts
+    // (Dark Cyan does: the kind's colour, faint, over the note); invalid if not.
+    QColor calloutFill(const QColor& kind) const;
     // A label's style sheet for an error message.
     QString errorStyle() const { return QStringLiteral("color: %1;").arg(colour(Colour::Error).name()); }
 

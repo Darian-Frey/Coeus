@@ -290,8 +290,8 @@ def build_vault(vault: Path, linked: Path) -> None:
           `ideas/broken frontmatter.md` is read-only.
 
         ## Themes and shortcuts
-        - **View › Theme**: *Dark*, *Light*, *Cassette* (an amber CRT terminal)
-          or *System*. Everything follows at once, an open note's highlighting
+        - **View › Theme**: *Dark*, *Light*, *Dark Cyan* (the design mockup's
+          look), *Cassette* (an amber CRT terminal) or *System*. Everything follows at once, an open note's highlighting
           and reading view included.
         - **View › Keyboard Shortcuts…**: pick *New Note* and press `Ctrl+S`.
           It is refused, since Save has it; press `Ctrl+Alt+N` instead. Reset

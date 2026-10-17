@@ -1345,6 +1345,7 @@ With the Coeus window open, the AI cannot write to a note you have open with uns
 
 - **System**: your desktop's own look (the default).
 - **Light** and **Dark**: Coeus's own, the same on any desktop.
+- **Dark Cyan**: the look Coeus was designed in. Three shades of near-black (the window's edges, the panels, the note itself), soft grey text, teal links and accents, amber warnings, flat rounded controls and hairline rules, and callouts filled with a faint wash of their own colour.
 - **Cassette**: an amber CRT terminal, warm black with amber text and a fixed-pitch font throughout.
 
 The change is immediate, and everything follows it: the editor's colours, rendered notes, diagrams, diffs and underlines.

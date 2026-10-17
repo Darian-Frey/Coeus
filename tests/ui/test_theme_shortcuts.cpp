@@ -2,6 +2,7 @@
 // rebindable shortcuts that never collide and survive a restart.
 
 #include "ui/DiffView.hpp"
+#include "parser/HtmlRenderer.hpp"
 #include "ui/MainWindow.hpp"
 #include "ui/NoteCatalogue.hpp"
 #include "ui/MarkdownHighlighter.hpp"
@@ -153,7 +154,8 @@ private slots:
         QVERIFY(reloaded.wait(10'000));
         window.openNote(vault.filePath(QStringLiteral("p/FEATURES.md"))); // the register panel follows it
         QTest::qWait(200);
-        for (const Theme::Mode mode : {Theme::Mode::Dark, Theme::Mode::Light, Theme::Mode::Cassette, Theme::Mode::System}) {
+        for (const Theme::Mode mode : {Theme::Mode::Dark, Theme::Mode::Light, Theme::Mode::DarkCyan, Theme::Mode::Cassette,
+                                       Theme::Mode::System}) {
             Theme::instance().setMode(mode);
             QTest::qWait(100);
             QCOMPARE(window.width(), 1000);
@@ -186,15 +188,44 @@ private slots:
             return found;
         };
         for (const Theme::Mode mode : {Theme::Mode::Dark, Theme::Mode::Light, Theme::Mode::Cassette, Theme::Mode::Light,
-                                       Theme::Mode::Dark, Theme::Mode::System}) {
+                                       Theme::Mode::DarkCyan, Theme::Mode::Light, Theme::Mode::Dark, Theme::Mode::System}) {
             Theme::instance().setMode(mode);
             QTest::qWait(50);
-            if (mode == Theme::Mode::Cassette)
-                continue; // its style sheet colours some widgets on purpose
+            if (mode == Theme::Mode::Cassette || mode == Theme::Mode::DarkCyan)
+                continue; // their style sheets colour some widgets on purpose
             const QStringList found = stale();
             QVERIFY2(found.isEmpty(), qPrintable(Theme::name(mode) + QStringLiteral(": ") + found.mid(0, 5).join(QStringLiteral(", "))));
         }
         QApplication::setPalette(QApplication::palette(), "QAbstractItemView"); // leave no magenta for later tests
+    }
+
+    void darkCyanMatchesTheMockup()
+    {
+        // docs/design/main-window.png: three near-blacks, soft text, a teal accent, filled callouts.
+        MainWindow window;
+        QAction* action = actionNamed(window, QStringLiteral("Theme: Dark Cyan"));
+        QVERIFY(action);
+        action->trigger();
+        Theme& theme = Theme::instance();
+        QCOMPARE(theme.mode(), Theme::Mode::DarkCyan);
+        QCOMPARE(QSettings().value(QStringLiteral("appearance/theme")).toString(), QStringLiteral("dark-cyan"));
+        QCOMPARE(Theme::modeNamed(QStringLiteral("dark-cyan")), Theme::Mode::DarkCyan);
+        QCOMPARE(QApplication::palette().color(QPalette::Base), QColor(0x15, 0x17, 0x1a));   // the note
+        QCOMPARE(QApplication::palette().color(QPalette::Window), QColor(0x1b, 0x1e, 0x22)); // chrome
+        QCOMPARE(theme.colour(Theme::Colour::Accent), QColor(0x5c, 0xc2, 0xb6));
+        QCOMPARE(theme.colour(Theme::Colour::Warning), QColor(0xe0, 0xa4, 0x4c));
+        QVERIFY(theme.isDark());
+        QVERIFY(qApp->styleSheet().contains(QStringLiteral("Coeus theme: dark cyan")));
+        // Callouts are filled with their kind's colour, faint: the mockup's teal decision box.
+        const QColor fill = theme.calloutFill(QColor(0x1f, 0x9a, 0x8a));
+        QVERIFY(fill.isValid());
+        QVERIFY(fill.green() > fill.red() && fill.lightness() < 80);
+        HtmlRenderer::Options options;
+        options.calloutFill = [&theme](const QString& kind) { return theme.calloutFill(QColor(kind)).name(); };
+        QVERIFY(HtmlRenderer::render("> [!tip]\n> Filled.\n", options).contains(QStringLiteral("bgcolor=\"#")));
+        theme.setMode(Theme::Mode::Dark);
+        QVERIFY(!theme.calloutFill(QColor(0x1f, 0x9a, 0x8a)).isValid()); // other themes leave callouts as they were
+        theme.setMode(Theme::Mode::System);
     }
 
     void snippetsStyleTheApplication()

@@ -233,7 +233,7 @@ private:
     }
 
     // "> [!kind]- Title" becomes a coloured box; any other quote stays a quote.
-    static QString quoteOrCallout(const QString& inner)
+    QString quoteOrCallout(const QString& inner) const
     {
         static const QRegularExpression kHead(QStringLiteral(R"(^<p>\[!([A-Za-z]+)\]([-+])?[ \t]*([^<\n]*)(<br/>|</p>))"));
         const auto head = kHead.match(inner);
@@ -248,10 +248,11 @@ private:
         if (head.captured(4) == QLatin1String("<br/>"))
             body.prepend(QStringLiteral("<p>"));
         const QString colour = calloutColour(kind);
-        return QStringLiteral("<table class=\"callout\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\">"
+        const QString fill = m_options.calloutFill ? m_options.calloutFill(colour) : QString();
+        return QStringLiteral("<table class=\"callout\" width=\"100%\" cellspacing=\"0\" cellpadding=\"8\"%4>"
                               "<tr><td style=\"border-left: 3px solid %1;\">"
                               "<p class=\"callout-title\" style=\"color: %1;\"><b>%2</b></p>%3</td></tr></table>")
-            .arg(colour, title, body);
+            .arg(colour, title, body, fill.isEmpty() ? QString() : QStringLiteral(" bgcolor=\"%1\"").arg(fill));
     }
 
     // --- Spans ---------------------------------------------------------------

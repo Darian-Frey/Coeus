@@ -40,6 +40,8 @@ QString Theme::name(Mode mode)
         return QStringLiteral("dark");
     case Mode::Cassette:
         return QStringLiteral("cassette");
+    case Mode::DarkCyan:
+        return QStringLiteral("dark-cyan");
     case Mode::System:
         break;
     }
@@ -54,6 +56,8 @@ Theme::Mode Theme::modeNamed(const QString& name)
         return Mode::Dark;
     if (name == QLatin1String("cassette"))
         return Mode::Cassette;
+    if (name == QLatin1String("dark-cyan"))
+        return Mode::DarkCyan;
     return Mode::System;
 }
 
@@ -227,6 +231,50 @@ void Theme::releasePalettes()
 
 QString Theme::styleSheet(Mode mode)
 {
+    if (mode == Mode::DarkCyan) {
+        // The mockup's flat look: hairline rules, rounded controls, panels a
+        // shade lighter than the note, the tool strip and bars a shade more.
+        return QStringLiteral(R"(/* Coeus theme: dark cyan */
+QMainWindow::separator { background: #2a2e34; width: 1px; height: 1px; }
+QDockWidget::title { background: #191c20; color: #6b7280; padding: 6px 10px; border-bottom: 1px solid #2a2e34; text-align: left; }
+QTreeView, QTreeWidget, QListView { background: #191c20; border: none; selection-background-color: #262a30; selection-color: #e5e7eb; }
+QTreeView::item:hover, QTreeWidget::item:hover, QListView::item:hover { background: #1f2328; }
+QTreeView::item:selected, QTreeWidget::item:selected, QListView::item:selected { background: #262a30; color: #e5e7eb; }
+QTabBar::tab { background: #1b1e22; color: #8b9199; border: none; border-right: 1px solid #2a2e34; padding: 6px 14px; }
+QTabBar::tab:selected { background: #15171a; color: #d6d8dc; }
+QTabBar::tab:hover { color: #d6d8dc; }
+QTabWidget::pane { border-top: 1px solid #2a2e34; }
+QToolBar { background: #1b1e22; border: none; border-right: 1px solid #2a2e34; spacing: 6px; padding: 4px; }
+QToolButton { border: 1px solid transparent; border-radius: 5px; padding: 3px; }
+QToolButton:hover { background: #262a30; }
+QToolButton:checked { background: #262a30; border-color: #2a2e34; color: #f3f4f6; }
+QPushButton { background: #191c20; color: #d6d8dc; border: 1px solid #2a2e34; border-radius: 5px; padding: 5px 14px; }
+QPushButton:hover { border-color: #3a3f46; background: #1f2328; }
+QPushButton:pressed { background: #262a30; }
+QPushButton:default { border-color: #3d7d75; }
+QPushButton:disabled { color: #4b5058; border-color: #22262b; }
+QLineEdit, QComboBox, QKeySequenceEdit { background: #15171a; color: #d6d8dc; border: 1px solid #2a2e34; border-radius: 5px; padding: 3px 6px; selection-background-color: #23524c; selection-color: #f3f4f6; }
+QLineEdit:focus, QComboBox:focus { border-color: #5cc2b6; }
+QComboBox QAbstractItemView { background: #1b1e22; border: 1px solid #2a2e34; selection-background-color: #262a30; selection-color: #f3f4f6; }
+QPlainTextEdit, QTextEdit, QTextBrowser { border: none; selection-background-color: #23524c; selection-color: #f3f4f6; }
+QHeaderView::section { background: #191c20; color: #6b7280; border: none; border-bottom: 1px solid #2a2e34; padding: 4px 8px; }
+QMenuBar { background: #1b1e22; border-bottom: 1px solid #2a2e34; }
+QMenuBar::item { padding: 4px 10px; background: transparent; }
+QMenuBar::item:selected, QMenu::item:selected { background: #262a30; color: #f3f4f6; }
+QMenu { background: #1b1e22; border: 1px solid #2a2e34; padding: 4px 0; }
+QMenu::item { padding: 5px 24px 5px 16px; }
+QMenu::separator { height: 1px; background: #2a2e34; margin: 4px 8px; }
+QStatusBar { background: #1b1e22; border-top: 1px solid #2a2e34; color: #717780; }
+QToolTip { background: #262a30; color: #d6d8dc; border: 1px solid #3a3f46; }
+QScrollBar:vertical { background: transparent; width: 10px; margin: 0; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 0; }
+QScrollBar::handle { background: #2a2e34; border-radius: 4px; min-height: 24px; min-width: 24px; }
+QScrollBar::handle:hover { background: #3a3f46; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+QSplitter::handle { background: #2a2e34; }
+)");
+    }
     if (mode != Mode::Cassette)
         return {};
     // What a palette cannot say: square corners, ruled edges, terminal headers.
@@ -300,6 +348,36 @@ QPalette Theme::palette(Mode mode)
             p.setColor(QPalette::Disabled, role, QColor(0x5a, 0x3e, 0x18));
         return p;
     }
+    if (mode == Mode::DarkCyan) {
+        // Measured from docs/design/main-window.png.
+        const QColor text(0xd6, 0xd8, 0xdc);
+        const QColor dim(0x6b, 0x72, 0x80);
+        QPalette p;
+        p.setColor(QPalette::Window, QColor(0x1b, 0x1e, 0x22));        // title, tool strip, status bar
+        p.setColor(QPalette::WindowText, text);
+        p.setColor(QPalette::Base, QColor(0x15, 0x17, 0x1a));          // the note
+        p.setColor(QPalette::AlternateBase, QColor(0x19, 0x1c, 0x20)); // panels
+        p.setColor(QPalette::Text, text);
+        p.setColor(QPalette::PlaceholderText, dim);
+        p.setColor(QPalette::Button, QColor(0x19, 0x1c, 0x20));
+        p.setColor(QPalette::ButtonText, text);
+        p.setColor(QPalette::BrightText, QColor(0xf3, 0xf4, 0xf6));
+        p.setColor(QPalette::Highlight, QColor(0x23, 0x52, 0x4c));
+        p.setColor(QPalette::HighlightedText, QColor(0xf3, 0xf4, 0xf6));
+        p.setColor(QPalette::Link, QColor(0x5c, 0xc2, 0xb6));
+        p.setColor(QPalette::LinkVisited, QColor(0x5c, 0xc2, 0xb6));
+        p.setColor(QPalette::ToolTipBase, QColor(0x26, 0x2a, 0x30));
+        p.setColor(QPalette::ToolTipText, text);
+        p.setColor(QPalette::Light, QColor(0x3a, 0x3f, 0x46));
+        p.setColor(QPalette::Midlight, QColor(0x2a, 0x2e, 0x34));
+        p.setColor(QPalette::Mid, QColor(0x2a, 0x2e, 0x34));
+        p.setColor(QPalette::Dark, QColor(0x10, 0x12, 0x14));
+        p.setColor(QPalette::Shadow, QColor(0, 0, 0));
+        for (const QPalette::ColorRole role : {QPalette::WindowText, QPalette::Text, QPalette::ButtonText})
+            p.setColor(QPalette::Disabled, role, QColor(0x4b, 0x50, 0x58));
+        p.setColor(QPalette::Disabled, QPalette::Highlight, dim);
+        return p;
+    }
     const bool dark = mode == Mode::Dark;
     const QColor window = dark ? QColor(0x23, 0x26, 0x29) : QColor(0xf4, 0xf5, 0xf6);
     const QColor base = dark ? QColor(0x1b, 0x1e, 0x20) : QColor(0xff, 0xff, 0xff);
@@ -356,8 +434,47 @@ QColor Theme::category(int index) const
     return isDark() ? QColor::fromHsl(hue, 150, 150) : QColor::fromHsl(hue, 170, 105);
 }
 
+QColor Theme::calloutFill(const QColor& kind) const
+{
+    if (m_mode != Mode::DarkCyan || !kind.isValid())
+        return {};
+    // The kind's colour, a quarter strength, over the note: the mockup's
+    // decision box is teal on near-black.
+    const QColor base = QApplication::palette().color(QPalette::Base);
+    const auto mix = [](int over, int under) { return int(std::lround(under + 0.22 * (over - under))); };
+    return QColor(mix(kind.red(), base.red()), mix(kind.green(), base.green()), mix(kind.blue(), base.blue()));
+}
+
 QColor Theme::colour(Colour colour) const
 {
+    if (m_mode == Mode::DarkCyan) {
+        switch (colour) {
+        case Colour::Accent:
+            return QColor(0x5c, 0xc2, 0xb6); // the mockup's teal
+        case Colour::Error:
+            return QColor(0xef, 0x6b, 0x61);
+        case Colour::Warning:
+            return QColor(0xe0, 0xa4, 0x4c); // the mockup's amber
+        case Colour::Info:
+            return QColor(0x64, 0xa8, 0xf0);
+        case Colour::Added:
+            return QColor(0x3f, 0xb9, 0x50, 0x40);
+        case Colour::Removed:
+            return QColor(0xf8, 0x51, 0x49, 0x40);
+        case Colour::Highlight:
+            return QColor(0x5a, 0x48, 0x1c);
+        case Colour::Tint:
+            return QColor(0x22, 0x26, 0x2b); // behind code, as the mockup's .md
+        case Colour::CodeKeyword:
+            return QColor(0xc6, 0x92, 0xf0);
+        case Colour::CodeType:
+            return QColor(0x5c, 0xc2, 0xb6);
+        case Colour::CodeString:
+            return QColor(0xe0, 0xa8, 0x6a);
+        case Colour::CodeNumber:
+            return QColor(0x7f, 0xb8, 0xf0);
+        }
+    }
     if (m_mode == Mode::Cassette) {
         switch (colour) {
         case Colour::Accent:

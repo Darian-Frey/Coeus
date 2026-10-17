@@ -52,6 +52,9 @@ public:
         std::function<Picture(const QString& resolvedUrl, int page)> renderPdfPage;
         QString notePath;     // the note being rendered, absolute
         QString embedAccent;  // an embed's left rule; the light theme's accent if empty
+        // The fill behind a callout, from its kind's colour (#rrggbb); unset,
+        // or answering empty, leaves the style sheet's (Dark Cyan fills them).
+        std::function<QString(const QString& kindColour)> calloutFill;
     };
 
     static QString render(QByteArrayView utf8, const Options& options = {});
