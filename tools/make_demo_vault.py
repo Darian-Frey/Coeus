@@ -282,8 +282,12 @@ def build_vault(vault: Path, linked: Path) -> None:
         - **Related**, in the right sidebar under Backlinks, lists the notes nearest
           in meaning to the open one that it does not link to yet; **Link here**
           writes a link to one at the cursor.
-        - **Properties**: open `ideas/theia.md` - `status: Done` is flagged, not
-          changed; pick *Active*. `ideas/broken frontmatter.md` is read-only.
+        - **Properties**: open `ideas/theia.md` - `status: Done` is flagged against
+          the values [[Coeus properties]] declares for `ideas/`, not changed; pick
+          *done*. Its `stage` offers the idea stages. **File › Edit Property
+          Values** opens that note: add a list and every open card follows when
+          you save. A `summary` field suggests values other notes use.
+          `ideas/broken frontmatter.md` is read-only.
 
         ## Themes and shortcuts
         - **View › Theme**: *Dark*, *Light*, *Cassette* (an amber CRT terminal)
@@ -471,6 +475,25 @@ def build_vault(vault: Path, linked: Path) -> None:
         the completer has two to tell apart. #project/pontus
         """)
 
+    write(vault / "Coeus properties.md", """
+        # Coeus properties
+
+        The values the Properties card offers, by property, and where (File ›
+        Edit Property Values opens this note). Each level-2 heading is a property;
+        the list under it is its values, in order; `Folders:` limits a list to
+        those folders. Everything else here, this paragraph included, is ignored.
+
+        ## status
+        Folders: ideas
+        - open
+        - active
+        - done
+
+        ## priority
+        - 1
+        - 2
+        - 3
+        """)
     write(vault / "ideas/theia.md", """
         ---
         stage: scoped
@@ -484,8 +507,9 @@ def build_vault(vault: Path, linked: Path) -> None:
         ---
         # Theia
 
-        `status: Done` is outside the project-status vocabulary: the properties panel
-        flags it and leaves it alone until you choose.
+        `status: Done` is not one of the values [[Coeus properties]] lists for
+        `ideas/` (it says `done`): the properties panel flags it and leaves it alone
+        until you choose.
         """)
     write(vault / "ideas/hermes.md", """
         ---

@@ -8,16 +8,12 @@
 namespace coeus {
 
 // The fixed vocabularies of SPEC.md §Vocabularies and §Ideas, in one place
-// for the properties panel (F-008) and the register lint (F-016). Values are
-// case-sensitive.
+// for the register lint (F-016) and, for ideas, the properties panel (F-008,
+// through vault/PropertyVocabulary, D-025). Values are case-sensitive.
 class Vocabulary {
 public:
     static const QStringList& projectStatus(); // Active, Dormant, Complete, Archived, Superseded
     static const QStringList& ideaStage();     // idea, scoped, building, shipped, parked
-
-    // The allowed values of a frontmatter key, if it is an enum (F-008):
-    // status takes the project statuses, stage the idea stages.
-    static std::optional<QStringList> forProperty(const QString& key);
 
     // The allowed values of a register field (`kind` F, C, D, AV, BUG, IMP;
     // `field` Status, Priority, Domain, Severity, Effort), if it has a vocabulary.

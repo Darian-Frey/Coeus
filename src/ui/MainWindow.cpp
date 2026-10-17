@@ -14,6 +14,7 @@
 #include "ui/NoteCatalogue.hpp"
 #include "ui/NoteView.hpp"
 #include "ui/OutlinePanel.hpp"
+#include "ui/PropertiesPanel.hpp"
 #include "git/GitCommand.hpp"
 #include "git/GitRepository.hpp"
 #include "index/ContentHash.hpp"
@@ -49,6 +50,7 @@
 #include "vault/GitIgnoreOffer.hpp"
 #include "vault/Journal.hpp"
 #include "vault/NewNote.hpp"
+#include "vault/PropertyVocabulary.hpp"
 #include "vault/RecentNotes.hpp"
 #include "vault/Roots.hpp"
 #include "vault/TempSweeper.hpp"
@@ -429,6 +431,9 @@ void MainWindow::createActions()
 
     auto* insertTemplateAction = new QAction(tr("Insert &Template…"), this);
     connect(insertTemplateAction, &QAction::triggered, this, &MainWindow::chooseTemplate);
+    // The values the Properties card offers (D-025): an ordinary note at the vault's top.
+    auto* propertyValuesAction = new QAction(tr("Edit &Property Values"), this);
+    connect(propertyValuesAction, &QAction::triggered, this, &MainWindow::editPropertyValues);
     m_templatePicker = new CommandPalette(this);
     m_templatePicker->setPlaceholder(tr("Choose a template…"));
 
@@ -499,6 +504,7 @@ void MainWindow::createActions()
     fileMenu->addAction(toggleBookmarkAction);
     fileMenu->addAction(m_copyBlockLink);
     fileMenu->addAction(insertTemplateAction);
+    fileMenu->addAction(propertyValuesAction);
     fileMenu->addAction(insertNextIdAction);
     fileMenu->addAction(m_save);
     fileMenu->addAction(closeTab);
@@ -688,7 +694,7 @@ void MainWindow::createActions()
     strip->addAction(toggleSidebar);
     addToolBar(Qt::LeftToolBarArea, strip);
 
-    for (QAction* action : {openVault, newNoteAction, today, openRecentAction, toggleBookmarkAction, m_copyBlockLink, insertTemplateAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
+    for (QAction* action : {openVault, newNoteAction, today, openRecentAction, toggleBookmarkAction, m_copyBlockLink, insertTemplateAction, propertyValuesAction, insertNextIdAction, m_save, m_toggleReading, closeTab, quit, palette, toggleExplorer, toggleSidebar, m_verifyIndex, m_rebuildIndex, m_compactSidecar, m_gitignoreAction}) {
         addAction(action); // keeps shortcuts live when the menu bar is hidden
         registerAction(action);
     }
@@ -1968,6 +1974,7 @@ Editor* MainWindow::openEditor(const QString& absolutePath, bool allowMissing)
     view->setStarred(isBookmarked(absolutePath));
     view->setMode(defaultMode());
     view->setIndexPath(IndexService::indexPath(m_vault->rootPath()));
+    view->setPropertyContext(m_vault->rootPath(), root == &*m_vault);
     view->setRenderService(m_render);
     connect(view, &NoteView::starToggled, this, [this, absolutePath] { toggleBookmark(absolutePath); });
     editor->setCatalogue(m_catalogue);
@@ -2216,6 +2223,29 @@ void MainWindow::onFilesChanged(const QStringList& absolutePaths)
         if (Editor* editor = editorFor(path))
             handleDiskChange(editor);
     }
+    // New declared values: every open note's Properties card checks again (D-025).
+    if (m_vault && absolutePaths.contains(PropertyVocabulary::filePath(m_vault->rootPath())))
+        for (int i = 0; i < m_tabs->count(); ++i)
+            if (NoteView* view = viewAt(i))
+                view->properties()->refresh();
+}
+
+void MainWindow::editPropertyValues()
+{
+    if (!m_vault) {
+        statusBar()->showMessage(tr("Open a vault first"), kStatusTimeoutMs);
+        return;
+    }
+    const QString path = PropertyVocabulary::filePath(m_vault->rootPath());
+    if (!QFileInfo::exists(path)) {
+        // An explicit command: the note is made once, explaining itself and declaring nothing.
+        if (auto written = m_vault->writeNote(path, PropertyVocabulary::starter()); !written) {
+            statusBar()->showMessage(tr("Could not create %1: %2").arg(QLatin1String(PropertyVocabulary::kFileName), written.error()),
+                                     kStatusTimeoutMs * 2);
+            return;
+        }
+    }
+    openNote(path);
 }
 
 void MainWindow::onRootRescanned(const QString& rootPath)

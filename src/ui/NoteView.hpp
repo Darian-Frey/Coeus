@@ -39,6 +39,10 @@ public:
     QString path() const { return m_path; }
     // The index embeds are resolved through (F-023); without it they show as links.
     void setIndexPath(const QString& indexPath) { m_indexPath = indexPath; }
+    // The vault the note is opened from, for the Properties card's declared
+    // values and suggestions (D-025); `inVault` when the note is in the vault
+    // itself rather than a linked root.
+    void setPropertyContext(const QString& vaultPath, bool inVault);
     // Draws maths, Mermaid and PDF pages (D-022); without it they stay code and cards.
     void setRenderService(RenderService* service);
     // Renders the reading view again if it is showing, e.g. an embedded note changed.
@@ -84,6 +88,7 @@ private:
     QString m_indexPath;
     QPointer<RenderService> m_render;
     QString m_path;
+    QString m_displayPath;
     Mode m_mode = Mode::Source;
     Editor* m_editor = nullptr;
     PropertiesPanel* m_properties = nullptr;

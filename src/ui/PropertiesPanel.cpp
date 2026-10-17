@@ -2,11 +2,15 @@
 
 #include "ui/Theme.hpp"
 
+#include "index/IndexQueries.hpp"
 #include "parser/Frontmatter.hpp"
-#include "registers/Vocabulary.hpp"
 #include "ui/Editor.hpp"
 
 #include <QComboBox>
+#include <QCompleter>
+#include <QFutureWatcher>
+#include <QStringListModel>
+#include <QtConcurrent/QtConcurrentRun>
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -127,15 +131,67 @@ void PropertiesPanel::refresh()
     rebuild();
 }
 
+void PropertiesPanel::setContext(const QString& vaultPath, const QString& indexPath, const QString& displayPath, bool inVault)
+{
+    m_vaultPath = vaultPath;
+    m_indexPath = indexPath;
+    m_displayPath = displayPath;
+    m_inVault = inVault;
+    m_suggestions.clear();
+    m_asked.clear();
+    refresh();
+}
+
+std::optional<PropertyVocabulary::Allowed> PropertiesPanel::allowedFor(const QString& key) const
+{
+    // The declared lists are read again only when their note has changed.
+    const QList<PropertyVocabulary::List> lists = m_vaultPath.isEmpty() ? QList<PropertyVocabulary::List>()
+                                                                          : PropertyVocabulary::load(m_vaultPath);
+    return PropertyVocabulary::allowed(lists, key, m_displayPath, m_inVault);
+}
+
 QString PropertiesPanel::check(const Property& property) const
 {
-    if (const auto allowed = Vocabulary::forProperty(property.key)) {
+    if (const auto allowed = allowedFor(property.key)) {
         const QString value = property.values.value(0);
-        if (property.type == PropertyType::List || property.values.size() != 1 || !allowed->contains(value))
-            return tr("“%1” is not one of: %2").arg(property.values.join(QStringLiteral(", ")),
-                                                      allowed->join(QStringLiteral(", ")));
+        if (property.type == PropertyType::List || property.values.size() != 1 || !allowed->values.contains(value))
+            return allowed->declared ? tr("“%1” is not one of: %2 (as listed in %3)")
+                                           .arg(property.values.join(QStringLiteral(", ")), allowed->values.join(QStringLiteral(", ")),
+                                                QLatin1String(PropertyVocabulary::kFileName))
+                                     : tr("“%1” is not one of: %2").arg(property.values.join(QStringLiteral(", ")),
+                                                                         allowed->values.join(QStringLiteral(", ")));
     }
     return {};
+}
+
+void PropertiesPanel::suggest(const QString& key)
+{
+    const auto attach = [this, key] {
+        auto* line = qobject_cast<QLineEdit*>(field(key));
+        if (!line || m_suggestions.value(key).isEmpty())
+            return;
+        auto* completer = new QCompleter(new QStringListModel(m_suggestions.value(key), line), line);
+        completer->setCaseSensitivity(Qt::CaseInsensitive);
+        completer->setFilterMode(Qt::MatchContains);
+        line->setCompleter(completer);
+    };
+    if (m_suggestions.contains(key)) {
+        attach();
+        return;
+    }
+    if (m_indexPath.isEmpty() || m_asked.contains(key))
+        return;
+    m_asked.insert(key);
+    // A read of the index: off the UI thread (AV-005).
+    auto* watcher = new QFutureWatcher<QStringList>(this);
+    connect(watcher, &QFutureWatcher<QStringList>::finished, this, [this, watcher, key, attach] {
+        m_suggestions.insert(key, watcher->result());
+        watcher->deleteLater();
+        attach();
+    });
+    watcher->setFuture(QtConcurrent::run([indexPath = m_indexPath, key] {
+        return IndexQueries::propertyValues(indexPath, key).value_or(QStringList());
+    }));
 }
 
 QWidget* PropertiesPanel::field(const QString& key) const
@@ -164,7 +220,8 @@ void PropertiesPanel::rebuild()
         m_errors = 1;
     }
     for (const Property& property : std::as_const(m_properties)) {
-        const auto allowed = Vocabulary::forProperty(property.key);
+        const auto declared = allowedFor(property.key);
+        const std::optional<QStringList> allowed = declared ? std::optional<QStringList>(declared->values) : std::nullopt;
         auto* key = new QLabel(property.key, m_body);
         key->setForegroundRole(QPalette::PlaceholderText);
         auto* type = new QLabel(typeName(property.type, allowed.has_value()), m_body);
@@ -183,9 +240,15 @@ void PropertiesPanel::rebuild()
             combo->addItems(*allowed);
             combo->setCurrentText(current);
             const QString keyName = property.key;
-            connect(combo, &QComboBox::activated, this, [this, combo, keyName, allowed](int) {
-                if (allowed->contains(combo->currentText()))
-                    commit(keyName, Frontmatter::yamlScalar(combo->currentText()));
+            const PropertyType type = property.type;
+            connect(combo, &QComboBox::activated, this, [this, combo, keyName, allowed, type](int) {
+                const QString chosen = combo->currentText();
+                if (!allowed->contains(chosen))
+                    return;
+                // A number or date stays one: written plain, not quoted as text.
+                const bool keepsType = (type == PropertyType::Number && numberPattern().match(chosen).hasMatch())
+                                       || (type == PropertyType::Date && isIsoDate(chosen));
+                commit(keyName, keepsType ? chosen : Frontmatter::yamlScalar(chosen));
             });
             editor = combo;
         } else {
@@ -227,6 +290,8 @@ void PropertiesPanel::rebuild()
             editor = line;
         }
         editor->setObjectName(QStringLiteral("field:") + property.key);
+        if (!allowed && property.type == PropertyType::Text)
+            suggest(property.key); // the values the vault already gives it
         editor->setEnabled(!readOnly);
 
         auto* removeButton = new QToolButton(m_body);
@@ -291,8 +356,8 @@ void PropertiesPanel::addKey()
     if (key.isEmpty() || std::any_of(m_properties.begin(), m_properties.end(),
                                      [&key](const Property& p) { return p.key == key; }))
         return;
-    const auto allowed = Vocabulary::forProperty(key);
-    commit(key, allowed ? Frontmatter::yamlScalar(allowed->front()) : Frontmatter::yamlScalar(QString()));
+    const auto allowed = allowedFor(key);
+    commit(key, allowed ? Frontmatter::yamlScalar(allowed->values.front()) : Frontmatter::yamlScalar(QString()));
     QMetaObject::invokeMethod(this, [this, key] {
         if (QWidget* added = field(key))
             added->setFocus();

@@ -18,6 +18,7 @@ target_compile_definitions(test_atomic_writer PRIVATE
 add_dependencies(test_atomic_writer atomic_write_helper)
 coeus_add_test(test_temp_sweeper vault/test_temp_sweeper.cpp)
 coeus_add_test(test_roots vault/test_roots.cpp)
+coeus_add_test(test_property_vocabulary vault/test_property_vocabulary.cpp)
 coeus_add_test(test_git_ignore vault/test_git_ignore.cpp)
 target_link_libraries(test_git_ignore PRIVATE PkgConfig::libgit2)
 coeus_add_test(test_vault_watcher vault/test_vault_watcher.cpp)

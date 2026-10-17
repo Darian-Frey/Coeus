@@ -19,15 +19,6 @@ const QStringList& Vocabulary::ideaStage()
     return kValues;
 }
 
-std::optional<QStringList> Vocabulary::forProperty(const QString& key)
-{
-    if (key == QLatin1String("status"))
-        return projectStatus();
-    if (key == QLatin1String("stage"))
-        return ideaStage();
-    return std::nullopt;
-}
-
 std::optional<QStringList> Vocabulary::forRegisterField(const QString& kind, const QString& field)
 {
     using L = QStringList;

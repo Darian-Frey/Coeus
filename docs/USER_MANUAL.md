@@ -125,6 +125,7 @@ my-vault/
 ├── daily/2026-10-17.md      daily notes
 ├── templates/Meeting.md     templates
 ├── ideas/Theia.md           idea notes
+├── Coeus properties.md      your own values for properties (optional)
 ├── .coeus/                  Coeus's own, on this machine only
 │   ├── index.db             the index (safe to delete; it is rebuilt)
 │   ├── config.toml          this vault's settings on this machine
@@ -235,7 +236,36 @@ Every five seconds Coeus copies each changed, unsaved buffer to `.coeus/journal/
 
 ### Properties
 
-The **Properties** card above the editor (in Source and Live) edits a note's frontmatter ([§5](#frontmatter)) as fields: one row per key, `Properties (3)` in its header. Text and numbers are line edits, dates must be `YYYY-MM-DD`, lists are comma-separated, and `status` (project statuses) and `stage` (idea stages) are drop-downs. Values outside their vocabulary are shown as written with the allowed values, and counted in the header, but never changed until you choose one. **+ Add** adds a key. Editing a property edits the note's text, as one undo step, changing only that key's lines; save as usual. If the frontmatter is not valid YAML the card shows the parser's message and is read-only.
+The **Properties** card above the editor (in Source and Live) edits a note's frontmatter ([§5](#frontmatter)) as fields: one row per key, `Properties (3)` in its header. Text and numbers are line edits, dates must be `YYYY-MM-DD` and lists are comma-separated. **+ Add** adds a key. Editing a property edits the note's text, as one undo step, changing only that key's lines; save as usual. If the frontmatter is not valid YAML the card shows the parser's message and is read-only.
+
+**Suggestions.** A text field offers, as you type, the values other notes already give that property, the most used first: type `Th` in `pov` and *Theo Hartmann* is offered.
+
+**Your own values.** To give a property a fixed set of values, such as `status` for the scenes of a novel, list them in the note **`Coeus properties.md`** at the top of the vault. **File › Edit Property Values** opens it, creating it with an explanation the first time:
+
+```markdown
+# Coeus properties
+
+The scenes' statuses, in the order I use them:
+
+## status
+Folders: Dead-Space-Book/prose
+- outline
+- draft
+- revised
+- final
+
+## pov
+- Theo Hartmann
+- Ada Kerr
+```
+
+- Each **`##` heading** is a property's name, and the **list** under it its values, in the order the drop-down offers them.
+- A **`Folders:`** line limits a list to the notes in those folders (comma-separated, named as the Explorer names them). Give the same property different lists for different folders; the list for the nearest folder above a note wins, and a list without `Folders:` applies everywhere else.
+- Anything else in the note (explanations, other headings, code) is ignored, so write freely.
+
+A property with a list becomes a drop-down. A value not in the list is shown as written with the allowed values and *as listed in Coeus properties.md*, counted in the header, and never changed until you choose one. Save the note and every open note's card follows at once. Because it is an ordinary note, it syncs with the vault, so every machine has the same lists.
+
+Coeus has values of its own for one property only: `stage` in idea notes under `ideas/` takes the idea stages ([§10](#ideas)), unless you list your own. `status` is yours to use as you like; a project's status lives in its README's header ([§9](#what-makes-a-project)).
 
 ### Daily notes
 
@@ -650,7 +680,8 @@ Frontmatter is YAML between two `---` lines at the very top of the note (`...` m
 
 - **`aliases`** (or `alias`): other names for the note. `[[Review]]` above finds this note, and completion offers them.
 - **`tags`**: tags, as above.
-- **`status`** and **`stage`**: checked against their vocabularies ([§9](#9-projects-and-registers), [§10](#ideas)).
+- **`stage`**: in an idea note under `ideas/`, one of the idea stages ([§10](#ideas)).
+- **Any key** can be given values of your own in `Coeus properties.md` ([§4](#properties)); the Properties card then offers them and flags anything else.
 - **`coeus-folder`**: in a template only, where new notes from it go.
 
 In Reading the frontmatter becomes a table of properties; in Source and Live the Properties card edits it ([§4](#properties)). Frontmatter that is not valid YAML never stops a note opening: it is shown as a problem.
@@ -1452,7 +1483,7 @@ Every shortcut can be changed in View › Keyboard Shortcuts…; these are the d
 | **Sync** | |
 | Sync Now | `Ctrl+Alt+Y` |
 
-Without a shortcut, in the menus and the palette: Insert Template…, Set Up Sync…, Verify Index, Rebuild Index, Compact Embeddings Sidecar, Add Coeus Files to .gitignore, Default Mode, Theme, Reload Style Snippets, Open Snippets Folder and Keyboard Shortcuts….
+Without a shortcut, in the menus and the palette: Insert Template…, Edit Property Values, Set Up Sync…, Verify Index, Rebuild Index, Compact Embeddings Sidecar, Add Coeus Files to .gitignore, Default Mode, Theme, Reload Style Snippets, Open Snippets Folder and Keyboard Shortcuts….
 
 In completion and the palette: Up and Down choose, Enter (or Tab, in completion) accepts, Escape closes.
 

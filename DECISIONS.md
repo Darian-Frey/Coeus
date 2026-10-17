@@ -567,3 +567,28 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - Encryption (SPEC.md §Sync) stays with F-029; with rclone, a `crypt` remote over Drive does it.
 
 **Reversal conditions.** Revisit if bisync's conflict handling or its safety aborts prove troublesome in daily use, or if the native Drive provider (F-029) is built, which would then decide its own conflict handling but keep the conflict copies' form.
+
+### D-025 Frontmatter values the author declares, in a note in the vault
+**Decided:** 2026-10-17
+**Recorded:** 2026-10-17
+**Status:** Accepted
+**Authors:** Shane Hartley (scope and approach), Claude (format, 2026-10-17)
+**Related:** F-008, F-015, F-032, D-005, D-011, D-015
+
+**Context.** The Properties card treated every frontmatter `status` in the vault as a project status and every `stage` as an idea stage (F-008 as first specified), so a scene of the author's novel with `status: draft` was flagged as an error, with Active, Dormant, Complete, Archived and Superseded offered instead. Those vocabularies belong to the documentation standard: a project's status is read from its README's header, never frontmatter, and the register lint (F-015) already checks it there; `stage` makes a note an idea only under `ideas/` (F-032). The author wants their own values for their own properties, `draft` among them.
+
+**Options.**
+- **A. Add `draft` to the project statuses.** Rejected: the lint would then accept `draft` as a project's status, and the next writer's word would need adding too.
+- **B. Suggestions only.** The card offers the values the vault already gives a key, with no configuration; nothing is ever flagged, so a typo (`drfat`) passes unnoticed.
+- **C. Declared lists in `.coeus/config.toml`.** Machine-local and never synced (D-011), so the laptop would need its own copy, and Coeus cannot edit a TOML file in its own window.
+- **D. Declared lists in a note in the vault, plus suggestions.** Chosen. `Coeus properties.md` at the vault's top: each `## key` heading opens a list of `- value` items, in the order offered; a `Folders:` line limits a list to notes under those folders, the nearest winning; anything else is ignored, so the note can explain itself. It syncs with the vault, is edited in Coeus like any note, and is read again whenever it changes. Keys with no list suggest the values the vault already gives them.
+
+**Decision.** Option D. Coeus's own vocabularies apply only where they mean something: the idea stages for `stage` in notes under the vault's `ideas/`, unless the author declares a list for it there. `status` in frontmatter is the author's.
+
+**Consequences.**
+- F-008's acceptance is amended: enums are declared by the author; `status` is no longer validated against the project statuses in frontmatter.
+- File › Edit Property Values opens the note, writing a starter that explains the format and declares nothing if it does not exist: an explicit command, through `AtomicWriter`.
+- The note is an ordinary note, indexed and searchable; Coeus reads it from disk, so unsaved edits to it apply once saved.
+- Suggestions are read from the index's `props` off the UI thread (AV-005), most used first.
+
+**Reversal conditions.** Revisit if authors want vocabularies per template or per note type rather than per folder, or if the note's format proves too loose (a list item mistaken for a value), in which case a stricter format, such as frontmatter in the note, replaces it.

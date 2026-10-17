@@ -80,10 +80,10 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Must
 **Acceptance:**
 - YAML frontmatter rendered as a properties panel above the note
-- Property types: text, number, date, list, enum; enum values validated against SPEC.md §Vocabularies
-- `status:` accepts only Active / Dormant / Complete / Archived / Superseded; invalid values shown as errors, never silently rewritten
-**Status:** Complete (Phase 2, 2026-10-13)
-**Related decisions:** D-015
+- Property types: text, number, date, list, enum; enum values are those the author declares in the vault's `Coeus properties.md`, by key and folder, and the idea stages for `stage` under `ideas/` (amended 2026-10-17, D-025: `status:` was first validated against the project statuses everywhere)
+- Invalid values shown as errors, never silently rewritten; other text properties suggest the values the vault already uses
+**Status:** Complete (Phase 2, 2026-10-13); declared values and suggestions 2026-10-17 (D-025)
+**Related decisions:** D-015, D-025
 
 ### F-009 Daily notes
 **Priority:** Should
@@ -139,7 +139,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - Typing `F-`, `D-`, `C-`, `AV-`, `BUG-`, `IMP-` in the editor offers completion over known IDs with their titles
 - Command "Insert next ID" appends the next free ID for the chosen register in the current project (append-only, AV-003)
 **Status:** Complete (Phase 3, 2026-10-13): entries, projects and citations are indexed; the register panel, ID completion and Insert Next ID are built (SPEC.md §Register panel and commands). Validation is F-016
-**Related decisions:** D-001, D-006, D-012
+**Related decisions:** D-001, D-006, D-012, D-025
 **Notes:** Nothing else in the tool depends on the scaffold; a vault with no register files behaves as a plain Obsidian-style vault.
 
 ### F-016 Register validation
@@ -292,7 +292,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - "Promote idea" creates a project folder from the idea note and the standard's skeletons, allocating no IDs until the author adds entries
 - Build status per project derives from ROADMAP.md phase status and CHANGELOG.md `[Unreleased]`; nothing is maintained by hand
 **Status:** Complete (Phase 3, 2026-10-14): ideas indexed; the board with freshness, build, unreleased and Git columns; Refresh header, Promote idea and Fetch by `git fetch` (D-020; SPEC.md §Project board, §Ideas)
-**Related decisions:** D-006, D-015
+**Related decisions:** D-006, D-015, D-025
 **Notes:** Decision D-010 provides the linked roots that let repos appear on the board.
 
 ### F-033 Coeus MCP server

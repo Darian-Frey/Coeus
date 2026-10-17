@@ -90,6 +90,10 @@ public:
     static std::expected<QList<ProjectRef>, QString> projects(const QString& indexPath);
     // Every idea, by path.
     static std::expected<QList<IdeaRef>, QString> ideas(const QString& indexPath);
+    // The values notes give the frontmatter text property `key`, most used
+    // first, at most `limit` and none longer than a line: the Properties
+    // card's suggestions (F-008, D-025).
+    static std::expected<QStringList, QString> propertyValues(const QString& indexPath, const QString& key, int limit = 30);
     // Every stored lint problem, plus L8 (stale review) evaluated for `today`,
     // by root, note path and line.
     static std::expected<QList<ProblemRef>, QString> problems(const QString& indexPath, const QDate& today,

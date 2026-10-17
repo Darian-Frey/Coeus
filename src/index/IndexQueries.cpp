@@ -194,6 +194,30 @@ std::expected<QList<ProjectRef>, QString> IndexQueries::projects(const QString& 
     }
 }
 
+std::expected<QStringList, QString> IndexQueries::propertyValues(const QString& indexPath, const QString& key, int limit)
+{
+    if (!QFileInfo::exists(indexPath))
+        return std::unexpected(QStringLiteral("The index is not built yet"));
+    auto db = Database::open(indexPath, Database::Mode::ReadOnly);
+    if (!db)
+        return std::unexpected(db.error());
+    auto query = db->prepare("SELECT value FROM props WHERE key = ? AND type = 'text' AND value IS NOT NULL AND value <> '' "
+                             "AND length(value) <= 80 AND instr(value, char(10)) = 0 "
+                             "GROUP BY value ORDER BY count(*) DESC, value LIMIT ?");
+    if (!query)
+        return std::unexpected(query.error());
+    query->bind(1, key).bind(2, limit);
+    QStringList values;
+    for (;;) {
+        const auto row = query->step();
+        if (!row)
+            return std::unexpected(row.error());
+        if (!*row)
+            return values;
+        values.append(query->text(0));
+    }
+}
+
 std::expected<QStringList, QString> IndexQueries::headings(const QString& indexPath, const QString& notePath)
 {
     if (!QFileInfo::exists(indexPath))

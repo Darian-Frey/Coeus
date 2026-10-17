@@ -49,6 +49,7 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     : QWidget(parent)
     , m_root(root)
     , m_path(absolutePath)
+    , m_displayPath(displayPath)
     , m_editor(new Editor(root, absolutePath))
     , m_reader(new QTextBrowser)
     , m_stack(new QStackedWidget(this))
@@ -226,6 +227,11 @@ void NoteView::goToHeading(int line, const QString& text, int occurrence, int in
         return;
     const qreal top = m_reader->document()->documentLayout()->blockBoundingRect(target).top();
     m_reader->verticalScrollBar()->setValue(int(top));
+}
+
+void NoteView::setPropertyContext(const QString& vaultPath, bool inVault)
+{
+    m_properties->setContext(vaultPath, m_indexPath, m_displayPath, inVault);
 }
 
 void NoteView::setRenderService(RenderService* service)

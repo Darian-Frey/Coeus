@@ -110,6 +110,7 @@ add_library(coeus_core STATIC
     src/vault/NewNote.cpp
     src/vault/Bookmarks.cpp
     src/vault/RecentNotes.cpp
+    src/vault/PropertyVocabulary.cpp
     src/vault/Vault.cpp
     src/vault/VaultConfig.cpp
     src/vault/VaultLogging.cpp

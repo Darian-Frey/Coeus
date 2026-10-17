@@ -87,6 +87,8 @@ public:
     void insertTemplate(const QString& templatePath);
     // File › New Note… (F-036): the dialog, then createNote().
     void newNote();
+    // File › Edit Property Values (D-025): opens the vault's `Coeus properties.md`, making it first if needed.
+    void editPropertyValues();
     // View › Keyboard Shortcuts… (F-027).
     void editShortcuts();
     // View › Default Mode (F-003): the mode notes open in, kept per user; Live at first.

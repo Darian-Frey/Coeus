@@ -5,6 +5,8 @@
 #include "ui/MainWindow.hpp"
 #include "ui/NewNoteDialog.hpp"
 #include "ui/NoteCatalogue.hpp"
+#include "ui/NoteView.hpp"
+#include "ui/PropertiesPanel.hpp"
 
 #include <QAction>
 #include <QComboBox>
@@ -151,6 +153,33 @@ private slots:
         m_window->createNote(path, QString());
         QCOMPARE(created.count(), 0);
         QCOMPARE(read(path), QStringLiteral("Notes.\n"));
+    }
+
+    // D-025: Edit Property Values makes the note once and opens it; a saved
+    // change to it reaches the Properties card of a note already open.
+    void editPropertyValuesAndTheCardFollows()
+    {
+        const QString scene = m_vault.filePath(QStringLiteral("prose/scene.md"));
+        write(scene, "---\nstatus: draft\n---\nA scene.\n");
+        m_window->openNote(scene);
+        PropertiesPanel* card = m_window->currentView()->properties();
+        QCOMPARE(card->errorCount(), 0); // nothing declared: status is the author's own
+
+        QAction* action = actionNamed(*m_window, QStringLiteral("Edit Property Values"));
+        QVERIFY(action);
+        action->trigger();
+        const QString values = m_vault.filePath(QStringLiteral("Coeus properties.md"));
+        QVERIFY(QFile::exists(values));
+        QCOMPARE(m_window->currentEditor()->path(), values);
+        QVERIFY(m_window->currentEditor()->toPlainText().startsWith(QStringLiteral("# Coeus properties")));
+        // Again: opened, never rewritten.
+        write(values, "## status\nFolders: prose\n- outline\n- revised\n");
+        m_window->openNote(scene);
+        action->trigger();
+        QTRY_COMPARE(m_window->currentEditor()->toPlainText(), QStringLiteral("## status\nFolders: prose\n- outline\n- revised\n"));
+        // The scene's card follows the new list once the change is seen.
+        QTRY_COMPARE_WITH_TIMEOUT(card->errorCount(), 1, kWaitMs);
+        QVERIFY(qobject_cast<QComboBox*>(card->field(QStringLiteral("status"))));
     }
 
     void cleanupTestCase()
