@@ -9,15 +9,17 @@ Severity vocabulary: low | medium | high.
 
 ## Open
 
+None at present.
+
+## Fixed
+
 ### BUG-010: A status message is drawn over the note's path
-**Status:** open
+**Status:** fixed (2026-10-17)
 **Severity:** low
 **Found:** 2026-10-15 (screenshots of F-027's themes on the demo vault, in every theme)
 **Location:** `src/ui/MainWindow.cpp` (`createStatusBar`, `m_noteLabel`)
-**Description.** With a note open in a vault that has a missing linked root, the bottom-left of the status bar shows the "Linked root … is missing" message and the note's path (`projects/coeus/DECISIONS.md`) on top of each other, both unreadable. `m_noteLabel` is a normal (not permanent) status-bar widget, which `QStatusBar` hides while a message shows, so something shows it again or sets its text in a way that keeps it visible; not yet investigated. Seen in System, Dark and Cassette alike, so it predates F-027.
-**Fix.** Not yet fixed.
-
-## Fixed
+**Description.** With a note open in a vault that has a missing linked root, the bottom-left of the status bar showed the "Linked root … is missing" message and the note's path on top of each other, both unreadable. `QStatusBar` hides its normal widgets while a message shows, but clears their explicitly-hidden flag as it does. When a permanent widget of another height then comes or goes (the changed-files count, the problems button, the embedding progress, all of which appear just after a vault opens), the bar rebuilds its layout in `reformat()`, and `QLayout::addChildWidget` queues `_q_showIfNotHidden` for every widget not explicitly hidden, so the path came back over the message. Found by catching the label's Show event in gdb and reading Qt 6.4.2's `qstatusbar.cpp` and `qlayout.cpp`. Not theme-related: the themes' screenshots were simply taken just after a vault opened.
+**Fix.** The window hides the path itself, explicitly, whenever `QStatusBar::messageChanged` reports a message, and shows it when the message clears; Qt's queued showing leaves explicitly hidden widgets alone. `test_main_window` shows a message, adds a taller permanent widget and checks the path stays hidden, failing before the fix.
 
 ### BUG-012: Recent notes were written only when the window closed
 **Status:** fixed (2026-10-16)

@@ -7,6 +7,8 @@
 #include "vault/Vault.hpp"
 
 #include <QAction>
+#include <QLabel>
+#include <QStatusBar>
 #include <QDockWidget>
 #include <QFile>
 #include <QFileSystemModel>
@@ -209,6 +211,36 @@ private slots:
         QSignalSpy offered(&again, &MainWindow::gitignoreOffered);
         again.openVault(*Vault::open(vault.path()));
         QVERIFY(!offered.wait(1000));
+    }
+
+    // BUG-010: a status message is never drawn over the note's path, even
+    // when a permanent widget of another height appears meanwhile and
+    // QStatusBar rebuilds its layout (as the Git count and embedding
+    // progress do just after a vault opens).
+    void statusMessagesHideTheNotePath()
+    {
+        MainWindow window;
+        window.resize(900, 600);
+        window.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QLabel* path = nullptr;
+        for (QLabel* label : window.statusBar()->findChildren<QLabel*>())
+            if (label->text().startsWith(QStringLiteral("No vault open")))
+                path = label;
+        QVERIFY(path);
+        QVERIFY(path->isVisible());
+
+        window.statusBar()->showMessage(QStringLiteral("Linked root \"x\" is missing"), 60000);
+        QVERIFY(!path->isVisible());
+        auto* tall = new QToolButton; // taller than a label: the status bar re-lays itself out
+        tall->setText(QStringLiteral("● 3"));
+        tall->setMinimumHeight(path->sizeHint().height() + 12);
+        window.statusBar()->addPermanentWidget(tall);
+        QTest::qWait(50); // the layout's queued showing, if any, lands
+        QVERIFY(!path->isVisible());
+
+        window.statusBar()->clearMessage();
+        QVERIFY(path->isVisible());
     }
 
     void dockLayoutPersists()

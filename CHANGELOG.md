@@ -4,6 +4,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 
 ## [Unreleased]
 ### Fixed
+- BUG-010: a status-bar message is no longer drawn over the current note's path when the Git count, problems button or embedding progress appears while it shows.
 - BUG-012: recent notes are written two seconds after they settle, as meant, rather than only when the window closed.
 - BUG-011: after Cassette, Light left the docks' lists and the Search box dark and labels unreadable; every widget now follows each theme change.
 - BUG-009: changing the theme could widen the window past the screen, sizing the Registers panel's status filter to the longest status in the vault; the panel's filters are now a few words wide, longer items elided.

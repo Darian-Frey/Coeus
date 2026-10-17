@@ -686,6 +686,12 @@ void MainWindow::createStatusBar()
     m_vaultLabel = new QLabel;
     m_indexLabel = new QLabel;
     statusBar()->addWidget(m_noteLabel, 1);
+    // The note's path gives way to a message. QStatusBar hides it, but not
+    // explicitly, so when a permanent widget of another height comes or goes
+    // and the bar rebuilds its layout, QLayout queues it shown again over the
+    // message (BUG-010). Hidden explicitly here, it stays hidden.
+    connect(statusBar(), &QStatusBar::messageChanged, m_noteLabel,
+            [this](const QString& message) { m_noteLabel->setVisible(message.isEmpty()); });
     m_problemsButton = new QToolButton;
     m_problemsButton->setAutoRaise(true);
     m_problemsButton->setToolTip(tr("Register problems in this project (Ctrl+Shift+M)"));
