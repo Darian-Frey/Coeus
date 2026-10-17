@@ -57,6 +57,7 @@ coeus/
 
 ## Documentation
 
+- [User manual](docs/USER_MANUAL.md): every feature, with examples of all the Markdown Coeus reads
 - [Build](BUILD.md)
 - [Features](FEATURES.md)
 - [Roadmap](ROADMAP.md)

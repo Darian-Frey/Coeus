@@ -9,7 +9,13 @@ Severity vocabulary: low | medium | high.
 
 ## Open
 
-None at present.
+### BUG-013: Display maths loses thin strokes in reading mode
+**Status:** open
+**Severity:** low
+**Found:** 2026-10-17 (screenshots of the user manual's examples in reading mode)
+**Location:** `src/parser/HtmlRenderer.cpp` (the `<img width height>` of a rendered picture), `src/ui/NoteView.cpp` (the reading view's `QTextBrowser`)
+**Description.** Maths is drawn to a PNG at twice the size it is shown at (SPEC.md §Rendered blocks), and the reading view's `QTextBrowser` shrinks it to the `width` and `height` the HTML gives, apparently without smooth scaling: in `$$A = \begin{pmatrix}…\end{pmatrix}, \det A = -2$$` every `=` shows as a single bar, so the formula reads `det A − −2`. The cached PNG itself is correct, both bars present. Formulas also look smaller than the surrounding text. Mermaid diagrams, being larger, are not visibly affected. Not yet investigated: whether `QTextDocument` can be given pre-scaled images (adding the picture at display size, smoothly scaled, as a document resource) or a device-pixel ratio, and whether live preview has the same fault.
+**Fix.** Not yet fixed.
 
 ## Fixed
 

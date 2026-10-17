@@ -7,6 +7,7 @@ Coeus is a local-first Markdown knowledge base for Linux desktop in C++23 and Qt
 - Phase 1 shell builds and passes its tests (see BUILD.md): `src/app/main.cpp`, `src/vault/{Vault,AtomicWriter,TempSweeper}`, `src/parser/{NoteParser,Frontmatter,HtmlRenderer,CodeHighlighter,Transclusion,LiveBlocks,RegisterParser}`, `src/render/{MathsRenderer,MermaidRenderer,PdfPages}`, `src/registers/{Vocabulary,NextId,RegisterTemplates,Lint,LintCommand,ProblemReport,ProjectStatus,ProjectScaffold,ProjectOverview,EntryWriter}`, `src/mcp/{McpServer,McpTools,GuiLink}`, `src/search/{Embedder,Chunker,VectorStore,Sidecar,EmbeddingService}`, `src/git/{GitRepository,GitCommand}`, `src/sync/{SyncConflicts,RcloneProvider,SyncService}`, `src/index/{Database,Schema,IndexStore,ProjectResolver,LintResolver,IndexRoots,IndexQueries,Backlinks,LinkGraph,Tags,Search,SearchQuery,LinkResolver,Indexer,IndexService,ContentHash}`, `src/vault/{Roots,GitIgnore,GitIgnoreOffer,VaultConfig,VaultWatcher,Journal,DailyNotes,Templates,NewNote,Bookmarks,RecentNotes}`, `src/ui/{MainWindow,VaultSession,ForceLayout,GraphView,GraphPanel,NoteView,Editor,PropertiesPanel,BacklinksPanel,RelatedPanel,OutlinePanel,TagPanel,SearchPanel,WikilinkCompleter,WikilinkCompletion,NoteCatalogue,RegisterPanel,ProblemsPanel,HistoryPanel,VersionView,DiffView,CommitDialog,ProjectBoard,PromoteDialog,NewNoteDialog,Icons,McpLink,WriteToast,MarkdownHighlighter,ExplorerPanel,SidebarPanel,CommandPalette,FuzzyMatch,Theme,Shortcuts,ShortcutsDialog,BookmarksPanel,RenderService,LivePreview,Workspace}`; tests under `tests/{vault,parser,index,git,mcp,search,render,ui,perf}`.
 - `resources/icons/` holds the tool strip's fallback SVG icons, compiled in as Qt resources. Remaining `src/` module folders are empty placeholders. `tools/` holds the pre-commit hook (`coeus --lint`, Maintenance Rule 6), `fetch_model.py` (the embedding model, kept out of Git) and `make_demo_vault.py`, which builds a vault exercising every feature (BUILD.md §Demo vault).
 - UI mockup of the target main window: `docs/design/main-window.png`.
+- `docs/USER_MANUAL.md`: the user manual (2026-10-17), every feature and a Markdown reference with live examples. A change to what a user sees or types updates it (Maintenance Rule 7).
 - `BUILD.md`: written 2026-10-12 from the first successful build.
 - `LICENSE`: MIT (D-009). Qt6 must stay dynamically linked.
 
@@ -50,7 +51,7 @@ Verified 2026-10-12; details and dependencies in BUILD.md. New sources are liste
 - Colours in views come from `Theme::colour()` or the palette, never literals, and follow `Theme::changed` (F-027).
 - No raw `new` outside Qt parent-ownership. Non-Qt objects use `std::unique_ptr`.
 - Commit messages are multi-paragraph, reference F-/D-/AV-/BUG-/IMP- IDs, and carry exactly one Subtle Chaos anomaly.
-- Docs are part of the commit (Maintenance Rule 7). A change that invalidates a document without updating it is incomplete.
+- Docs are part of the commit (Maintenance Rule 7), the user manual (`docs/USER_MANUAL.md`) included. A change that invalidates a document without updating it is incomplete.
 - Bugs and improvement candidates found during other work go in BUGS.md / IMPROVEMENTS.md, not fixed inline (Maintenance Rule 8).
 
 ## Pitfalls
