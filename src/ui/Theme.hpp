@@ -9,6 +9,9 @@
 
 class QWidget;
 
+class QAbstractScrollArea;
+class QWheelEvent;
+
 namespace coeus {
 
 // Light and dark themes and user style snippets (F-027, SPEC.md §Themes).
@@ -58,6 +61,24 @@ public:
     // A label's style sheet for an error message.
     QString errorStyle() const { return QStringLiteral("color: %1;").arg(colour(Colour::Error).name()); }
 
+    // Text size in the note views (Source, Live, Reading, versions and
+    // diffs), as a share of the interface's: View › Zoom In, Zoom Out and
+    // Reset Zoom, or Ctrl+wheel over a note. One for every window, kept per
+    // user (`appearance/textZoom`); emits textZoomChanged().
+    double textZoom() const { return m_textZoom; }
+    void setTextZoom(double zoom); // the nearest level
+    void zoomText(int steps);      // +1 the next level up, -1 down, 0 back to 100 %
+    static const QList<double>& zoomLevels();
+    // The font a note view draws its text in: the interface's, or the
+    // fixed-pitch one, at the text zoom.
+    QFont noteFont(bool monospace) const;
+    // Ctrl+wheel over a note view zooms its text; true if `event` did.
+    static bool zoomFromWheel(QWheelEvent* event);
+    // Gives `view` (a reading view, a version, a diff) the note font at the
+    // text zoom, now and after every zoom or theme change, and lets Ctrl+wheel
+    // over it zoom.
+    static void followTextZoom(QAbstractScrollArea* view, bool monospace);
+
     // Style snippets: every *.qss file in snippetsFolder(), in name order,
     // applied as the application's style sheet (Obsidian's CSS snippets).
     static QString snippetsFolder();
@@ -70,6 +91,7 @@ public:
 
 signals:
     void changed();
+    void textZoomChanged(double zoom);
 
 private:
     Theme() = default;
@@ -79,6 +101,7 @@ private:
 
     QString m_snippetSheet;
     QFont m_systemFont;
+    double m_textZoom = 1.0;
     Mode m_mode = Mode::System;
     bool m_initialised = false;
     QString m_systemStyle;    // the desktop's style and palette, restored by System

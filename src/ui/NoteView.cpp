@@ -89,6 +89,11 @@ NoteView::NoteView(const Vault& root, const QString& absolutePath, const QString
     m_reader->setOpenExternalLinks(false);
     m_reader->setFrameShape(QFrame::NoFrame);
     m_reader->document()->setDefaultStyleSheet(styleSheet());
+    Theme::followTextZoom(m_reader, false); // the interface's font, at the text zoom
+    connect(&Theme::instance(), &Theme::textZoomChanged, this, [this] {
+        if (mode() == Mode::Reading)
+            render(); // formulas and diagrams at the new size
+    });
     connect(&Theme::instance(), &Theme::changed, this, [this] {
         m_reader->document()->setDefaultStyleSheet(styleSheet());
         if (mode() == Mode::Reading)
@@ -174,14 +179,17 @@ HtmlRenderer::Options NoteView::readingOptions(int room) const
     options.notePath = m_path;
     if (m_render) {
         // Never wider than `room`: a wide diagram is shown smaller, never cut off.
-        const auto picture = [room](const RenderService::Picture& p) {
-            QSize size = p.size;
+        // A diagram is text, so it follows the text zoom (maths is drawn at it already).
+        const auto picture = [room](const RenderService::Picture& p, double scale = 1.0) {
+            QSize size = p.size * scale;
             if (size.width() > room)
                 size = QSize(room, int(double(size.height()) * room / size.width()));
             return HtmlRenderer::Picture{p.url, size.width(), size.height(), p.error};
         };
         options.renderMaths = [this, picture](const QString& tex, bool display) { return picture(m_render->maths(tex, display)); };
-        options.renderMermaid = [this, picture](const QString& source) { return picture(m_render->mermaid(source)); };
+        options.renderMermaid = [this, picture](const QString& source) {
+            return picture(m_render->mermaid(source), Theme::instance().textZoom());
+        };
         options.renderPdfPage = [this, picture](const QString& url, int page) {
             return picture(m_render->pdfPage(QUrl(url).toLocalFile(), page));
         };

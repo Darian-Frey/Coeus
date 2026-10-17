@@ -142,7 +142,7 @@ std::optional<LivePreview::Drawn> LivePreview::draw(const LiveBlock& block, int 
         document->setDocumentMargin(2);
         if (m_styleSheet)
             document->setDefaultStyleSheet(m_styleSheet());
-        document->setDefaultFont(QApplication::font());
+        document->setDefaultFont(m_editor->font()); // Live's prose font, at the text zoom
         document->setHtml(m_html(block.source.toUtf8()));
         document->setTextWidth(room);
         // To the foot of the last line with something on it: a document closes
@@ -170,6 +170,9 @@ std::optional<LivePreview::Drawn> LivePreview::draw(const LiveBlock& block, int 
             return std::nullopt; // being drawn, or cannot be: the source shows
         path = QUrl(picture.url).toLocalFile();
         size = picture.size;
+        // A diagram is text: it follows the text zoom (maths is drawn at it already).
+        if (block.kind == LiveBlock::Kind::Mermaid)
+            size *= Theme::instance().textZoom();
         break;
     }
     case LiveBlock::Kind::Picture: {

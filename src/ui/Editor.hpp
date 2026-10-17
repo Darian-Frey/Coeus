@@ -33,6 +33,9 @@ public:
     // away from the cursor, pictures drawn in place. Off is source mode.
     void setLive(bool live);
     bool isLive() const;
+    // Source's fixed pitch or Live's prose font, at the text zoom; after a
+    // zoom or theme change Live's sizes and pictures are worked out again.
+    void applyFont(bool relayout = true);
     LivePreview* live() const { return m_live; }
     // Background tints live preview adds (code blocks), kept with the lint's underlines.
     void setLiveSelections(const QList<QTextEdit::ExtraSelection>& selections);
@@ -114,6 +117,7 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     bool viewportEvent(QEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override; // Ctrl+wheel zooms the text
 
 signals:
     void modificationChanged(bool modified);

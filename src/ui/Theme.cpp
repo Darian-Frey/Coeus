@@ -1,5 +1,6 @@
 #include "ui/Theme.hpp"
 
+#include <QAbstractScrollArea>
 #include <QApplication>
 #include <QDir>
 #include <QFile>
@@ -8,15 +9,18 @@
 #include <QStandardPaths>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QWheelEvent>
 #include <QWidget>
 
 #include <algorithm>
+#include <cmath>
 
 namespace coeus {
 
 namespace {
 
 constexpr const char* kModeKey = "appearance/theme";
+constexpr const char* kTextZoomKey = "appearance/textZoom";
 constexpr const char* kMonospaceProperty = "coeusMonospace";
 
 } // namespace
@@ -62,8 +66,96 @@ void Theme::initialise()
     m_systemPalette = QApplication::palette();
     m_systemFont = QApplication::font();
     m_mode = modeNamed(QSettings().value(QLatin1String(kModeKey)).toString());
+    m_textZoom = QSettings().value(QLatin1String(kTextZoomKey), 1.0).toDouble();
+    if (!zoomLevels().contains(m_textZoom))
+        m_textZoom = 1.0;
     apply();
     reloadSnippets();
+}
+
+const QList<double>& Theme::zoomLevels()
+{
+    // A browser's steps: finer near 100 %.
+    static const QList<double> kLevels{0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0};
+    return kLevels;
+}
+
+void Theme::setTextZoom(double zoom)
+{
+    const QList<double>& levels = zoomLevels();
+    double nearest = levels.front();
+    for (double level : levels)
+        if (std::abs(level - zoom) < std::abs(nearest - zoom))
+            nearest = level;
+    QSettings().setValue(QLatin1String(kTextZoomKey), nearest);
+    if (nearest == m_textZoom)
+        return;
+    m_textZoom = nearest;
+    emit textZoomChanged(m_textZoom);
+}
+
+void Theme::zoomText(int steps)
+{
+    if (steps == 0) {
+        setTextZoom(1.0);
+        return;
+    }
+    const QList<double>& levels = zoomLevels();
+    const qsizetype at = levels.indexOf(m_textZoom);
+    setTextZoom(levels[std::clamp<qsizetype>((at < 0 ? levels.indexOf(1.0) : at) + steps, 0, levels.size() - 1)]);
+}
+
+QFont Theme::noteFont(bool monospace) const
+{
+    QFont font = monospace ? QFontDatabase::systemFont(QFontDatabase::FixedFont) : QApplication::font();
+    if (font.pointSizeF() > 0)
+        font.setPointSizeF(font.pointSizeF() * m_textZoom);
+    else if (font.pixelSize() > 0)
+        font.setPixelSize(std::max(1, int(std::lround(font.pixelSize() * m_textZoom))));
+    return font;
+}
+
+bool Theme::zoomFromWheel(QWheelEvent* event)
+{
+    if (!(event->modifiers() & Qt::ControlModifier))
+        return false;
+    // A notch is 120; a touchpad sends many small steps, gathered here.
+    static int gathered = 0;
+    gathered += event->angleDelta().y();
+    const int steps = gathered / 120;
+    gathered -= steps * 120;
+    if (steps != 0)
+        instance().zoomText(steps);
+    event->accept();
+    return true;
+}
+
+namespace {
+
+// Ctrl+wheel over a text view's viewport zooms the notes' text.
+class WheelZoom : public QObject {
+public:
+    using QObject::QObject;
+    bool eventFilter(QObject* watched, QEvent* event) override
+    {
+        if (event->type() == QEvent::Wheel && Theme::zoomFromWheel(static_cast<QWheelEvent*>(event)))
+            return true;
+        return QObject::eventFilter(watched, event);
+    }
+};
+
+} // namespace
+
+void Theme::followTextZoom(QAbstractScrollArea* view, bool monospace)
+{
+    const auto apply = [view, monospace] {
+        view->setProperty(kMonospaceProperty, monospace);
+        view->setFont(instance().noteFont(monospace));
+    };
+    apply();
+    connect(&instance(), &Theme::textZoomChanged, view, apply);
+    connect(&instance(), &Theme::changed, view, apply);
+    view->viewport()->installEventFilter(new WheelZoom(view));
 }
 
 void Theme::setMode(Mode mode)

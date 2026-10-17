@@ -243,7 +243,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 **Priority:** Should
 **Acceptance:**
 - Light and dark themes; user QSS snippets; all actions rebindable
-**Status:** Complete (Phase 4, 2026-10-15): System, Light, Dark and Cassette (an amber CRT terminal, at the author's request) themes that every view follows, live; style snippets from `~/.config/coeus/snippets/`; every registered command rebindable in View › Keyboard Shortcuts…, conflicts refused (SPEC.md §Themes and shortcuts)
+**Status:** Complete (Phase 4, 2026-10-15): System, Light, Dark and Cassette (an amber CRT terminal, at the author's request) themes that every view follows, live; style snippets from `~/.config/coeus/snippets/`; every registered command rebindable in View › Keyboard Shortcuts…, conflicts refused (SPEC.md §Themes and shortcuts); text zoom for the notes (View › Zoom In, Zoom Out, Reset Zoom, Ctrl+wheel) added at the author's request 2026-10-18
 
 ### Sync
 

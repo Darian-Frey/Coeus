@@ -16,6 +16,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
+#include <QWheelEvent>
 #include <QHelpEvent>
 #include <QKeyEvent>
 #include <QMenu>
@@ -72,8 +73,11 @@ Editor::Editor(const Vault& root, const QString& absolutePath, QWidget* parent)
     , m_path(absolutePath)
     , m_highlighter(new MarkdownHighlighter(document()))
 {
-    Theme::setMonospace(this);
     m_live = new LivePreview(this);
+    applyFont(false);
+    // The text zoom (View › Zoom), and after a theme change, which can reset fonts.
+    connect(&Theme::instance(), &Theme::textZoomChanged, this, [this] { applyFont(); });
+    connect(&Theme::instance(), &Theme::changed, this, [this] { applyFont(); });
     viewport()->setMouseTracking(true); // Ctrl over a link shows a pointing hand
     setLineWrapMode(QPlainTextEdit::WidgetWidth);
     setTabChangesFocus(false);
@@ -314,15 +318,29 @@ void Editor::setLive(bool live)
 {
     if (live == isLive())
         return;
-    // Live reads as prose, in the interface's font; source keeps fixed pitch.
-    if (live) {
-        setProperty("coeusMonospace", false);
-        setFont(QApplication::font());
-    } else {
-        Theme::setMonospace(this);
-    }
+    // Live reads as prose, in the interface's font; source keeps fixed pitch; both at the text zoom.
+    setProperty("coeusMonospace", !live);
+    setFont(Theme::instance().noteFont(!live));
     m_highlighter->setLive(live);
     m_live->setEnabled(live);
+}
+
+void Editor::applyFont(bool relayout)
+{
+    // Live reads as prose, in the interface's font; source keeps fixed pitch.
+    const bool live = isLive();
+    setProperty("coeusMonospace", !live);
+    setFont(Theme::instance().noteFont(!live));
+    if (relayout && live) {
+        m_highlighter->rehighlight(); // headings and pictures' lines are sized from the font
+        m_live->invalidate();
+    }
+}
+
+void Editor::wheelEvent(QWheelEvent* event)
+{
+    if (!Theme::zoomFromWheel(event))
+        QPlainTextEdit::wheelEvent(event);
 }
 
 bool Editor::isLive() const

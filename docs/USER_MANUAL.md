@@ -1349,6 +1349,10 @@ With the Coeus window open, the AI cannot write to a note you have open with uns
 
 The change is immediate, and everything follows it: the editor's colours, rendered notes, diagrams, diffs and underlines.
 
+### Text size
+
+**View › Zoom In** (`Ctrl+=`, or `Ctrl++`), **Zoom Out** (`Ctrl+-`) and **Reset Zoom** (`Ctrl+0`) make the text of your notes larger or smaller: Source, Live and Reading alike, and versions and comparisons too. Holding Ctrl and turning the mouse wheel over a note does the same. The size goes in steps from 50 % to 300 %, is shown in the status bar as it changes, applies to every window at once and is remembered next time. Headings, tables, callouts, formulas and diagrams grow with the text; photos and PDF pages keep their own size, and the rest of the window (panels, menus, the Properties card) stays as it is.
+
 ### Style snippets
 
 For finer changes, put Qt style sheets (`.qss` files) in `~/.config/coeus/snippets/`; they are applied in name order on top of the theme. **View › Theme › Open Snippets Folder** creates and opens the folder, and **Reload Style Snippets** applies changes without a restart. For example, `larger-tabs.qss`:
@@ -1463,6 +1467,10 @@ Every shortcut can be changed in View › Keyboard Shortcuts…; these are the d
 | Command Palette… | `Ctrl+P` |
 | Search Notes… | `Ctrl+Shift+F` |
 | Open Graph View | `Ctrl+G` |
+| **Text size** | |
+| Zoom In | `Ctrl+=` (or `Ctrl++`, or Ctrl+wheel up) |
+| Zoom Out | `Ctrl+-` (or Ctrl+wheel down) |
+| Reset Zoom | `Ctrl+0` |
 | **Panels** | |
 | Toggle Explorer | `Ctrl+Shift+E` |
 | Toggle Sidebar | `Ctrl+Shift+B` |

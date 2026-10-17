@@ -29,7 +29,7 @@ VersionView::VersionView(const QString& notePath, const GitCommit& commit, const
     m_header->setToolTip(commit.message);
 
     m_text->setReadOnly(true);
-    Theme::setMonospace(m_text);
+    Theme::followTextZoom(m_text, true); // fixed pitch, at the text zoom
     m_text->setPlainText(text);
     new MarkdownHighlighter(m_text->document());
 

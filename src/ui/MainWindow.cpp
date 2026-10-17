@@ -531,6 +531,29 @@ void MainWindow::createActions()
     QMenu* viewMenu = menuBar()->addMenu(tr("&View"));
     viewMenu->addAction(palette);
     viewMenu->addAction(m_toggleReading);
+    // The notes' text size (Source, Live, Reading, versions, diffs): one for every window, kept per user.
+    auto* zoomIn = new QAction(tr("Zoom &In"), this);
+    zoomIn->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Equal)); // + without Shift, on most keyboards
+    connect(zoomIn, &QAction::triggered, this, [] { Theme::instance().zoomText(1); });
+    auto* zoomInPlus = new QAction(this); // Ctrl++ as well, as browsers take it; not listed
+    zoomInPlus->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Plus));
+    connect(zoomInPlus, &QAction::triggered, zoomIn, &QAction::trigger);
+    addAction(zoomInPlus);
+    auto* zoomOut = new QAction(tr("Zoom &Out"), this);
+    zoomOut->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Minus));
+    connect(zoomOut, &QAction::triggered, this, [] { Theme::instance().zoomText(-1); });
+    auto* zoomReset = new QAction(tr("Reset &Zoom"), this);
+    zoomReset->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_0));
+    connect(zoomReset, &QAction::triggered, this, [] { Theme::instance().zoomText(0); });
+    for (QAction* action : {zoomIn, zoomOut, zoomReset}) {
+        viewMenu->addAction(action);
+        addAction(action);
+        registerAction(action);
+    }
+    connect(&Theme::instance(), &Theme::textZoomChanged, this, [this](double zoom) {
+        if (isActiveWindow())
+            statusBar()->showMessage(tr("Text size %1 %").arg(qRound(zoom * 100)), kStatusTimeoutMs);
+    });
     viewMenu->addSeparator();
     viewMenu->addAction(toggleExplorer);
     viewMenu->addAction(toggleSidebar);

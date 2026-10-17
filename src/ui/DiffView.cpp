@@ -34,7 +34,7 @@ DiffView::DiffView(const QString& notePath, const QString& oldLabel, const QStri
     , m_text(new QPlainTextEdit(this))
 {
     m_text->setReadOnly(true);
-    Theme::setMonospace(m_text);
+    Theme::followTextZoom(m_text, true); // fixed pitch, at the text zoom
     m_text->setLineWrapMode(QPlainTextEdit::NoWrap);
 
     // One block per diff line: "  12  13   text", " 12      − text", "      13 + text".

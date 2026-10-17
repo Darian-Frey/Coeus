@@ -107,7 +107,8 @@ RenderService::Picture RenderService::maths(const QString& tex, bool display)
         return {};
     }
     const QColor colour = QApplication::palette().color(QPalette::Text);
-    const double points = QApplication::font().pointSizeF() > 0 ? QApplication::font().pointSizeF() : 10.0;
+    // At the notes' text size, so formulas follow View › Zoom (each size drawn once).
+    const double points = (QApplication::font().pointSizeF() > 0 ? QApplication::font().pointSizeF() : 10.0) * Theme::instance().textZoom();
     const QByteArray keySource = QStringLiteral("%1|%2|%3|%4|%5").arg(MathsRenderer::kVersion).arg(display).arg(colour.name()).arg(points).arg(tex).toUtf8();
     return lookup(QStringLiteral("maths"), keySource, [tex, display, colour, points](const QString& png) {
         return MathsRenderer::render(tex, display, colour, points, png);
