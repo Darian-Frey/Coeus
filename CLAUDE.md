@@ -64,7 +64,7 @@ Verified 2026-10-12; details and dependencies in BUILD.md. New sources are liste
 - Qt destroys a widget's C++ members before its child widgets. A child's `destroyed()` handler that touches the parent's members is a use-after-free during the parent's destructor; track children with `QPointer` instead. Found by AddressSanitizer: run the sanitizer build (BUILD.md) after UI changes.
 - `QPlainTextEdit::setPlainText` clears the document's modified flag. Tests that simulate typing must insert text, or the buffer counts as clean.
 - Never rebuild or delete a widget inside a slot of that widget's own signal (Qt calls it undefined behaviour); queue the work (`QMetaObject::invokeMethod(…, Qt::QueuedConnection)`) and remove widgets with `deleteLater()`, as `PropertiesPanel` does.
-- Run `./build/coeus --lint --mentions .` after editing any register entry (the `lint_coeus_docs` ctest entry does too). Broken IDs are errors; one-way references are warnings, not yet all resolved, so cross-references may still be stale (Maintenance Rule 6).
+- Run `./build/coeus --lint --mentions .` after editing any register entry (the `lint_coeus_docs` ctest entry does too). Broken IDs are errors; one-way references (L4) are warnings, all resolved on 2026-10-17, so a new one means a back-reference is missing: add it to the cited entry. The one remaining warning is deliberate: D-006 cites F-017 as written before it was absorbed into F-032 (Maintenance Rule 6).
 
 ## Out of scope
 - Do not add a plugin system, mobile build, or Publish feature.

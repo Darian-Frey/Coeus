@@ -31,7 +31,7 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 **Recorded:** 2026-09-25
 **Status:** Accepted
 **Authors:** Shane Hartley (with Claude discussion 2026-09-03)
-**Related:** F-001, F-003, F-012, D-013
+**Related:** F-001, F-003, F-012, D-013, AV-005, BUG-001
 
 **Context.** Stack choice for a Linux-only desktop tool where the Markdown editor is the largest single cost and the author's strongest experience is C++/Qt (Pontus GUI, Argo).
 
@@ -77,7 +77,7 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 **Recorded:** 2026-09-25
 **Status:** Accepted
 **Authors:** Shane Hartley (with Claude discussion 2026-09-03)
-**Related:** F-001, F-003, ROADMAP.md Phase 1
+**Related:** F-001, F-003, AV-005, ROADMAP.md Phase 1
 
 **Context.** The author wants to test features as they are added rather than build a backend blind.
 
@@ -98,7 +98,7 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 **Recorded:** 2026-09-25
 **Status:** Accepted
 **Authors:** Shane Hartley
-**Related:** F-002, F-011, AV-001, AV-002
+**Related:** F-002, F-011, AV-001, AV-002, AV-006
 
 **Context.** The author's notes already live in Git repositories and are edited by other tools (Claude Code, Vim). Coeus must not become the only way to read them.
 
@@ -120,7 +120,7 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 **Recorded:** 2026-09-25
 **Status:** Accepted
 **Authors:** Shane Hartley (with Claude discussion 2026-09-25)
-**Related:** F-015, F-016, F-017, F-018, F-019, F-020, F-021, F-022
+**Related:** F-015, F-016, F-017, F-018, F-019, F-020, F-021, F-022, AV-003, AV-008 (F-017, cited as written, was absorbed into F-032 on 2026-10-12)
 
 **Context.** With Obsidian's plugin ecosystem unmatchable, Coeus needs features that make it obviously the author's tool rather than a lesser clone.
 
@@ -141,7 +141,7 @@ Status vocabulary: Proposed | Accepted | Superseded by D-NNN | Deprecated.
 **Recorded:** 2026-09-25
 **Status:** Accepted
 **Authors:** Shane Hartley (with Claude discussion 2026-09-03)
-**Related:** F-028, F-029, AV-004
+**Related:** F-028, F-029, AV-004, AV-009
 
 **Context.** The author wants sync configurable to use Google Drive without paying for a hosted service.
 
@@ -215,7 +215,7 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 **Recorded:** 2026-10-12
 **Status:** Accepted
 **Authors:** Shane Hartley (with Claude discussion 2026-10-12)
-**Related:** F-002, F-011, F-020, F-032, D-005, D-007, D-011, AV-010, SPEC.md §Linked roots
+**Related:** F-002, F-011, F-020, F-032, D-005, D-007, D-011, AV-006, AV-010, SPEC.md §Linked roots
 
 **Context.** The author's project repositories live in their own directories under Git, while personal notes live in a vault folder that will sync through Google Drive. Coeus must index both as one knowledge base, and the project repos must not pass through Drive (`.git` directories corrupt under file sync).
 

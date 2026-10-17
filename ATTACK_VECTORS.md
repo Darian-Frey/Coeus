@@ -10,7 +10,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Severity:** Critical
 **Description.** The SQLite index disagrees with the files on disk — a note exists but is not indexed, a deleted note still appears, or backlinks point at stale content. Causes: missed watcher events, inotify watch exhaustion, crashes mid-transaction, rename-based saves seen as delete only.
 **Detection.** Partly implemented. `tests/index/test_rebuild_equivalence.cpp` indexes a fixture vault with a linked root, applies 8 scripted edits (create, delete, rename, touch, duplicate title, alias, linked-root edit, invalid frontmatter) and 150 seeded random ones through `Indexer::update`, and asserts at 15 checkpoints that the index is row-identical to a fresh rebuild. Disabling link re-resolution in `update` makes it fail at the first checkpoint. `Indexer::verify` compares `notes.hash` to disk; not implemented: the "Verify index" command that exposes it in the app.
-**Related decisions.** D-005 (vault is truth, index is cache).
+**Related decisions.** D-005 (vault is truth, index is cache), D-017, D-018, D-019.
 **History.** Identified during scaffolding 2026-09-25.
 
 ### AV-002 Data loss on save or external edit
@@ -31,7 +31,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Severity:** Critical
 **Description.** Two machines edit the same note; sync keeps one and silently discards the other. Also covers the rclone `.conflict-*` file being ignored, and the native Drive provider mis-identifying the common ancestor.
 **Detection.** `tests/sync/test_sync.cpp` drives two vault folders through real rclone and a third folder standing in for Drive: a note edited on both ends as the note plus a conflict copy on both, and a machine joining with an older copy keeps the remote's version as a conflict copy; `tests/ui/test_sync_window.cpp` checks a note open with unsaved changes gets the editor's conflict prompt when sync brings a new version. Both skip where rclone is not installed.
-**Related decisions.** D-007, D-024.
+**Related decisions.** D-007, D-011, D-024.
 **History.** Identified during scaffolding 2026-09-25. 2026-10-17: measured that `rclone bisync --conflict-resolve none` renames both versions so the note vanishes, and that `--resync` overwrites wherever both sides differ; D-024 resolves conflicts as this machine's copy plus a conflict copy, and saves the remote's differing versions before any resync.
 
 ## Performance
@@ -40,7 +40,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Severity:** Major
 **Description.** Indexing a large vault, embedding, `git blame` on a long history, or a sync pass freezes the window. Also covers SQLite write locks held by a worker while the UI thread tries to read.
 **Detection.** not implemented (would require a frame-time watchdog in debug builds logging any main-thread stall over 100 ms, and `tests/perf/test_open_large_vault.cpp` asserting the 500 ms tree target from F-002 on a 1,000-file fixture and 10,000-file stress fixture).
-**Related decisions.** D-002, D-004, D-024 (sync passes run on their own one-thread worker).
+**Related decisions.** D-002, D-004, D-018, D-019, D-024 (sync passes run on their own one-thread worker).
 **History.** Identified during scaffolding 2026-09-25. Since 2026-10-13 every libgit2 call (history, versions, diff, blame) runs on a one-thread Git worker; blame of a 175-line note with 69 commits takes about 40 ms there and is repeated only after typing pauses. Status and commits run there too; push is a background `git` process (D-020), stopped after 120 s. Embedding (D-008) is blocking llama.cpp work, about 40 ms a passage, so it must only ever run on a worker thread.
 
 ## Correctness
@@ -56,7 +56,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Severity:** Major
 **Description.** Vectors from two different models or dimensions end up in the same vector table after a model change, making similarity scores meaningless without any error.
 **Detection.** Implemented for the index. `VectorStore::adopt`, run by the embedding worker and by `coeus --mcp` before they add or compare a vector, drops every vector when `meta.embed_model`/`embed_dim` name another model, and the search skips any vector whose length is not the query's; `tests/search/test_semantic.cpp` changes the recorded model and asserts the vectors are gone. The sidecar is held to the same model and dimension on import (`tests/search/test_sidecar.cpp`, `anotherModelIsNeverImported`).
-**Related decisions.** D-008, D-011.
+**Related decisions.** D-008, D-011, D-018.
 **History.** Identified during scaffolding 2026-09-25. The embeddings sidecar (D-011) is a second entry point for mixed vectors, 2026-10-12. Guarded in the index with D-008's model, 2026-10-14.
 
 ### AV-008 Register parser drift from the documentation standard
@@ -87,11 +87,11 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Description.** An AI session calls `append_entry` or `write_note` and produces a duplicate ID, writes outside the vault, overwrites a note with unsaved editor changes, or inserts a vocabulary value the lint would reject. The same invariants that bind the UI must bind the MCP path.
 **Detection.** Implemented. `NextId`, shared by the window and the MCP write tools, serialises allocation with `BEGIN IMMEDIATE` across connections (`tests/index/test_next_id.cpp`, eight concurrent allocators). `tests/mcp/test_mcp_server.cpp`: writes refused until `allow_writes`; `append_entry` refusing a missing required field, a value outside its vocabulary and a skipped ident without reserving anything, and creating a missing register; `write_note` refusing register files, hidden paths and `..`. `tests/index/test_entry_writer.cpp`: what `append_entry` writes parses back as meant and passes the lint. `tests/ui/test_mcp_window.cpp`, with the real `coeus --mcp` and a window: writes to a note or register open with unsaved changes are refused, `next_id` counts the unsaved IDs, and Undo restores a write or removes a created file but never touches a file changed since. Removing either the unsaved check or Undo's check fails those tests.
 **Related decisions.** D-012, D-021.
-**History.** Identified 2026-10-12. Write tools built with these guards 2026-10-14.
+**History.** Identified 2026-10-12. Write tools built with these guards 2026-10-14. BUG-004 (`next_id` reservations had no cross-process home) was found and fixed under it, 2026-10-12.
 
 ### AV-009 Plaintext leak through the sync provider
 **Severity:** Major
 **Description.** With encryption enabled, a code path (journal files, conflict copies, log output, temp files) reaches the provider unencrypted, or filenames leak note titles.
 **Detection.** not implemented (would require a mock provider in `tests/sync/` that asserts every byte it receives fails a plaintext heuristic when encryption is on, and that `.coeus/` is excluded from sync).
-**Related decisions.** D-007.
+**Related decisions.** D-007, D-017.
 **History.** Identified during scaffolding 2026-09-25.
