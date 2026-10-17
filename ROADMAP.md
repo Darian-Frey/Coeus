@@ -73,7 +73,7 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 4 — Rich Markdown and workspace
 **Goal:** Feature parity with the parts of Obsidian's core that Phase 2 deferred.
-**Status:** Built 2026-10-16 (F-027, F-014, F-023, F-024, F-025 and F-003 on 2026-10-15; F-012 and F-026 on 2026-10-16); acceptance is the author's to confirm. Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step: D-022, accepted 2026-10-15 (Option B)
+**Status:** Complete (2026-10-17): built 2026-10-16 (F-027, F-014, F-023, F-024, F-025 and F-003 on 2026-10-15; F-012 and F-026 on 2026-10-16) and accepted by the author 2026-10-17. Order agreed 2026-10-15: themes and hotkeys (F-027), so later renderers take their colours from the theme; bookmarks and recents (F-014); rich rendering in reading mode (F-025 code highlighting, F-023 embeds, F-024 block references, then Mermaid and maths); live preview (F-003), which reuses that rendering; splits and multi-window (F-012); graph view (F-026). How Mermaid and maths render (Qt WebEngine, native renderers, or not at all) is decided before that part of the rendering step: D-022, accepted 2026-10-15 (Option B)
 **Features delivered:** F-003 (live preview), F-012, F-014, F-023, F-024, F-025, F-026, F-027
 **Deliverables:**
 - [x] Live-preview editing mode

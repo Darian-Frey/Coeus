@@ -77,6 +77,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com).
 - Tool strip buttons without an icon in the desktop's theme (Toggle Tags and Toggle Sidebar on Linux Mint) showed their names; Coeus now ships its own icons as a fallback (`ui/Icons`, `resources/icons/`), so every button has one on any machine. Test `test_main_window`.
 
 ### Changed
+- Phase 4 (Rich Markdown and workspace) accepted by the author: a note using every rich construct renders alike in live preview and reading mode, and windows on two monitors keep their own dock layouts.
 - `registers` drops SPEC's `UNIQUE(project_id, kind, number)` and allows a NULL project, so duplicate IDs are indexed for lint to report (AV-003) instead of failing silently.
 - The sidebar's Properties placeholder is gone: properties sit above the note, as F-008 and the mockup place them.
 - D-014 amended: reading mode uses `HtmlRenderer`, not md4c-html, which is no longer a dependency. The attachment-extension rule moves into `parser/` so the parser does not depend on `index/`.
