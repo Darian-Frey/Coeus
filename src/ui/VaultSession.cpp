@@ -5,6 +5,7 @@
 #include "ui/Editor.hpp"
 #include "ui/MainWindow.hpp"
 #include "ui/McpLink.hpp"
+#include "sync/SyncService.hpp"
 #include "vault/Roots.hpp"
 
 #include <QApplication>
@@ -58,11 +59,8 @@ VaultSession::VaultSession(const Vault& vault)
         [this](const QString& path, const std::optional<QByteArray>& before, const QByteArray& afterHash, const QString& summary) {
             // The window showing the note, else the active one, else the first.
             MainWindow* window = windowFor(path);
-            for (MainWindow* candidate : windows())
-                if (!window && candidate->isActiveWindow())
-                    window = candidate;
-            if (!window && !windows().isEmpty())
-                window = windows().front();
+            if (!window)
+                window = frontWindow();
             if (window)
                 window->showWriteToast(path, before, afterHash, summary);
         },
@@ -81,10 +79,20 @@ VaultSession::VaultSession(const Vault& vault)
 
     loadRoots();
     start();
+
+    // Sync (F-028): after a pass, vectors another machine shared may have
+    // arrived with no note changing, so the embedding worker looks (F-035).
+    m_sync = new SyncService(vault.rootPath(), {}, this);
+    connect(m_sync, &SyncService::finished, this, [this] {
+        if (m_embedding)
+            QMetaObject::invokeMethod(m_embedding, &EmbeddingService::wake, Qt::QueuedConnection);
+    });
 }
 
 VaultSession::~VaultSession()
 {
+    delete m_sync; // stops a pass in hand; bisync recovers it next time (D-024)
+    m_sync = nullptr;
     stop();
     (void)saveRecent();
     m_mcpLink->close();
@@ -195,6 +203,15 @@ QList<MainWindow*> VaultSession::windows() const
         if (window)
             live.append(window);
     return live;
+}
+
+MainWindow* VaultSession::frontWindow() const
+{
+    const QList<MainWindow*> open = windows();
+    for (MainWindow* window : open)
+        if (window->isActiveWindow())
+            return window;
+    return open.isEmpty() ? nullptr : open.front();
 }
 
 MainWindow* VaultSession::windowFor(const QString& absolutePath) const

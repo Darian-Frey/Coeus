@@ -442,25 +442,36 @@ Entries are written in hash order, so the same vectors always make the same file
 
 ## Sync
 
-The provider operates on root 0 only. Excluded paths: `.coeus/`, `.git/`, `*.coeus-tmp-*`. Included: everything else, `.coeus-shared/` in particular.
+The provider operates on root 0 only; linked roots have their own sync (Git, D-010). Excluded paths: `.coeus/`, `.git/`, `*.coeus-tmp-*` and rclone's `*.partial`. Included: everything else, `.coeus-shared/` in particular (D-011).
 
 ```cpp
 class SyncProvider {
 public:
   virtual ~SyncProvider() = default;
-  virtual std::string name() const = 0;
-  virtual std::expected<SyncReport, Error> pull(const Vault&) = 0;
-  virtual std::expected<SyncReport, Error> push(const Vault&) = 0;
-  virtual std::vector<Conflict> conflicts() const = 0;
-  virtual std::expected<void, Error> resolve(const Conflict&, Resolution) = 0;
+  virtual QString name() const = 0;
+  // One pass both ways: the remote's changes in, the vault's out.
+  virtual std::expected<void, SyncError> sync(const QString& vaultPath, Mode mode, const std::atomic_bool& cancel) = 0;
 };
 ```
 
-`SyncReport` lists files added, changed, deleted, and conflicted. A `Conflict` carries the local and remote versions and the common ancestor if the provider knows it. `Resolution` is `KeepLocal | KeepRemote | Merged(text)`. Providers never delete a local file that has unsaved editor changes; they raise a conflict instead (AV-004).
+`Mode` is `Normal`, `Resync` (the first pass with a remote) or `Force` (past a safety abort). `SyncError` says why a pass did not finish: not configured, the tool missing or too old, a resync needed, a safety abort, another sync holding the lock, cancelled, or failed, with one line for the status bar and the tool's own words. The pass is blocking work on the sync worker (`sync/SyncService`, one thread), never the UI thread (AV-005); `cancel` is set when Coeus quits.
 
-`RcloneProvider` runs `rclone bisync <vault> <remote>:<path> --conflict-resolve none --conflict-suffix .conflict-{DateOnly}` on a timer (default 300 s) and reports `.conflict-*` files as conflicts.
+**Conflicts** (D-024, AV-004). Where a file changed on two machines between passes, the machine whose pass meets it keeps its own version as the file, and the other arrives beside it as `<name>.conflictN` (`note.md.conflict1`), on every machine after the next passes. Nothing is overwritten that is not also kept. Coeus finds conflict copies by name, whoever made them (`sync/SyncConflicts`), outside `.coeus/`, `.git/` and `.coeus-shared/` (whose sidecar unites its own, §Embeddings sidecar); they are not notes (not `.md`), so a conflicted register cannot put duplicate IDs in the index. A note open with unsaved changes is never overwritten silently: the file changes on disk under the editor, whose conflict prompt (§Editing) offers to keep the buffer or take the disk's text. Conflicts are resolved only by the author.
 
-Encryption, when enabled, is age-style: a vault key derived from a passphrase with Argon2id; each file encrypted with XChaCha20-Poly1305 before the provider sees it. Filenames are also encrypted. Parameters recorded in `.coeus/config.toml` under `[sync.encryption]`.
+**rclone** (F-028; `sync/RcloneProvider`) needs rclone 1.66 or newer and a remote set up with `rclone config`. A pass runs
+
+```
+rclone bisync <vault> <remote> --workdir <vault>/.coeus/sync --filters-file <vault>/.coeus/sync/filters.txt
+  --conflict-resolve path1 --conflict-loser num --conflict-suffix conflict --resilient --recover --color NEVER
+```
+
+bisync keeps its listings and lock in `.coeus/sync/`, which Coeus writes the filters file into; `--resilient --recover` let a pass interrupted by quitting recover next time. The first pass with a remote (or after bisync lost its state, or the filters changed) stops asking for a **resync**: Coeus asks the author to join the vault and the remote, and only then creates the remote folder (`rclone mkdir`), lists the files that differ (`rclone check --differ`), saves the remote's version of each beside the local one as a conflict copy (`rclone copyto`), and runs bisync with `--resync`, which then copies each side's files to the other with this machine's copy winning. A **safety abort** (bisync refusing when every file, or more than half, would change or be deleted) is reported; only **Sync Anyway** passes `--force`. A remote rclone does not know, or rclone missing, is reported as such.
+
+**Passes.** With `[sync] remote` set in `.coeus/config.toml` (machine-local), the vault's session (one per vault, however many windows show it) runs a pass 5 s after the vault opens, then every `interval_s` seconds after each pass ends, and on **File › Sync Now** (`Ctrl+Alt+Y`). One runs at a time. A pass that needs the author's word (a resync, a safety abort, rclone missing) stops the timer until it is given. After a pass the session wakes the embedding worker, since another machine's vectors may have arrived in the sidecar with no note changing (F-035), and looks for conflict copies; what the pass changed here is found by comparing the vault's files before and after.
+
+**File › Set Up Sync…** asks for the remote and folder as rclone names them (`gdrive:Coeus`; a local folder also works) and saves it; empty turns sync off on this machine. The status bar's sync button shows `⇅ syncing…`, `⇅ synced HH:mm`, `⇅ join the remote?`, `⇅ sync stopped`, `⇅ no rclone` or `⇅ sync failed`, with `· ⚠ N conflicts` while conflict copies wait; its tooltip names the remote, the last pass's time and changes, the tool's words on failure and the conflicted notes. A click does what it says: join, decide on a safety abort, list the conflicts, or sync now. A question is asked once, in the active window (else the first).
+
+Encryption (F-029), when built, is age-style: a vault key derived from a passphrase with Argon2id; each file encrypted with XChaCha20-Poly1305 before the provider sees it. Filenames are also encrypted. Parameters recorded in `.coeus/config.toml` under `[sync.encryption]`. With rclone, a `crypt` remote over Drive does the same meanwhile.
 
 ## MCP surface
 
@@ -691,7 +702,9 @@ Both are per-user preferences, kept in Coeus's settings file (`~/.config/coeus/c
 | `chunk_tokens` | 384 | config.toml `[semantic]` |
 | `chunk_overlap` | 48 | config.toml `[semantic]` |
 | `related_count` | 5 | config.toml `[semantic]` |
-| `sync_interval_s` | 300 | config.toml `[sync]` |
+| `remote` | none (sync off) | config.toml `[sync]` |
+| `interval_s` | 300 | config.toml `[sync]` |
+| `rclone` | `rclone` | config.toml `[sync]` |
 | `autosave_interval_s` | 5 | config.toml `[editor]` |
 | `watcher_debounce_ms` | 200 | config.toml `[vault]` |
 | `allow_writes` | false | config.toml `[mcp]` |

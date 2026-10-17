@@ -541,3 +541,29 @@ Model candidates are to be evaluated for quality on the author's own notes, memo
 - *Amended 2026-10-16, as built:* step 2 moved what there can be only one of per vault into `ui/VaultSession`, shared by the vault's windows and ended by the last: the index service and embedding worker, the MCP link, the linked roots, bookmarks and recent notes. The catalogue and render service stayed per window after all: the catalogue is a read-only snapshot of the shared index, cheap to load twice, and the render service's work is cached on disk, so a second window redraws nothing already drawn. A note moving window takes its unsaved text, cursor and mode but not its undo history, since a `QTextDocument` cannot change hands between editors without carrying the first editor's layout.
 
 **Reversal conditions.** Revisit if the author wants the same note side by side in two panes, which needs editors sharing one buffer and live preview's folding made per view; or if step 2's session split proves too disruptive, in which case Option B stands and the tear-off is withdrawn from F-012.
+
+### D-024 Sync with rclone bisync: one pass, this machine's copy wins, the other kept beside it
+**Decided:** 2026-10-17
+**Recorded:** 2026-10-17
+**Status:** Accepted
+**Authors:** Shane Hartley (order, remote, writes), Claude (options and measurements, 2026-10-17)
+**Related:** F-028, F-029, D-007, D-011, AV-004, AV-005, SPEC.md §Sync
+
+**Context.** Phase 5 begins with F-028: the vault synced to Google Drive through an rclone remote, with F-029 (native Drive) decided later, after living with rclone, as D-007's reversal condition allows. SPEC.md sketched a provider with separate `pull()` and `push()` and `rclone bisync --conflict-resolve none`, and CLAUDE.md's invariants said Coeus never writes a vault file on sync. Measured with rclone v1.75.2 on two vault folders and a third standing in for Drive: `--conflict-resolve none` renames *both* versions of a note edited on two machines (`note.md.conflict1`, `note.md.conflict2`), so the note itself vanishes from both until someone notices, and an editor showing it reports it deleted. The first run against a remote needs `--resync`, which copies either way and, where both sides hold a file that differs, overwrites one with the other: a laptop holding an old copy of the vault would replace the desktop's newer notes without a word. A run where every file changed stops with a safety abort.
+
+**Options.**
+- **A. Separate pull and push, as SPEC.md sketched.** bisync is one operation in both directions; splitting it means two one-way `rclone sync`s and a hand-made record of what was deleted where, which is what bisync already keeps.
+- **B. One bisync pass, `--conflict-resolve none`.** No loss, but the note disappears behind two renamed copies.
+- **C. One bisync pass, `--conflict-resolve path1 --conflict-loser num`; Coeus guards the first resync.** Chosen. The machine that meets the conflict keeps its version as the note and the other arrives beside it as `<name>.conflictN`, on every machine. Before a resync, Coeus lists the files that differ (`rclone check`) and saves the remote's version of each beside the local one as a conflict copy first, so the resync overwrites nothing that is not also kept.
+
+**Decision.** Option C. The author chose rclone now and native Drive later, the official rclone release (1.66 or newer for these flags), a Google Drive remote, and that sync may write vault files.
+
+**Consequences.**
+- `SyncProvider` has one `sync()` pass in place of `pull()` and `push()`; conflicts are found and resolved by Coeus, not the provider (`sync/SyncConflicts`), so a later provider can produce the same conflict copies and reuse the resolution.
+- CLAUDE.md's write invariant is amended: once the author has configured a remote, sync writes the vault through rclone. A note open with unsaved changes is never overwritten silently: the editor's own conflict prompt (AV-002) shows the disk changed under it. Conflicts are resolved only by the author's command.
+- `<name>.conflictN` copies are not notes (not `.md`), so a conflicted register cannot put duplicate IDs in the index; they are shown until resolved.
+- bisync's state lives in `.coeus/sync/` (machine-local, never synced), with `--resilient --recover` so an interrupted pass, as when Coeus quits mid-sync, recovers without a resync.
+- A safety abort is reported, and only the author's Sync Anyway passes `--force`.
+- Encryption (SPEC.md §Sync) stays with F-029; with rclone, a `crypt` remote over Drive does it.
+
+**Reversal conditions.** Revisit if bisync's conflict handling or its safety aborts prove troublesome in daily use, or if the native Drive provider (F-029) is built, which would then decide its own conflict handling but keep the conflict copies' form.

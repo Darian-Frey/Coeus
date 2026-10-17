@@ -17,7 +17,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Severity:** Critical
 **Description.** A note is truncated, half-written, or overwritten with stale editor contents. Causes: non-atomic write interrupted by crash; editor saving over a file changed on disk since it was loaded; sync provider replacing a file with unsaved editor changes.
 **Detection.** Implemented. `tests/vault/test_atomic_writer.cpp` kills a helper process mid-write 40 times on a 4 MB file and asserts the target is always wholly the old or wholly the new content. `tests/ui/test_editor.cpp` asserts a save over an external change is refused until resolved. `tests/ui/test_conflict_prompt.cpp` drives the app end to end: an external edit to a note with unsaved changes prompts and clobbers nothing, a save over an external change prompts, unsaved work survives a simulated crash through the journal, and closing a modified tab asks. `tests/vault/test_journal.cpp` covers the journal format and recovery rules. Not yet covered: the sync provider path (Phase 5).
-**Related decisions.** D-005.
+**Related decisions.** D-005, D-024 (a sync bringing a new version of a note open with unsaved changes meets the same conflict prompt).
 **History.** Identified during scaffolding 2026-09-25.
 
 ### AV-003 Register ID collision or renumbering
@@ -30,9 +30,9 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 ### AV-004 Sync conflict clobbers a version
 **Severity:** Critical
 **Description.** Two machines edit the same note; sync keeps one and silently discards the other. Also covers the rclone `.conflict-*` file being ignored, and the native Drive provider mis-identifying the common ancestor.
-**Detection.** not implemented (would require `tests/sync/test_conflict.cpp` driving two vault fixtures through a mock provider and asserting a `Conflict` is raised, never a silent overwrite).
-**Related decisions.** D-007.
-**History.** Identified during scaffolding 2026-09-25.
+**Detection.** `tests/sync/test_sync.cpp` drives two vault folders through real rclone and a third folder standing in for Drive: a note edited on both ends as the note plus a conflict copy on both, and a machine joining with an older copy keeps the remote's version as a conflict copy; `tests/ui/test_sync_window.cpp` checks a note open with unsaved changes gets the editor's conflict prompt when sync brings a new version. Both skip where rclone is not installed.
+**Related decisions.** D-007, D-024.
+**History.** Identified during scaffolding 2026-09-25. 2026-10-17: measured that `rclone bisync --conflict-resolve none` renames both versions so the note vanishes, and that `--resync` overwrites wherever both sides differ; D-024 resolves conflicts as this machine's copy plus a conflict copy, and saves the remote's differing versions before any resync.
 
 ## Performance
 
@@ -40,7 +40,7 @@ Severity: Critical (must hold) | Major (regression on release blocks) | Minor (t
 **Severity:** Major
 **Description.** Indexing a large vault, embedding, `git blame` on a long history, or a sync pass freezes the window. Also covers SQLite write locks held by a worker while the UI thread tries to read.
 **Detection.** not implemented (would require a frame-time watchdog in debug builds logging any main-thread stall over 100 ms, and `tests/perf/test_open_large_vault.cpp` asserting the 500 ms tree target from F-002 on a 1,000-file fixture and 10,000-file stress fixture).
-**Related decisions.** D-002, D-004.
+**Related decisions.** D-002, D-004, D-024 (sync passes run on their own one-thread worker).
 **History.** Identified during scaffolding 2026-09-25. Since 2026-10-13 every libgit2 call (history, versions, diff, blame) runs on a one-thread Git worker; blame of a 175-line note with 69 commits takes about 40 ms there and is repeated only after typing pauses. Status and commits run there too; push is a background `git` process (D-020), stopped after 120 s. Embedding (D-008) is blocking llama.cpp work, about 40 ms a passage, so it must only ever run on a worker thread.
 
 ## Correctness

@@ -93,10 +93,12 @@ Phases are append-only. Mark Complete with an ISO 8601 date.
 
 ## Phase 5 — Sync
 **Goal:** Vault available on a second Linux machine with conflict safety.
-**Status:** Not started
+**Status:** In progress. Order agreed 2026-10-17: rclone first (F-028), the native Google Drive provider (F-029) decided after living with it (D-007, D-024). F-028 step 1 built 2026-10-17
 **Features delivered:** F-028, F-029
 **Deliverables:**
 - [ ] `SyncProvider` interface and rclone implementation over root 0 only, `.coeus/` excluded, `.coeus-shared/` included (`src/sync/`)
+  - [x] Step 1: the provider, passes on a timer and on command, status bar, join and Sync Anyway prompts (`src/sync/RcloneProvider.cpp`, `src/sync/SyncService.cpp`; D-024)
+  - [ ] Step 2: resolving conflicts in the window
 - [ ] Native Google Drive provider with OAuth, change log, three-way merge, optional encryption
 **Acceptance:** Desktop and laptop converge on the same vault after a sync with each rebuilding its own index; the laptop imports the desktop's embeddings from the sidecar and embeds only changed chunks; concurrent edits to the same note on two machines produce a conflict prompt, never silent loss (AV-004).
 

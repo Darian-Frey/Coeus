@@ -25,6 +25,7 @@ All of these are required to build. CMake also downloads llama.cpp's source (rel
 | git (run time, optional) | any | Only for push after a commit (D-020); everything else works without it |
 | llama.cpp | b10926 | Fetched and built by CMake; runs the embedding model (D-008) |
 | LaTeX and dvisvgm (run time, optional) | any | Draw `$maths$` in reading mode (D-022): `latex` and `dvisvgm` on PATH, as TeX Live provides (`sudo apt install texlive-latex-base dvisvgm`); without them maths shows as code |
+| rclone 1.66+ (run time, optional) | 1.66 | Sync (F-028, D-024): the official release, `sudo -v ; curl https://rclone.org/install.sh \| sudo bash` (distribution packages may be older); then `rclone config` to add a Google Drive remote, and File › Set Up Sync… in Coeus. `test_sync` and `test_sync_window` use it, or `$COEUS_RCLONE`, and are skipped without it |
 | Chrome or Chromium (run time, optional) | any | Draws ```` ```mermaid ```` diagrams in reading mode (D-022), headless, with the Mermaid 11.4.1 script vendored in `resources/mermaid/`; without one they show as code |
 
 Vectors live in an ordinary SQLite table, not `sqlite-vec` (D-008 amended).

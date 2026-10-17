@@ -232,7 +232,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - `SyncProvider` interface with push/pull/conflict-report methods (SPEC.md §Sync)
 - First implementation shells out to `rclone bisync` on a timer against a configured remote
 - Sync status and last-sync time in the status bar
-**Status:** Not started (Phase 5)
+**Status:** In progress (Phase 5): step 1 built 2026-10-17, `SyncProvider` with one `sync()` pass, `RcloneProvider` (bisync, this machine's copy wins, the other kept as a conflict copy, the first resync guarded), passes on a timer and Sync Now, Set Up Sync…, the status-bar button and the join and Sync Anyway prompts (D-024, SPEC.md §Sync). Step 2: resolving conflicts in the window
 
 ### F-029 Native Google Drive sync
 **Priority:** Should
@@ -240,7 +240,7 @@ A solo developer-researcher who keeps personal notes and a dozen project reposit
 - OAuth sign-in; per-note change log; three-way merge on conflict with a resolution UI
 - Optional client-side encryption so Drive holds only ciphertext
 - Version history per note retrievable from Drive
-**Status:** Not started (Phase 5)
+**Status:** Not started (Phase 5): to be decided after living with the rclone provider (D-007, D-024), whose conflict copies it would keep
 
 ### Later
 

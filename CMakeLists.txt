@@ -138,6 +138,9 @@ add_library(coeus_core STATIC
     src/ui/LivePreview.cpp
     src/ui/Workspace.cpp
     src/ui/VaultSession.cpp
+    src/sync/SyncConflicts.cpp
+    src/sync/RcloneProvider.cpp
+    src/sync/SyncService.cpp
     src/ui/ForceLayout.cpp
     src/ui/GraphView.cpp
     src/ui/GraphPanel.cpp

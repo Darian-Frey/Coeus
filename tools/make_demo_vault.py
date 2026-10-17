@@ -244,6 +244,14 @@ def build_vault(vault: Path, linked: Path) -> None:
         - The sidebar's **Graph** section is this note's own neighbourhood;
           raise **Depth** to reach further.
 
+        ## Sync
+        - With rclone installed, **File › Set Up Sync…** and give it a plain
+          folder, such as `/tmp/coeus-remote`, to try sync without Google
+          Drive. The first sync asks to join; after that the status bar's
+          `⇅` shows each pass. Build a second demo vault, point it at the same
+          folder, edit one note in both and sync each: the note stays, and the
+          other version waits beside it as `….md.conflict1`.
+
         ## Reading mode
         - `Ctrl+E` here, then open [[Markdown showcase]] and toggle it: callouts,
           tables, tasks, highlights, images, code that never turns into links.

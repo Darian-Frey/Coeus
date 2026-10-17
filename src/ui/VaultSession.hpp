@@ -25,6 +25,7 @@ class EmbeddingService;
 class IndexService;
 class MainWindow;
 class McpLink;
+class SyncService;
 
 // One vault's session, shared by every window that has the vault open
 // (F-012, D-023): what there can be only one of per vault. The index
@@ -57,6 +58,8 @@ public:
     IndexService* index() const { return m_index; }
     EmbeddingService* embedding() const { return m_embedding; }
     McpLink* mcpLink() const { return m_mcpLink; }
+    // The vault's sync (F-028): one per vault, however many windows show it.
+    SyncService* sync() const { return m_sync; }
     // For a window attaching after the workers have reported: the note count
     // and problems once the index has opened, and the embedding's last word.
     std::optional<std::pair<int, QStringList>> indexState() const { return m_indexState; }
@@ -67,6 +70,8 @@ public:
     void attach(MainWindow* window);
     void detach(MainWindow* window);
     QList<MainWindow*> windows() const;
+    // The window to ask or tell something once for the vault: the active one, else the first.
+    MainWindow* frontWindow() const;
 
     // Bookmarks (F-014): saved at once, and shown in every window.
     const QList<Bookmark>& bookmarks() const { return m_bookmarks; }
@@ -101,6 +106,7 @@ private:
     QThread* m_embedThread = nullptr;
     EmbeddingService* m_embedding = nullptr;
     McpLink* m_mcpLink = nullptr;
+    SyncService* m_sync = nullptr;
     std::optional<std::pair<int, QStringList>> m_indexState;
     std::optional<std::pair<int, int>> m_embeddingState;
     std::optional<QString> m_embeddingUnavailable;

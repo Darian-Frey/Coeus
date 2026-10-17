@@ -20,6 +20,7 @@
 #include "index/IndexQueries.hpp"
 #include "index/IndexService.hpp"
 #include "search/EmbeddingService.hpp"
+#include "sync/SyncService.hpp"
 #include "parser/RegisterParser.hpp"
 #include "parser/Transclusion.hpp"
 #include "registers/Lint.hpp"
@@ -65,6 +66,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFutureWatcher>
+#include <QInputDialog>
 #include <QUrl>
 #include <QLabel>
 #include <QLineEdit>
@@ -506,6 +508,18 @@ void MainWindow::createActions()
     fileMenu->addAction(m_compactSidecar);
     fileMenu->addAction(m_gitignoreAction);
     fileMenu->addSeparator();
+    // Sync (F-028): the vault with an rclone remote.
+    auto* syncNowAction = new QAction(tr("S&ync Now"), this);
+    syncNowAction->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_Y));
+    connect(syncNowAction, &QAction::triggered, this, &MainWindow::syncNow);
+    auto* setUpSyncAction = new QAction(tr("Set &Up Sync…"), this);
+    connect(setUpSyncAction, &QAction::triggered, this, &MainWindow::setUpSync);
+    for (QAction* action : {syncNowAction, setUpSyncAction}) {
+        fileMenu->addAction(action);
+        addAction(action);
+        registerAction(action);
+    }
+    fileMenu->addSeparator();
     fileMenu->addAction(quit);
 
     QMenu* viewMenu = menuBar()->addMenu(tr("&View"));
@@ -706,6 +720,24 @@ void MainWindow::createStatusBar()
     m_gitButton->hide();
     connect(m_gitButton, &QToolButton::clicked, this, &MainWindow::openCommitDialog);
     statusBar()->addPermanentWidget(m_gitButton);
+    m_syncButton = new QToolButton;
+    m_syncButton->setAutoRaise(true);
+    m_syncButton->hide(); // until sync is set up
+    connect(m_syncButton, &QToolButton::clicked, this, [this] {
+        SyncService* sync = m_session ? m_session->sync() : nullptr;
+        if (!sync)
+            return;
+        // The button does what the bar asks for.
+        if (const auto error = sync->lastError(); error && error->kind == SyncError::Kind::NeedsResync)
+            offerSyncJoin();
+        else if (error && error->kind == SyncError::Kind::SafetyAbort)
+            offerSyncForce(error->detail);
+        else if (!sync->conflicts().isEmpty())
+            showSyncConflicts();
+        else
+            syncNow();
+    });
+    statusBar()->addPermanentWidget(m_syncButton);
     m_semanticLabel = new QLabel;
     m_semanticLabel->hide();
     statusBar()->addPermanentWidget(m_semanticLabel);
@@ -1046,6 +1078,17 @@ void MainWindow::attachSession(std::shared_ptr<VaultSession> session, bool creat
     connect(m_session.get(), &VaultSession::bookmarksChanged, this, &MainWindow::presentBookmarks);
     connect(m_session.get(), &VaultSession::warning, this,
             [this](const QString& message) { statusBar()->showMessage(message, kStatusTimeoutMs * 2); });
+    SyncService* sync = m_session->sync();
+    for (auto signal : {&SyncService::started, &SyncService::reconfigured})
+        connect(sync, signal, this, &MainWindow::updateSyncStatus);
+    connect(sync, &SyncService::conflictsChanged, this, &MainWindow::updateSyncStatus);
+    connect(sync, &SyncService::failed, this, &MainWindow::onSyncFailed);
+    connect(sync, &SyncService::finished, this, [this](const SyncReport& report) {
+        updateSyncStatus();
+        if (!report.changed.isEmpty() && m_session->frontWindow() == this)
+            statusBar()->showMessage(tr("Synced: %n change(s) brought in", nullptr, int(report.changed.size())), kStatusTimeoutMs);
+    });
+    updateSyncStatus();
     m_render->setVault(vaultPath);
     presentBookmarks();
     setWindowTitle(QStringLiteral("%1 — Coeus").arg(m_vault->name()));
@@ -1069,12 +1112,202 @@ void MainWindow::detachSession()
         disconnect(m_session->index(), nullptr, this, nullptr);
     if (m_session->embedding())
         disconnect(m_session->embedding(), nullptr, this, nullptr);
+    disconnect(m_session->sync(), nullptr, this, nullptr);
     m_session->detach(this);
     m_session.reset(); // the last window's stops the workers
     m_semanticLabel->hide();
     m_verifyIndex->setEnabled(false);
     m_rebuildIndex->setEnabled(false);
     m_compactSidecar->setEnabled(false);
+    m_syncButton->hide();
+}
+
+void MainWindow::setUpSync()
+{
+    if (!m_vault || !m_session) {
+        statusBar()->showMessage(tr("Open a vault first"), kStatusTimeoutMs);
+        return;
+    }
+    auto* dialog = new QInputDialog(this);
+    dialog->setObjectName(QStringLiteral("syncSetUp"));
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle(tr("Set Up Sync"));
+    dialog->setLabelText(tr("The rclone remote and folder this vault syncs with, as rclone names them, "
+                            "for example gdrive:Coeus.\nSet the remote up first with rclone config. "
+                            "Leave it empty to turn sync off on this machine."));
+    dialog->setTextValue(SyncService::configuredRemote(m_vault->rootPath()));
+    connect(dialog, &QInputDialog::textValueSelected, this, [this](const QString& text) {
+        if (!m_vault || !m_session)
+            return;
+        // Machine-local, in .coeus/config.toml, never synced (D-011).
+        if (auto saved = VaultConfig::setString(m_vault->rootPath(), "sync", "remote", text.trimmed()); !saved) {
+            statusBar()->showMessage(tr("Sync not set up: %1").arg(saved.error()), kStatusTimeoutMs * 2);
+            return;
+        }
+        m_session->sync()->reconfigure();
+        statusBar()->showMessage(text.trimmed().isEmpty() ? tr("Sync is off on this machine") : tr("Syncing with %1").arg(text.trimmed()),
+                                 kStatusTimeoutMs);
+    });
+    dialog->open();
+}
+
+void MainWindow::syncNow()
+{
+    SyncService* sync = m_session ? m_session->sync() : nullptr;
+    if (!sync) {
+        statusBar()->showMessage(tr("Open a vault first"), kStatusTimeoutMs);
+        return;
+    }
+    if (!sync->isConfigured()) {
+        setUpSync();
+        return;
+    }
+    if (const auto error = sync->lastError(); error && error->kind == SyncError::Kind::NeedsResync) {
+        offerSyncJoin(); // a plain pass would only stop again
+        return;
+    }
+    if (!sync->syncNow())
+        statusBar()->showMessage(tr("A sync is already running"), kStatusTimeoutMs);
+}
+
+void MainWindow::updateSyncStatus()
+{
+    SyncService* sync = m_session ? m_session->sync() : nullptr;
+    if (!sync || !sync->isConfigured()) {
+        m_syncButton->hide();
+        return;
+    }
+    QString text;
+    QStringList tip{tr("Syncs with %1 through rclone (F-028)").arg(SyncService::configuredRemote(m_vault->rootPath()))};
+    const auto error = sync->lastError();
+    if (sync->isRunning()) {
+        text = tr("⇅ syncing…");
+    } else if (error && error->kind != SyncError::Kind::Cancelled) {
+        switch (error->kind) {
+        case SyncError::Kind::NeedsResync:
+            text = tr("⇅ join the remote?");
+            break;
+        case SyncError::Kind::SafetyAbort:
+            text = tr("⇅ sync stopped");
+            break;
+        case SyncError::Kind::ToolMissing:
+            text = tr("⇅ no rclone");
+            break;
+        default:
+            text = tr("⇅ sync failed");
+        }
+        tip << error->message;
+        if (!error->detail.isEmpty() && error->detail != error->message)
+            tip << error->detail;
+    } else if (const auto report = sync->lastReport()) {
+        text = tr("⇅ synced %1").arg(QLocale().toString(report->finished.time(), QStringLiteral("HH:mm")));
+        tip << tr("Last synced %1; %n change(s) brought in", nullptr, int(report->changed.size()))
+                   .arg(report->finished.toString(Qt::ISODate));
+    } else {
+        text = tr("⇅ not synced yet");
+    }
+    if (const qsizetype conflicts = sync->conflicts().size(); conflicts > 0) {
+        text += QStringLiteral(" · ") + tr("⚠ %n conflict(s)", nullptr, int(conflicts));
+        tip << tr("Other versions kept beside:");
+        for (const SyncConflict& conflict : sync->conflicts())
+            tip << QStringLiteral("  ") + displayPath(conflict.notePath);
+    }
+    if (!sync->isRunning())
+        tip << (error && error->kind == SyncError::Kind::NeedsResync ? tr("Click to join the vault and the remote")
+                : error && error->kind == SyncError::Kind::SafetyAbort ? tr("Click to decide")
+                : !sync->conflicts().isEmpty()                         ? tr("Click to see the conflicts")
+                                                                       : tr("Click to sync now (Ctrl+Alt+Y)"));
+    m_syncButton->setText(text);
+    m_syncButton->setToolTip(tip.join(QLatin1Char('\n')));
+    m_syncButton->show();
+}
+
+void MainWindow::onSyncFailed(const SyncError& error)
+{
+    updateSyncStatus();
+    if (!m_session || m_session->frontWindow() != this)
+        return; // asked once, in one window
+    switch (error.kind) {
+    case SyncError::Kind::NeedsResync:
+        offerSyncJoin();
+        break;
+    case SyncError::Kind::SafetyAbort:
+        offerSyncForce(error.detail);
+        break;
+    default:
+        statusBar()->showMessage(tr("Sync failed: %1").arg(error.message), kStatusTimeoutMs * 2);
+    }
+}
+
+void MainWindow::offerSyncJoin()
+{
+    if (m_syncPrompt) {
+        m_syncPrompt->raise();
+        return;
+    }
+    const QString remote = m_vault ? SyncService::configuredRemote(m_vault->rootPath()) : QString();
+    auto* box = new QMessageBox(QMessageBox::Question, tr("Join the vault and %1?").arg(remote),
+                                tr("This is the first sync between this vault and %1 on this machine.").arg(remote),
+                                QMessageBox::NoButton, this);
+    box->setObjectName(QStringLiteral("syncJoinPrompt"));
+    box->setInformativeText(tr("Files only on one side are copied to the other. Where both have a file and they differ, "
+                               "this machine's copy stays and the remote's is kept beside it as a conflict copy, "
+                               "so nothing is lost (D-024)."));
+    QPushButton* join = box->addButton(tr("Join"), QMessageBox::AcceptRole);
+    join->setObjectName(QStringLiteral("join"));
+    box->addButton(tr("Not Now"), QMessageBox::RejectRole)->setObjectName(QStringLiteral("later"));
+    box->setDefaultButton(join);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    connect(box, &QMessageBox::buttonClicked, this, [this, join](QAbstractButton* button) {
+        if (button == join && m_session)
+            m_session->sync()->syncNow(SyncProvider::Mode::Resync);
+    });
+    m_syncPrompt = box;
+    box->open();
+}
+
+void MainWindow::offerSyncForce(const QString& detail)
+{
+    if (m_syncPrompt) {
+        m_syncPrompt->raise();
+        return;
+    }
+    auto* box = new QMessageBox(QMessageBox::Warning, tr("Sync stopped"),
+                                tr("rclone stopped this sync because too much would change at once."), QMessageBox::NoButton, this);
+    box->setObjectName(QStringLiteral("syncForcePrompt"));
+    box->setInformativeText(tr("That happens when many files were changed or deleted on one side, as after moving a folder. "
+                               "If that was you, sync anyway; if not, look at the vault and the remote first."));
+    if (!detail.isEmpty())
+        box->setDetailedText(detail);
+    QPushButton* force = box->addButton(tr("Sync Anyway"), QMessageBox::DestructiveRole);
+    force->setObjectName(QStringLiteral("force"));
+    QPushButton* later = box->addButton(tr("Not Now"), QMessageBox::RejectRole);
+    later->setObjectName(QStringLiteral("later"));
+    box->setDefaultButton(later);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    connect(box, &QMessageBox::buttonClicked, this, [this, force](QAbstractButton* button) {
+        if (button == force && m_session)
+            m_session->sync()->syncNow(SyncProvider::Mode::Force);
+    });
+    m_syncPrompt = box;
+    box->open();
+}
+
+void MainWindow::showSyncConflicts()
+{
+    if (!m_session)
+        return;
+    QStringList lines;
+    for (const SyncConflict& conflict : m_session->sync()->conflicts())
+        lines << tr("%1 — the other version is %2").arg(displayPath(conflict.notePath), QFileInfo(conflict.copyPath).fileName());
+    auto* box = new QMessageBox(QMessageBox::Information, tr("Sync conflicts"),
+                                tr("%n note(s) changed on two machines; the other version of each is kept beside it.", nullptr,
+                                   int(lines.size())),
+                                QMessageBox::Ok, this);
+    box->setObjectName(QStringLiteral("syncConflicts"));
+    box->setInformativeText(lines.join(QLatin1Char('\n')));
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->open();
 }
 
 void MainWindow::checkGitignore(const QString& vaultPath, bool onOpen)

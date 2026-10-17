@@ -49,6 +49,7 @@ struct GitCommit;
 class RegisterPanel;
 class RelatedPanel;
 struct ProjectRef;
+struct SyncError;
 class SearchPanel;
 class BookmarksPanel;
 class RenderService;
@@ -123,6 +124,10 @@ public:
     // F-033: the link `coeus --mcp` uses to ask about open notes and report writes.
     McpLink* mcpLink() const { return m_session ? m_session->mcpLink() : nullptr; }
     QList<WriteToast*> toasts() const;
+    // F-028: Set Up Sync… asks for the rclone remote; the status bar's sync button.
+    void setUpSync();
+    void syncNow();
+    QToolButton* syncButton() const { return m_syncButton; }
     QDockWidget* boardDock() const { return m_boardDock; }
     HistoryPanel* history() const { return m_history; }
     RelatedPanel* related() const { return m_related; }
@@ -262,6 +267,12 @@ private:
     void removeAllTabs(); // without asking: after confirmCloseAll()
     // Connects to the session's index and embedding workers, and shows what they have reported.
     void connectWorkers();
+    // Sync (F-028, D-024): the status-bar button, and asking the author when a pass needs their word.
+    void updateSyncStatus();
+    void onSyncFailed(const SyncError& error);
+    void offerSyncJoin();
+    void offerSyncForce(const QString& detail);
+    void showSyncConflicts();
     void checkGitignore(const QString& vaultPath, bool onOpen);
     void offerGitignore(const QString& vaultPath, const QStringList& patterns);
     void addToGitignore(const QString& vaultPath, const QStringList& patterns);
@@ -326,6 +337,8 @@ private:
     QLabel* m_indexLabel = nullptr;
     QToolButton* m_problemsButton = nullptr;
     QToolButton* m_gitButton = nullptr;
+    QToolButton* m_syncButton = nullptr;
+    QPointer<QMessageBox> m_syncPrompt; // one question about sync at a time
     CommitDialog* m_commitDialog = nullptr;
     GitCommand* m_push = nullptr;
     QTimer* m_gitStatusTimer = nullptr;
